@@ -1,3 +1,13 @@
+# Worktic AI V14 — Render Production Candidate
+
+Versión preparada para despliegue Docker en Render con disco persistente, endpoints de salud, apagado controlado, cookies seguras en producción y almacenamiento multi-tenant configurable. Lee `RENDER_DEPLOYMENT.md` y `V14_PRODUCTION_CHECKLIST.md` antes de abrir el registro público.
+
+# Worktic AI V13.1 — Team WhatsApp Premium
+
+Versión multitenant con canales aislados, sistema multiagente, facturación por planes, invitaciones de equipo por WhatsApp, CRUD profesional y diseño premium responsive.
+
+Consulta `V13_1_TEAM_WHATSAPP_PREMIUM.md` para conocer las mejoras y el flujo de invitación.
+
 # Worktic AI V13 Multi-Tenant Channels
 
 Plataforma omnicanal con CRM, sistema multiagente, campañas, landing pages, grupos, facturación y conexiones físicamente separadas por tenant.
@@ -40,3 +50,11 @@ Lee `V13_MULTI_TENANT_CHANNELS.md` y `PRODUCTION_READINESS.md` antes del desplie
 ## Estado
 
 V13 es una base de migración y pruebas preproducción. Debe compilarse y probarse en el servidor de destino, validar los permisos reales de Meta, configurar HTTPS, backups, correo, claves seguras y observabilidad antes de abrir el registro público.
+
+## Corrección V13.0.3
+
+Se separó la experiencia de cuenta personal, cuenta empresarial y superadministración. Consulta `V13_0_3_ROLES_PROFILE_BILLING.md`.
+
+## Inicio en Windows V13.0.4
+
+Ejecuta primero `DESBLOQUEAR_WINDOWS.bat`, después `INSTALAR_DEPENDENCIAS_WINDOWS.bat` y finalmente `INICIAR_WINDOWS.bat`. El iniciador usa una ruta absoluta para el ejecutable y espera antes de abrir el navegador.

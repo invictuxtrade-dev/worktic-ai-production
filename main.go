@@ -14,11 +14,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/skip2/go-qrcode"
@@ -35,6 +38,9 @@ import (
 type Config struct {
 	Port                     string
 	AppName                  string
+	AppEnv                   string
+	BaseURL                  string
+	DataDir                  string
 	DatabaseDSN              string
 	MaxMessageLength         int
 	SendCooldownSeconds      int
@@ -118,13 +124,15 @@ type Opportunity struct {
 }
 
 type User struct {
-	ID        int64  `json:"id"`
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
-	Active    bool   `json:"active"`
-	CreatedAt string `json:"created_at"`
-	Company   string `json:"company"`
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Email       string `json:"email"`
+	Role        string `json:"role"`
+	Active      bool   `json:"active"`
+	CreatedAt   string `json:"created_at"`
+	Company     string `json:"company"`
+	TenantID    int64  `json:"tenant_id"`
+	AccountType string `json:"account_type"`
 }
 
 type Product struct {
@@ -230,6 +238,9 @@ type App struct {
 func main() {
 	loadEnvFile(".env")
 	cfg := loadConfig()
+	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
+		log.Fatalf("no se pudo preparar DATA_DIR: %v", err)
+	}
 	dbPath := strings.TrimPrefix(strings.Split(cfg.DatabaseDSN, "?")[0], "file:")
 	if dir := filepath.Dir(dbPath); dir != "." && dir != "" {
 		_ = os.MkdirAll(dir, 0o755)
@@ -287,9 +298,14 @@ func main() {
 	mux.HandleFunc("/api/auth/register", app.registerHandler)
 	mux.HandleFunc("/api/auth/logout", app.authLogoutHandler)
 	mux.HandleFunc("/api/auth/me", app.meHandler)
+	mux.HandleFunc("/api/account/profile", app.accountProfileHandler)
 	mux.HandleFunc("/api/admin/users", app.usersHandler)
+	mux.HandleFunc("/api/team/invitations", app.teamInvitationsHandler)
+	mux.HandleFunc("/api/team/invitations/accept", app.acceptTeamInvitationHandler)
 	mux.HandleFunc("/api/products", app.productsHandler)
 	mux.HandleFunc("/api/appointments", app.appointmentsHandler)
+	mux.HandleFunc("/healthz", app.healthHandler)
+	mux.HandleFunc("/readyz", app.readyHandler)
 	mux.HandleFunc("/api/status", app.statusHandler)
 	mux.HandleFunc("/api/channels/connections", app.channelConnectionsHandler)
 	mux.HandleFunc("/api/channels/action", app.channelActionHandler)
@@ -345,16 +361,69 @@ func main() {
 	mux.HandleFunc("/l/", app.publicLandingHandler)
 	mux.Handle("/", http.FileServer(http.Dir("./static")))
 
-	server := &http.Server{Addr: ":" + cfg.Port, Handler: secureHeaders(app.authMiddleware(mux)), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second}
-	log.Printf("%s activo en http://localhost:%s", cfg.AppName, cfg.Port)
-	log.Fatal(server.ListenAndServe())
+	server := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           secureHeaders(app.authMiddleware(mux)),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       90 * time.Second,
+	}
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		log.Printf("%s activo en :%s (%s)", cfg.AppName, cfg.Port, cfg.AppEnv)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("servidor HTTP: %v", err)
+		}
+	}()
+
+	<-stop
+	log.Printf("apagado controlado iniciado")
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	_ = server.Shutdown(ctx)
+	if app.channelManager != nil {
+		app.channelManager.shutdown()
+	}
+	if app.client != nil {
+		app.client.Disconnect()
+	}
+	_ = db.Close()
+	log.Printf("apagado completado")
+}
+
+func (a *App) healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
+func (a *App) readyHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if err := a.db.PingContext(ctx); err != nil {
+		writeError(w, errors.New("base de datos no disponible"), http.StatusServiceUnavailable)
+		return
+	}
+	writeJSON(w, map[string]any{"status": "ready", "environment": a.cfg.AppEnv})
 }
 
 func loadConfig() Config {
+	dataDir := env("DATA_DIR", "data")
+	port := env("PORT", env("APP_PORT", "8080"))
+	dsn := env("DATABASE_DSN", "")
+	if dsn == "" {
+		dsn = "file:" + filepath.Join(dataDir, "worktic.db") + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+	}
 	return Config{
-		Port:                     env("APP_PORT", "8080"),
-		AppName:                  env("APP_NAME", "Worktic AI V13 Multi-Tenant Channels"),
-		DatabaseDSN:              env("DATABASE_DSN", "file:data/worktic.db?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"),
+		Port:                     port,
+		AppName:                  env("APP_NAME", "Worktic AI V14 Render Production"),
+		AppEnv:                   strings.ToLower(env("APP_ENV", "development")),
+		BaseURL:                  strings.TrimRight(env("BASE_URL", "http://localhost:"+port), "/"),
+		DataDir:                  dataDir,
+		DatabaseDSN:              dsn,
 		MaxMessageLength:         envInt("MAX_MESSAGE_LENGTH", 2000),
 		SendCooldownSeconds:      envInt("SEND_COOLDOWN_SECONDS", 3),
 		AutoReplyCooldownSeconds: envInt("AUTO_REPLY_COOLDOWN_SECONDS", 30),
@@ -417,6 +486,12 @@ CREATE TABLE IF NOT EXISTS usage_monthly (
  user_id INTEGER NOT NULL, period TEXT NOT NULL, ai_responses INTEGER NOT NULL DEFAULT 0,
  PRIMARY KEY(user_id,period)
 );
+CREATE TABLE IF NOT EXISTS team_invitations (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id INTEGER NOT NULL, invited_by INTEGER NOT NULL, name TEXT NOT NULL DEFAULT '',
+ phone TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'agent', area TEXT NOT NULL DEFAULT '', token TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'pending',
+ expires_at TEXT NOT NULL, accepted_user_id INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, accepted_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_team_invites_tenant ON team_invitations(tenant_id,status,created_at DESC);
 `)
 	if err != nil {
 		return err
@@ -1372,6 +1447,18 @@ func (a *App) crmContactsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, map[string]any{"ok": true})
+	case http.MethodDelete:
+		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+		if id == 0 {
+			writeError(w, errors.New("contacto inválido"), 400)
+			return
+		}
+		_, err := a.db.Exec(`DELETE FROM crm_contacts WHERE id=?`, id)
+		if err != nil {
+			writeError(w, err, 500)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
 	default:
 		http.Error(w, "Método no permitido", 405)
 	}
@@ -1414,6 +1501,18 @@ func (a *App) opportunitiesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		x.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 		_, err := a.db.Exec(`UPDATE crm_opportunities SET contact_id=?,title=?,stage=?,value=?,owner=?,updated_at=? WHERE id=?`, x.ContactID, x.Title, x.Stage, x.Value, x.Owner, x.UpdatedAt, x.ID)
+		if err != nil {
+			writeError(w, err, 500)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	case http.MethodDelete:
+		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+		if id == 0 {
+			writeError(w, errors.New("oportunidad inválida"), 400)
+			return
+		}
+		_, err := a.db.Exec(`DELETE FROM crm_opportunities WHERE id=?`, id)
 		if err != nil {
 			writeError(w, err, 500)
 			return
@@ -1468,7 +1567,7 @@ func (a *App) currentUser(r *http.Request) *User {
 }
 func (a *App) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/api/auth/login") || strings.HasPrefix(r.URL.Path, "/api/auth/register") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/messenger") {
+		if !strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/api/auth/login") || strings.HasPrefix(r.URL.Path, "/api/auth/register") || strings.HasPrefix(r.URL.Path, "/api/team/invitations/accept") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/messenger") {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -1479,7 +1578,7 @@ func (a *App) authMiddleware(next http.Handler) http.Handler {
 		}
 		var u User
 		var active int
-		err = a.db.QueryRow(`SELECT u.id,u.name,u.email,u.role,u.company,u.active,u.created_at FROM app_sessions s JOIN app_users u ON u.id=s.user_id WHERE s.token=? AND s.expires_at>?`, c.Value, time.Now().UTC().Format(time.RFC3339)).Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.Company, &active, &u.CreatedAt)
+		err = a.db.QueryRow(`SELECT u.id,u.name,u.email,u.role,u.company,u.active,u.created_at,u.tenant_id,COALESCE(t.account_type,'personal') FROM app_sessions s JOIN app_users u ON u.id=s.user_id LEFT JOIN tenants t ON t.id=u.tenant_id WHERE s.token=? AND s.expires_at>?`, c.Value, time.Now().UTC().Format(time.RFC3339)).Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.Company, &active, &u.CreatedAt, &u.TenantID, &u.AccountType)
 		if err != nil || active != 1 {
 			writeError(w, errors.New("sesión inválida o vencida"), 401)
 			return
@@ -1495,7 +1594,7 @@ func (a *App) createSession(w http.ResponseWriter, userID int64) error {
 	if err != nil {
 		return err
 	}
-	http.SetCookie(w, &http.Cookie{Name: "worktic_session", Value: t, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: exp})
+	http.SetCookie(w, &http.Cookie{Name: "worktic_session", Value: t, Path: "/", HttpOnly: true, Secure: a.cfg.AppEnv == "production", SameSite: http.SameSiteLaxMode, Expires: exp})
 	return nil
 }
 func (a *App) loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -1512,7 +1611,7 @@ func (a *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 	var u User
 	var ph string
 	var active int
-	err := a.db.QueryRow(`SELECT id,name,email,password_hash,role,company,active,created_at FROM app_users WHERE lower(email)=lower(?)`, strings.TrimSpace(q.Email)).Scan(&u.ID, &u.Name, &u.Email, &ph, &u.Role, &u.Company, &active, &u.CreatedAt)
+	err := a.db.QueryRow(`SELECT u.id,u.name,u.email,u.password_hash,u.role,u.company,u.active,u.created_at,u.tenant_id,COALESCE(t.account_type,'personal') FROM app_users u LEFT JOIN tenants t ON t.id=u.tenant_id WHERE lower(u.email)=lower(?)`, strings.TrimSpace(q.Email)).Scan(&u.ID, &u.Name, &u.Email, &ph, &u.Role, &u.Company, &active, &u.CreatedAt, &u.TenantID, &u.AccountType)
 	if err != nil || active != 1 || ph != hashPassword(q.Password, a.adminSalt()) {
 		writeError(w, errors.New("correo o contraseña incorrectos"), 401)
 		return
@@ -1549,34 +1648,341 @@ func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
 	if strings.EqualFold(q.AccountType, "personal") && company == "" {
 		company = "Mi espacio"
 	}
-	res, err := a.db.Exec(`INSERT INTO app_users(name,email,password_hash,role,company,active,created_at) VALUES(?,?,?,'owner',?,1,?)`, strings.TrimSpace(q.Name), strings.ToLower(strings.TrimSpace(q.Email)), hashPassword(q.Password, a.adminSalt()), company, time.Now().UTC().Format(time.RFC3339))
+	now := time.Now().UTC()
+	tx, err := a.db.Begin()
+	if err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	defer tx.Rollback()
+	res, err := tx.Exec(`INSERT INTO app_users(name,email,password_hash,role,company,active,created_at,tenant_id) VALUES(?,?,?,'owner',?,1,?,0)`, strings.TrimSpace(q.Name), strings.ToLower(strings.TrimSpace(q.Email)), hashPassword(q.Password, a.adminSalt()), company, now.Format(time.RFC3339))
 	if err != nil {
 		writeError(w, errors.New("el correo ya está registrado"), 400)
 		return
 	}
-	id, _ := res.LastInsertId()
-	now := time.Now().UTC()
-	_, _ = a.db.Exec(`INSERT INTO billing_subscriptions(user_id,plan_code,status,starts_at,ends_at,created_at) VALUES(?, 'free','active',?,?,?)`, id, now.Format(time.RFC3339), now.AddDate(10, 0, 0).Format(time.RFC3339), now.Format(time.RFC3339))
-	_ = a.createSession(w, id)
-	writeJSON(w, map[string]any{"ok": true})
+	id, err := res.LastInsertId()
+	if err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	accountType := "business"
+	if strings.EqualFold(q.AccountType, "personal") {
+		accountType = "personal"
+	}
+	tenantRes, err := tx.Exec(`INSERT INTO tenants(name,account_type,owner_user_id,status,created_at,updated_at) VALUES(?,?,?,?,?,?)`, company, accountType, id, "active", now.Format(time.RFC3339), now.Format(time.RFC3339))
+	if err != nil {
+		writeError(w, fmt.Errorf("no se pudo crear el espacio del usuario: %w", err), 500)
+		return
+	}
+	tenantID, err := tenantRes.LastInsertId()
+	if err != nil || tenantID == 0 {
+		writeError(w, errors.New("no se pudo asignar el espacio del usuario"), 500)
+		return
+	}
+	if _, err = tx.Exec(`UPDATE app_users SET tenant_id=? WHERE id=?`, tenantID, id); err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	if _, err = tx.Exec(`INSERT INTO tenant_users(tenant_id,user_id,role,created_at) VALUES(?,?,?,?)`, tenantID, id, "owner", now.Format(time.RFC3339)); err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	if _, err = tx.Exec(`INSERT INTO billing_subscriptions(user_id,plan_code,status,starts_at,ends_at,created_at) VALUES(?, 'free','active',?,?,?)`, id, now.Format(time.RFC3339), now.AddDate(10, 0, 0).Format(time.RFC3339), now.Format(time.RFC3339)); err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	if err = tx.Commit(); err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	if err = a.createSession(w, id); err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "tenant_id": tenantID})
 }
 func (a *App) authLogoutHandler(w http.ResponseWriter, r *http.Request) {
 	if c, e := r.Cookie("worktic_session"); e == nil {
 		_, _ = a.db.Exec(`DELETE FROM app_sessions WHERE token=?`, c.Value)
 	}
-	http.SetCookie(w, &http.Cookie{Name: "worktic_session", Value: "", Path: "/", MaxAge: -1, HttpOnly: true})
+	http.SetCookie(w, &http.Cookie{Name: "worktic_session", Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.cfg.AppEnv == "production", SameSite: http.SameSiteLaxMode})
 	writeJSON(w, map[string]any{"ok": true})
 }
 func (a *App) meHandler(w http.ResponseWriter, r *http.Request) { writeJSON(w, a.currentUser(r)) }
+
+func (a *App) billingAccountUserID(u *User) int64 {
+	if u == nil || u.TenantID == 0 {
+		if u != nil {
+			return u.ID
+		}
+		return 0
+	}
+	var ownerID int64
+	if err := a.db.QueryRow(`SELECT owner_user_id FROM tenants WHERE id=?`, u.TenantID).Scan(&ownerID); err == nil && ownerID > 0 {
+		return ownerID
+	}
+	return u.ID
+}
+
+func (a *App) accountProfileHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Método no permitido", 405)
+		return
+	}
+	u := a.currentUser(r)
+	if u == nil {
+		writeError(w, errors.New("sesión requerida"), 401)
+		return
+	}
+	billingID := a.billingAccountUserID(u)
+	p, sub, err := a.activePlan(billingID)
+	if err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	var tenantName, accountType, tenantStatus string
+	var ownerID int64
+	_ = a.db.QueryRow(`SELECT name,account_type,status,owner_user_id FROM tenants WHERE id=?`, u.TenantID).Scan(&tenantName, &accountType, &tenantStatus, &ownerID)
+	var pending int
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM billing_payments WHERE user_id=? AND status='pending'`, billingID).Scan(&pending)
+	var usersUsed, channelsUsed, agentsUsed int
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM app_users WHERE tenant_id=? AND active=1`, u.TenantID).Scan(&usersUsed)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE tenant_id=? AND status NOT IN ('revoked','deleted')`, u.TenantID).Scan(&channelsUsed)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM ai_agents WHERE tenant_id=?`, u.TenantID).Scan(&agentsUsed)
+	daysRemaining := 0
+	if end, e := time.Parse(time.RFC3339, sub.EndsAt); e == nil {
+		daysRemaining = int(time.Until(end).Hours() / 24)
+		if daysRemaining < 0 {
+			daysRemaining = 0
+		}
+	}
+	writeJSON(w, map[string]any{
+		"user": u, "tenant_id": u.TenantID, "tenant_name": tenantName, "account_type": accountType,
+		"tenant_status": tenantStatus, "is_owner": u.ID == ownerID, "plan": p, "subscription": sub,
+		"days_remaining": daysRemaining, "pending_payments": pending,
+		"usage": map[string]any{"users": usersUsed, "channels": channelsUsed, "agents": agentsUsed},
+	})
+}
+
+func normalizePhone(v string) string {
+	var b strings.Builder
+	for _, r := range v {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func (a *App) teamInvitationsHandler(w http.ResponseWriter, r *http.Request) {
+	u := a.currentUser(r)
+	if u == nil || (u.Role != "superadmin" && u.Role != "owner" && u.Role != "admin") {
+		writeError(w, errors.New("acceso reservado a propietarios y administradores"), 403)
+		return
+	}
+	if u.Role != "superadmin" && u.AccountType != "business" {
+		writeError(w, errors.New("las invitaciones de equipo están disponibles para cuentas empresariales"), 403)
+		return
+	}
+	tenantID := u.TenantID
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := a.db.Query(`SELECT id,name,phone,role,area,status,expires_at,created_at FROM team_invitations WHERE tenant_id=? ORDER BY id DESC`, tenantID)
+		if err != nil {
+			writeError(w, err, 500)
+			return
+		}
+		defer rows.Close()
+		out := []map[string]any{}
+		for rows.Next() {
+			var id int64
+			var name, phone, role, area, status, expires, created string
+			_ = rows.Scan(&id, &name, &phone, &role, &area, &status, &expires, &created)
+			out = append(out, map[string]any{"id": id, "name": name, "phone": phone, "role": role, "area": area, "status": status, "expires_at": expires, "created_at": created})
+		}
+		writeJSON(w, out)
+	case http.MethodPost:
+		var q struct {
+			Name  string `json:"name"`
+			Phone string `json:"phone"`
+			Role  string `json:"role"`
+			Area  string `json:"area"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&q)
+		q.Phone = normalizePhone(q.Phone)
+		q.Name = strings.TrimSpace(q.Name)
+		q.Area = strings.TrimSpace(q.Area)
+		allowed := map[string]bool{"admin": true, "supervisor": true, "agent": true}
+		if !allowed[q.Role] {
+			q.Role = "agent"
+		}
+		if q.Name == "" || len(q.Phone) < 8 {
+			writeError(w, errors.New("nombre y teléfono internacional son obligatorios"), 400)
+			return
+		}
+		billingID := a.billingAccountUserID(u)
+		plan, _, err := a.activePlan(billingID)
+		if err != nil {
+			writeError(w, err, 500)
+			return
+		}
+		var members, pending int
+		_ = a.db.QueryRow(`SELECT COUNT(*) FROM app_users WHERE tenant_id=? AND active=1`, tenantID).Scan(&members)
+		_ = a.db.QueryRow(`SELECT COUNT(*) FROM team_invitations WHERE tenant_id=? AND status='pending' AND expires_at>?`, tenantID, time.Now().UTC().Format(time.RFC3339)).Scan(&pending)
+		if members+pending >= plan.MaxUsers {
+			writeError(w, fmt.Errorf("límite del plan alcanzado: %d de %d usuarios o invitaciones", members+pending, plan.MaxUsers), 403)
+			return
+		}
+		token := randomToken(32)
+		now := time.Now().UTC()
+		expires := now.Add(72 * time.Hour)
+		res, err := a.db.Exec(`INSERT INTO team_invitations(tenant_id,invited_by,name,phone,role,area,token,status,expires_at,created_at) VALUES(?,?,?,?,?,?,?,'pending',?,?)`, tenantID, u.ID, q.Name, q.Phone, q.Role, q.Area, token, expires.Format(time.RFC3339), now.Format(time.RFC3339))
+		if err != nil {
+			writeError(w, err, 500)
+			return
+		}
+		id, _ := res.LastInsertId()
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		host := r.Host
+		link := fmt.Sprintf("%s://%s/invite.html?token=%s", scheme, host, url.QueryEscape(token))
+		company := u.Company
+		var tenantName string
+		_ = a.db.QueryRow(`SELECT name FROM tenants WHERE id=?`, tenantID).Scan(&tenantName)
+		if tenantName != "" {
+			company = tenantName
+		}
+		message := fmt.Sprintf("Hola %s, te invitaron a unirte al equipo de %s en Worktic AI como %s. Acepta la invitación aquí: %s", q.Name, company, q.Role, link)
+		wa := fmt.Sprintf("https://wa.me/%s?text=%s", q.Phone, url.QueryEscape(message))
+		writeJSON(w, map[string]any{"ok": true, "id": id, "invite_url": link, "whatsapp_url": wa, "expires_at": expires.Format(time.RFC3339)})
+	case http.MethodDelete:
+		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+		if id == 0 {
+			writeError(w, errors.New("invitación inválida"), 400)
+			return
+		}
+		res, err := a.db.Exec(`UPDATE team_invitations SET status='cancelled' WHERE id=? AND tenant_id=? AND status='pending'`, id, tenantID)
+		if err != nil {
+			writeError(w, err, 500)
+			return
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			writeError(w, errors.New("invitación no encontrada o ya procesada"), 404)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	default:
+		http.Error(w, "Método no permitido", 405)
+	}
+}
+
+func (a *App) acceptTeamInvitationHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		token := r.URL.Query().Get("token")
+		var name, phone, role, area, status, expires, tenantName string
+		err := a.db.QueryRow(`SELECT i.name,i.phone,i.role,i.area,i.status,i.expires_at,t.name FROM team_invitations i JOIN tenants t ON t.id=i.tenant_id WHERE i.token=?`, token).Scan(&name, &phone, &role, &area, &status, &expires, &tenantName)
+		if err != nil {
+			writeError(w, errors.New("invitación no encontrada"), 404)
+			return
+		}
+		valid := status == "pending"
+		if t, e := time.Parse(time.RFC3339, expires); e == nil && time.Now().After(t) {
+			valid = false
+		}
+		writeJSON(w, map[string]any{"name": name, "phone": phone, "role": role, "area": area, "tenant_name": tenantName, "expires_at": expires, "valid": valid})
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Método no permitido", 405)
+		return
+	}
+	var q struct {
+		Token    string `json:"token"`
+		Name     string `json:"name"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&q)
+	if !strings.Contains(q.Email, "@") || len(q.Password) < 8 {
+		writeError(w, errors.New("correo válido y contraseña de mínimo 8 caracteres son obligatorios"), 400)
+		return
+	}
+	tx, err := a.db.Begin()
+	if err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	defer tx.Rollback()
+	var inviteID, tenantID int64
+	var invitedName, role, status, expires, company string
+	err = tx.QueryRow(`SELECT i.id,i.tenant_id,i.name,i.role,i.status,i.expires_at,t.name FROM team_invitations i JOIN tenants t ON t.id=i.tenant_id WHERE i.token=?`, q.Token).Scan(&inviteID, &tenantID, &invitedName, &role, &status, &expires, &company)
+	if err != nil || status != "pending" {
+		writeError(w, errors.New("invitación inválida o utilizada"), 400)
+		return
+	}
+	if t, e := time.Parse(time.RFC3339, expires); e == nil && time.Now().After(t) {
+		writeError(w, errors.New("la invitación venció"), 400)
+		return
+	}
+	name := strings.TrimSpace(q.Name)
+	if name == "" {
+		name = invitedName
+	}
+	now := time.Now().UTC()
+	res, err := tx.Exec(`INSERT INTO app_users(name,email,password_hash,role,company,active,created_at,tenant_id) VALUES(?,?,?,?,?,1,?,?)`, name, strings.ToLower(strings.TrimSpace(q.Email)), hashPassword(q.Password, a.adminSalt()), role, company, now.Format(time.RFC3339), tenantID)
+	if err != nil {
+		writeError(w, errors.New("el correo ya está registrado"), 400)
+		return
+	}
+	uid, _ := res.LastInsertId()
+	if _, err = tx.Exec(`INSERT INTO tenant_users(tenant_id,user_id,role,created_at) VALUES(?,?,?,?)`, tenantID, uid, role, now.Format(time.RFC3339)); err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	if _, err = tx.Exec(`UPDATE team_invitations SET status='accepted',accepted_user_id=?,accepted_at=? WHERE id=?`, uid, now.Format(time.RFC3339), inviteID); err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	if err = tx.Commit(); err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	if err = a.createSession(w, uid); err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true})
+}
+
 func (a *App) usersHandler(w http.ResponseWriter, r *http.Request) {
 	u := a.currentUser(r)
 	if u == nil || (u.Role != "superadmin" && u.Role != "owner" && u.Role != "admin") {
 		writeError(w, errors.New("acceso reservado a propietarios y administradores"), 403)
 		return
 	}
+	if u.Role != "superadmin" && u.AccountType == "personal" {
+		writeError(w, errors.New("las cuentas personales no incluyen administración de equipo; mejora a un plan empresarial y convierte tu espacio a empresa"), 403)
+		return
+	}
+	targetAllowed := func(id int64) bool {
+		if u.Role == "superadmin" {
+			return true
+		}
+		var tid int64
+		return a.db.QueryRow(`SELECT tenant_id FROM app_users WHERE id=?`, id).Scan(&tid) == nil && tid == u.TenantID
+	}
 	switch r.Method {
 	case http.MethodGet:
-		rows, e := a.db.Query(`SELECT id,name,email,role,company,active,created_at FROM app_users ORDER BY id`)
+		query := `SELECT id,name,email,role,company,active,created_at FROM app_users WHERE tenant_id=? ORDER BY id`
+		args := []any{u.TenantID}
+		if u.Role == "superadmin" {
+			query = `SELECT id,name,email,role,company,active,created_at FROM app_users ORDER BY id`
+			args = nil
+		}
+		rows, e := a.db.Query(query, args...)
 		if e != nil {
 			writeError(w, e, 500)
 			return
@@ -1588,14 +1994,19 @@ func (a *App) usersHandler(w http.ResponseWriter, r *http.Request) {
 			var ac int
 			_ = rows.Scan(&x.ID, &x.Name, &x.Email, &x.Role, &x.Company, &ac, &x.CreatedAt)
 			x.Active = ac == 1
+			x.TenantID = u.TenantID
 			out = append(out, x)
 		}
 		writeJSON(w, out)
 	case http.MethodPut:
 		var x User
 		_ = json.NewDecoder(r.Body).Decode(&x)
-		if x.ID == 0 {
-			writeError(w, errors.New("usuario inválido"), 400)
+		if x.ID == 0 || !targetAllowed(x.ID) {
+			writeError(w, errors.New("usuario inválido o fuera de tu empresa"), 403)
+			return
+		}
+		if x.ID == u.ID && !x.Active {
+			writeError(w, errors.New("no puedes desactivar tu propio acceso"), 400)
 			return
 		}
 		ac := 0
@@ -1610,20 +2021,23 @@ func (a *App) usersHandler(w http.ResponseWriter, r *http.Request) {
 			x.Role = "agent"
 		}
 		if u.Role == "admin" && (x.Role == "owner" || x.Role == "superadmin") {
-			x.Role = "agent"
+			writeError(w, errors.New("un administrador no puede asignar ese rol"), 403)
+			return
 		}
-		_, e := a.db.Exec(`UPDATE app_users SET name=?,role=?,company=?,active=? WHERE id=?`, x.Name, x.Role, x.Company, ac, x.ID)
+		_, e := a.db.Exec(`UPDATE app_users SET name=?,role=?,active=? WHERE id=?`, x.Name, x.Role, ac, x.ID)
 		if e != nil {
 			writeError(w, e, 500)
 			return
 		}
+		_, _ = a.db.Exec(`UPDATE tenant_users SET role=? WHERE tenant_id=? AND user_id=?`, x.Role, u.TenantID, x.ID)
 		writeJSON(w, map[string]any{"ok": true})
 	case http.MethodDelete:
 		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
-		if id == 0 || id == u.ID {
+		if id == 0 || id == u.ID || !targetAllowed(id) {
 			writeError(w, errors.New("no puedes eliminar este usuario"), 400)
 			return
 		}
+		_, _ = a.db.Exec(`DELETE FROM tenant_users WHERE user_id=?`, id)
 		_, e := a.db.Exec(`DELETE FROM app_users WHERE id=?`, id)
 		if e != nil {
 			writeError(w, e, 500)
@@ -1904,15 +2318,6 @@ func (a *App) sendMessengerText(ctx context.Context, psid, text string) (string,
 	return out.MessageID, nil
 }
 
-func normalizePhone(v string) string {
-	var b strings.Builder
-	for _, r := range v {
-		if r >= '0' && r <= '9' {
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
-}
 func shortJID(v string) string { return strings.Split(v, "@")[0] }
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -1932,7 +2337,7 @@ func (a *App) quotaAllowed(r *http.Request, kind string) error {
 	if u.Role == "superadmin" {
 		return nil
 	}
-	p, _, err := a.activePlan(u.ID)
+	p, _, err := a.activePlan(a.billingAccountUserID(u))
 	if err != nil {
 		return err
 	}
@@ -2011,17 +2416,18 @@ func (a *App) entitlementsHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("sesión requerida"), 401)
 		return
 	}
-	p, sub, err := a.activePlan(u.ID)
+	billingID := a.billingAccountUserID(u)
+	p, sub, err := a.activePlan(billingID)
 	if err != nil {
 		writeError(w, err, 500)
 		return
 	}
 	e := Entitlements{PlanCode: p.Code, PlanName: p.Name, Subscription: sub.Status, EndsAt: sub.EndsAt, MaxUsers: p.MaxUsers, MaxChannels: p.MaxChannels, MaxContacts: p.MaxContacts, MaxAIResponses: p.MaxAIResponses, MaxProducts: p.MaxProducts, MaxRules: p.MaxRules}
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM app_users WHERE company=? AND active=1`, u.Company).Scan(&e.UsersUsed)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM app_users WHERE tenant_id=? AND active=1`, u.TenantID).Scan(&e.UsersUsed)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_contacts`).Scan(&e.ContactsUsed)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_products`).Scan(&e.ProductsUsed)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM worktic_auto_rules`).Scan(&e.RulesUsed)
-	_ = a.db.QueryRow(`SELECT COALESCE(ai_responses,0) FROM usage_monthly WHERE user_id=? AND period=?`, u.ID, time.Now().UTC().Format("2006-01")).Scan(&e.AIUsed)
+	_ = a.db.QueryRow(`SELECT COALESCE(ai_responses,0) FROM usage_monthly WHERE user_id=? AND period=?`, billingID, time.Now().UTC().Format("2006-01")).Scan(&e.AIUsed)
 	writeJSON(w, e)
 }
 
@@ -2075,7 +2481,7 @@ func (a *App) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("ingresa un hash de transacción válido"), 400)
 		return
 	}
-	res, err := a.db.Exec(`INSERT INTO billing_payments(user_id,plan_code,network,wallet,amount_usdt,tx_hash,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)`, u.ID, p.Code, q.Network, wallet, p.PriceUSDT, q.TxHash, time.Now().UTC().Format(time.RFC3339))
+	res, err := a.db.Exec(`INSERT INTO billing_payments(user_id,plan_code,network,wallet,amount_usdt,tx_hash,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)`, a.billingAccountUserID(u), p.Code, q.Network, wallet, p.PriceUSDT, q.TxHash, time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
 		writeError(w, errors.New("esa transacción ya fue registrada"), 400)
 		return
@@ -2090,7 +2496,7 @@ func (a *App) paymentsHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("sesión requerida"), 401)
 		return
 	}
-	rows, err := a.db.Query(`SELECT bp.id,bp.user_id,u.name,u.email,bp.plan_code,p.name,bp.network,bp.wallet,bp.amount_usdt,bp.tx_hash,bp.status,bp.admin_note,bp.created_at,bp.reviewed_at FROM billing_payments bp JOIN app_users u ON u.id=bp.user_id JOIN billing_plans p ON p.code=bp.plan_code WHERE bp.user_id=? ORDER BY bp.id DESC`, u.ID)
+	rows, err := a.db.Query(`SELECT bp.id,bp.user_id,u.name,u.email,bp.plan_code,p.name,bp.network,bp.wallet,bp.amount_usdt,bp.tx_hash,bp.status,bp.admin_note,bp.created_at,bp.reviewed_at FROM billing_payments bp JOIN app_users u ON u.id=bp.user_id JOIN billing_plans p ON p.code=bp.plan_code WHERE bp.user_id=? ORDER BY bp.id DESC`, a.billingAccountUserID(u))
 	if err != nil {
 		writeError(w, err, 500)
 		return
