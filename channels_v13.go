@@ -251,7 +251,7 @@ func (cm *ChannelManager) restoreActive() {
 }
 
 func (cm *ChannelManager) startWhatsApp(c ChannelConnection, needQR bool) error {
-	base := filepath.Join(cm.app.cfg.DataDir, "wa_sessions", fmt.Sprintf("tenant_%d", c.TenantID))
+	base := filepath.Join("data", "wa_sessions", fmt.Sprintf("tenant_%d", c.TenantID))
 	_ = os.MkdirAll(base, 0700)
 	dsn := "file:" + filepath.ToSlash(filepath.Join(base, fmt.Sprintf("channel_%d.db", c.ID))) + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
 	container, err := sqlstore.New(context.Background(), "sqlite", dsn, waLog.Stdout(fmt.Sprintf("WA-%d", c.ID), "WARN", true))
@@ -368,7 +368,7 @@ func (cm *ChannelManager) updateStatus(id int64, status, detail string) {
 func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) {
 	tid, u, err := a.tenantForRequest(r)
 	if err != nil {
-		writeError(w, err, 409)
+		writeError(w, err, 401)
 		return
 	}
 	switch r.Method {
@@ -444,7 +444,7 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 	tid, u, err := a.tenantForRequest(r)
 	if err != nil {
-		writeError(w, err, 409)
+		writeError(w, err, 401)
 		return
 	}
 	if r.Method != http.MethodPost {
@@ -500,7 +500,7 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 func (a *App) channelQRHandler(w http.ResponseWriter, r *http.Request) {
 	tid, _, err := a.tenantForRequest(r)
 	if err != nil {
-		writeError(w, err, 409)
+		writeError(w, err, 401)
 		return
 	}
 	id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
@@ -522,7 +522,7 @@ func (a *App) channelQRHandler(w http.ResponseWriter, r *http.Request) {
 func (a *App) channelHealthHandler(w http.ResponseWriter, r *http.Request) {
 	tid, _, err := a.tenantForRequest(r)
 	if err != nil {
-		writeError(w, err, 409)
+		writeError(w, err, 401)
 		return
 	}
 	rows, e := a.db.Query(`SELECT status,COUNT(*) FROM channel_connections WHERE tenant_id=? GROUP BY status`, tid)
@@ -540,7 +540,7 @@ func (a *App) channelHealthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var msgs int
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM worktic_messages WHERE tenant_id=?`, tid).Scan(&msgs)
-	writeJSON(w, map[string]any{"states": m, "messages": msgs, "isolation": "tenant_id + connection_id", "session_storage": filepath.Join(a.cfg.DataDir, "wa_sessions", "tenant_<id>", "channel_<id>.db")})
+	writeJSON(w, map[string]any{"states": m, "messages": msgs, "isolation": "tenant_id + connection_id", "session_storage": "data/wa_sessions/tenant_<id>/channel_<id>.db"})
 }
 
 func (a *App) sendViaConnection(ctx context.Context, tid, connectionID int64, externalChat, text string) (string, error) {
@@ -592,15 +592,4 @@ func qrcodeEncode(code string) (string, error) {
 		return "", err
 	}
 	return base64.StdEncoding.EncodeToString(b), nil
-}
-
-func (m *ChannelManager) shutdown() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for key, rt := range m.runtimes {
-		if rt != nil && rt.wa != nil {
-			rt.wa.Disconnect()
-		}
-		delete(m.runtimes, key)
-	}
 }
