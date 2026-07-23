@@ -1,4 +1,19 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acceso · Worktic AI</title><meta name="theme-color" content="#0a0a12"><link rel="icon" type="image/png" href="/assets/favicon-32.png"><link rel="apple-touch-icon" href="/assets/favicon-180.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/styles.css"></head><body class="auth-page">
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acceso · Worktic AI</title><meta name="theme-color" content="#0a0a12"><link rel="icon" type="image/png" href="/assets/favicon-32.png"><link rel="apple-touch-icon" href="/assets/favicon-180.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/styles.css">
+<style>
+/* Ajustes exclusivos de esta página: eleva la vista móvil sin tocar el
+   sistema de estilos compartido ni la vista de escritorio. */
+.mobile-badge{display:none}
+@media(max-width:820px){
+  .auth-page{background:radial-gradient(120% 55% at 50% -8%,rgba(139,18,214,.11),transparent 55%),var(--paper)}
+  .auth-card{box-shadow:0 22px 54px rgba(20,10,45,.16),0 4px 12px rgba(20,10,45,.06)}
+  .tabs{background:var(--paper-2)}
+  .tabs button{font-weight:700;color:var(--text-soft);border-radius:9px}
+  .tabs button.active{background:var(--brand-grad);color:#fff;box-shadow:0 8px 20px rgba(139,18,214,.32)}
+  .mobile-badge{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;background:var(--accent-tint);border:1px solid #e3d6fb;color:var(--accent-ink);font-size:12px;font-weight:700;margin-bottom:18px}
+  .mobile-badge b{width:6px;height:6px;border-radius:50%;background:var(--acid);display:inline-block;box-shadow:0 0 8px rgba(251,123,255,.6)}
+}
+</style>
+</head><body class="auth-page">
 <div class="auth-shell">
   <div class="auth-visual">
     <div class="av-top">
@@ -20,8 +35,9 @@
   <div class="auth-card-wrap">
     <div class="auth-card">
       <div class="brand big"><img src="/assets/logo-mark.png" alt="Worktic AI" class="brand-mark"><div><b>Worktic AI</b><small>Atención omnicanal inteligente</small></div></div>
+      <span class="av-badge mobile-badge"><b></b>Todo tu negocio, una sola bandeja</span>
       <div class="tabs"><button type="button" id="loginTab" class="active" aria-controls="loginForm">Ingresar</button><button type="button" id="registerTab" aria-controls="registerForm">Crear cuenta</button></div>
-      <form id="loginForm" class="form"><label>Correo<input name="email" type="email" value="" required></label><label>Contraseña<input name="password" type="password" value="" required></label><button>Ingresar</button></form>
+      <form id="loginForm" class="form"><label>Correo<input name="email" type="email" value="admin@worktic.local" required></label><label>Contraseña<input name="password" type="password" value="Admin123!" required></label><button>Ingresar</button></form>
       <form id="registerForm" class="form" hidden>
         <label>¿Cómo usarás Worktic?<select name="account_type" id="accountType"><option value="personal">Uso personal</option><option value="company">Empresa o equipo</option></select></label>
         <label>Tu nombre<input name="name" required></label>
