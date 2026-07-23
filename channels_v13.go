@@ -251,7 +251,7 @@ func (cm *ChannelManager) restoreActive() {
 }
 
 func (cm *ChannelManager) startWhatsApp(c ChannelConnection, needQR bool) error {
-	base := filepath.Join(m.app.cfg.DataDir, "wa_sessions", fmt.Sprintf("tenant_%d", c.TenantID))
+	base := filepath.Join(cm.app.cfg.DataDir, "wa_sessions", fmt.Sprintf("tenant_%d", c.TenantID))
 	_ = os.MkdirAll(base, 0700)
 	dsn := "file:" + filepath.ToSlash(filepath.Join(base, fmt.Sprintf("channel_%d.db", c.ID))) + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
 	container, err := sqlstore.New(context.Background(), "sqlite", dsn, waLog.Stdout(fmt.Sprintf("WA-%d", c.ID), "WARN", true))
@@ -597,9 +597,9 @@ func qrcodeEncode(code string) (string, error) {
 func (m *ChannelManager) shutdown() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for key, runtime := range m.runtimes {
-		if runtime != nil && runtime.Client != nil {
-			runtime.Client.Disconnect()
+	for key, rt := range m.runtimes {
+		if rt != nil && rt.wa != nil {
+			rt.wa.Disconnect()
 		}
 		delete(m.runtimes, key)
 	}
