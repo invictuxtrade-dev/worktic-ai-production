@@ -68,5 +68,77 @@
 
 <section id="billing" class="view"><div class="section-head"><div><h2>Plan y membresía</h2><p>Revisa tu licencia, compara capacidades y mejora tu plan pagando con USDT.</p></div><div id="currentPlan" class="pill">Cargando plan…</div></div><div id="membershipSummary"></div><div id="usageGrid" class="stats"></div><h2 id="upgradePlansTitle">Planes disponibles</h2><div id="plansGrid" class="pricing-grid"></div><article><h2>Historial de pagos</h2><div id="myPayments"></div></article></section>
 <section id="admin" class="view"><div class="section-head"><div><h2>Administración general de Worktic</h2><p>Usuarios, pagos, suscripciones y ventas de toda la plataforma.</p></div></div><div id="adminStats" class="stats"></div><div class="grid2"><article><h2>Pagos por verificar</h2><div id="adminPayments"></div></article><article><h2>Suscripciones</h2><div id="adminSubscriptions"></div></article></div></section>
-<section id="setup" class="view"><article><h2>Guías de puesta en marcha</h2><div class="guide-grid"><div><h3>Telegram</h3><ol><li>Abre Telegram y busca <b>@BotFather</b>.</li><li>Envía <code>/newbot</code>.</li><li>Define nombre y usuario terminado en <code>bot</code>.</li><li>Copia el token y pégalo en Canales.</li><li>Abre el bot y envía <code>/start</code>.</li></ol></div><div><h3>Messenger</h3><ol><li>Crea o usa una Página de Facebook.</li><li>Agrega Messenger a tu app de Meta.</li><li>Genera un Page Access Token.</li><li>Configura el webhook mostrado en Canales.</li><li>Suscribe la página a los eventos de mensajes.</li></ol></div><div><h3>OpenAI central</h3><p>El propietario configura <code>OPENAI_API_KEY</code> en el archivo <code>.env</code>. La clave no se solicita a los usuarios.</p></div><div><h3>Uso responsable</h3><p>WhatsApp QR debe priorizar atención entrante y seguimientos moderados. Las campañas deben migrar a Cloud API oficial.</p></div></div></article></section>
+<section id="setup" class="view">
+<article><h2>Primeros pasos: de cero a publicado</h2><p>Sigue este orden la primera vez que configures tu cuenta. Cada paso desbloquea el siguiente.</p><div class="guide-grid">
+<div><h3>1. Elige tu tipo de cuenta y plan</h3><p>Personal o empresa, y el plan según usuarios, canales y volumen que necesites. Puedes cambiarlo luego desde <b>Plan y membresía</b>.</p></div>
+<div><h3>2. Configura tu negocio</h3><p>Completa nombre, objetivo y tono en <b>Agente IA clásico</b> — esto define cómo habla tu asistente en todos los canales.</p></div>
+<div><h3>3. Carga el conocimiento</h3><p>En <b>Información adicional del negocio</b>, describe precios, horarios, políticas y preguntas frecuentes reales. La IA solo responde con lo que le des aquí, nunca inventa.</p></div>
+<div><h3>4. Conecta tus canales</h3><p>Ve a <b>Canales</b> → <b>+ Nueva conexión</b> y vincula WhatsApp, Telegram o Messenger (ver guías de conexión abajo).</p></div>
+<div><h3>5. Carga tu catálogo</h3><p>En <b>Catálogo</b> → <b>Nuevo producto</b>, agrega precios reales. La IA nunca debe inventar un precio que no esté aquí.</p></div>
+<div><h3>6. Configura tu agenda</h3><p>Si agendas citas, define disponibilidad y profesionales en <b>Agenda</b> antes de activar el agente.</p></div>
+<div><h3>7. Prueba el bot</h3><p>Usa el <b>Simulador</b> dentro de Agente IA clásico para validar respuestas antes de activarlo con clientes reales.</p></div>
+<div><h3>8. Activa y publica</h3><p>Marca <b>Activar respuestas automáticas con IA</b> y guarda. A partir de aquí, cada mensaje entrante se atiende solo.</p></div>
+</div></article>
+
+<article><h2>Conecta tus canales</h2><p>Todo empieza en <b>Canales</b> → <b>+ Nueva conexión</b>. Cada conexión pertenece solo a tu espacio.</p><div class="guide-grid">
+<div><h3>WhatsApp (QR)</h3><ol><li>Ve a <b>Canales</b> → <b>+ Nueva conexión</b> y elige WhatsApp.</li><li>Escanea el código QR con la app de WhatsApp de tu teléfono (Dispositivos vinculados).</li><li>Espera a que el estado cambie a <b>conectado</b>.</li><li>Prioriza esta conexión para atención entrante y seguimientos moderados, no para campañas masivas.</li></ol></div>
+<div><h3>Telegram</h3><ol><li>Abre Telegram y busca <b>@BotFather</b>.</li><li>Envía <code>/newbot</code>.</li><li>Define nombre y usuario terminado en <code>bot</code>.</li><li>Copia el token y pégalo en Canales.</li><li>Abre el bot y envía <code>/start</code>.</li></ol></div>
+<div><h3>Messenger</h3><ol><li>Crea o usa una Página de Facebook.</li><li>Agrega Messenger a tu app de Meta.</li><li>Genera un Page Access Token.</li><li>Configura el webhook mostrado en Canales.</li><li>Suscribe la página a los eventos de mensajes.</li></ol></div>
+<div><h3>Asigna un agente por canal</h3><p>Cada conexión puede tener un agente IA específico asignado (útil si tienes agentes especializados por canal o por marca).</p></div>
+</div></article>
+
+<article><h2>Configura tu IA</h2><p>Worktic tiene dos formas de trabajar con IA: un agente clásico simple, o un equipo completo de agentes especializados.</p><div class="guide-grid">
+<div><h3>Agente IA clásico</h3><p>Ideal para empezar: un solo asistente con nombre, objetivo, tono, reglas e instrucciones, y una base de conocimiento. Actívalo con la casilla <b>Activar respuestas automáticas con IA</b> y pruébalo en el <b>Simulador</b> antes de publicar.</p></div>
+<div><h3>Agentes IA (equipo)</h3><p>Crea agentes separados para ventas, soporte, agenda o campañas desde <b>Nuevo agente</b>. Cada uno puede tener su propia personalidad, canal y base de conocimiento.</p></div>
+<div><h3>Enrutamiento entre agentes</h3><p>En la pestaña <b>Enrutamiento</b>, crea reglas que decidan qué agente responde según canal, palabra clave o intención. Las reglas con número de prioridad más bajo se evalúan primero.</p></div>
+<div><h3>Métricas por agente</h3><p>La pestaña <b>Métricas</b> muestra conversaciones, respuestas, tokens y costo estimado por agente y por mes — útil para detectar cuál rinde mejor.</p></div>
+<div><h3>Permisos por agente</h3><p>Desde <b>Permisos</b>, asigna qué integrantes del equipo pueden ver o editar cada agente.</p></div>
+<div><h3>Automatizaciones (reglas)</h3><p>En <b>Automatizaciones</b>, crea reglas de coincidencia (contiene, es exactamente, empieza por) con una respuesta fija — útil para preguntas frecuentes que no necesitan IA.</p></div>
+</div></article>
+
+<article><h2>Vende y da seguimiento</h2><p>El ciclo comercial completo: conversación → contacto → oportunidad → cierre.</p><div class="guide-grid">
+<div><h3>Bandeja de conversaciones</h3><p>En <b>Conversaciones</b>, busca por nombre en la barra superior, revisa el historial completo y responde manualmente cuando quieras pausar la IA en un chat puntual.</p></div>
+<div><h3>Contactos y CRM</h3><p>Cada persona que escribe se guarda automáticamente. Usa <b>Nuevo contacto</b> para agregar manualmente o completar datos como notas y etiquetas.</p></div>
+<div><h3>Pipeline de oportunidades</h3><p>En <b>Oportunidades</b> → <b>Nueva oportunidad</b>, mueve cada negocio por etapas personalizables y asigna un responsable comercial.</p></div>
+<div><h3>Catálogo de productos</h3><p>En <b>Catálogo</b> → <b>Nuevo producto</b>, define precio, promoción, stock, imágenes, variantes y sedes — la IA responde solo con estos datos.</p></div>
+<div><h3>Agenda de citas</h3><p>En <b>Agenda</b> → <b>Nueva cita</b>, define disponibilidad, duración y profesional. El sistema evita cruces automáticamente.</p></div>
+</div></article>
+
+<article><h2>Consigue clientes en automático</h2><p>El módulo <b>Growth & Campañas</b> es tu motor de captación: no solo atiende, también sale a buscar clientes.</p><div class="guide-grid">
+<div><h3>Campañas con IA</h3><p>En la pestaña <b>Campañas</b>, completa el asistente (nombre, modalidad, objetivo, producto, público, plataformas, presupuesto) y pulsa <b>Generar estrategia IA</b> para obtener copies, calendario y flujo de bot listos.</p></div>
+<div><h3>Calendario de contenido</h3><p>Programa posts, reels, historias y carruseles desde <b>Calendario</b> → <b>Nuevo contenido</b>. La publicación real requiere tener Meta conectado.</p></div>
+<div><h3>Biblioteca de creativos</h3><p>Centraliza imágenes, videos y copies reutilizables en <b>Creativos</b> → <b>Agregar creativo</b>, para no rehacer piezas en cada campaña.</p></div>
+<div><h3>Formularios y landing pages</h3><p>En <b>Formularios y landing</b>, crea páginas públicas para capturar leads con consentimiento y atribución UTM automática.</p></div>
+<div><h3>Leads y atribución</h3><p>La pestaña <b>Leads y atribución</b> muestra cada lead con fuente, campaña, interés y puntuación comercial (lead score), listo para que tu equipo lo cierre.</p></div>
+<div><h3>Meta Ads</h3><p>La pestaña <b>Meta Ads</b> te muestra los requisitos para conectar tu cuenta publicitaria oficial. La IA propone público, creativos y presupuesto; tú siempre apruebas antes de publicar.</p></div>
+<div><h3>Landing Pages Premium</h3><p>En el módulo <b>Landing Pages</b>, crea, edita y publica páginas comerciales con un enlace público independiente, conectadas a tu CRM y tus campañas.</p></div>
+<div><h3>Grupos y comunidades</h3><p>En <b>Grupos & Comunidades</b>, gestiona tus grupos autorizados (pestaña <b>Mis grupos</b>) y descubre comunidades públicas de tu nicho (pestaña <b>Buscador por nicho</b>) sin extraer miembros ni hacer spam.</p></div>
+</div></article>
+
+<article><h2>Equipo y cuenta</h2><div class="guide-grid">
+<div><h3>Invita a tu equipo</h3><p>En <b>Equipo</b> → <b>Invitar por WhatsApp</b>, genera un enlace de invitación. Vence a las 72 horas y solo puede usarse una vez.</p></div>
+<div><h3>Roles y permisos</h3><p>Asigna rol (administrador, supervisor, asesor) a cada miembro desde la tabla de <b>Miembros activos</b>. Los permisos por agente se afinan en Agentes IA → Permisos.</p></div>
+<div><h3>Mi perfil y licencia</h3><p>En <b>Mi perfil</b>, revisa tu cuenta, espacio, plan, vigencia y capacidad disponible (contactos, respuestas IA, canales usados vs. límite).</p></div>
+<div><h3>Plan y pagos</h3><p>En <b>Plan y membresía</b>, compara planes y paga con USDT (BEP20 o TRC20). La activación depende de la verificación blockchain configurada.</p></div>
+</div></article>
+
+<article><h2>Configuración técnica</h2><div class="guide-grid">
+<div><h3>OpenAI central</h3><p>El propietario configura <code>OPENAI_API_KEY</code> en el archivo <code>.env</code>. La clave nunca se solicita ni se muestra a los usuarios finales.</p></div>
+<div><h3>Dominio propio y HTTPS</h3><p>Una vez tengas tu dominio apuntando al servicio, actualiza <code>BASE_URL</code> en las variables de entorno para que los enlaces públicos de landing pages y webhooks se generen correctamente.</p></div>
+</div></article>
+
+<article><h2>Uso responsable</h2><div class="guide-grid">
+<div><h3>WhatsApp QR</h3><p>Debe priorizar atención entrante y seguimientos moderados. Las campañas masivas deben migrar a la API oficial de WhatsApp (Cloud API) para evitar bloqueos.</p></div>
+<div><h3>Grupos y comunidades</h3><p>No está permitido extraer miembros, enviar mensajes fríos masivos ni eludir reglas de las plataformas. Prioriza comunidades propias y colaboraciones autorizadas.</p></div>
+<div><h3>Campañas y anuncios</h3><p>La IA propone público, creativos y presupuesto, pero tú siempre apruebas antes de publicar cualquier campaña paga en Meta.</p></div>
+</div></article>
+
+<article><h2>¿El bot no está respondiendo?</h2><p>Revisa esto en orden antes de reportar un problema:</p><div class="guide-grid">
+<div><h3>1. ¿El canal está conectado?</h3><p>Ve a <b>Canales</b> y confirma que el estado diga <b>conectado</b>, no "reconectando" ni "desconectado".</p></div>
+<div><h3>2. ¿El agente está activado?</h3><p>En <b>Agente IA clásico</b> (o el agente correspondiente en Agentes IA), confirma que la casilla de respuestas automáticas esté marcada y guardada.</p></div>
+<div><h3>3. ¿Te quedan respuestas IA disponibles?</h3><p>Revisa tu capacidad restante en <b>Mi perfil</b>. Si llegaste al límite de tu plan, el agente deja de responder hasta el siguiente ciclo o una mejora de plan.</p></div>
+<div><h3>4. ¿Una automatización está interceptando el mensaje?</h3><p>Revisa <b>Automatizaciones</b>: una regla de coincidencia puede estar respondiendo antes de que el mensaje llegue a la IA.</p></div>
+<div><h3>5. ¿El enrutamiento lo está enviando a otro agente?</h3><p>Si tienes varios Agentes IA, revisa las reglas de <b>Enrutamiento</b> — el mensaje puede estar yendo a un agente distinto al que esperas.</p></div>
+</div></article>
+</section>
 </main><div id="toast"></div><dialog id="modal"><form method="dialog" id="modalContent"></form></dialog><script src="/app.js"></script></body></html>
