@@ -3,6 +3,9 @@
 /* Ajustes exclusivos de esta página: eleva la vista móvil sin tocar el
    sistema de estilos compartido ni la vista de escritorio. */
 .mobile-badge{display:none}
+.lang-switch-auth{position:absolute;top:20px;right:20px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#fff;padding:7px 13px;border-radius:999px;font-size:12px;font-weight:800;box-shadow:none;min-height:auto;z-index:2}
+.lang-switch-card{position:absolute;top:18px;right:18px;background:var(--paper-2);border:1px solid var(--line-2);color:var(--text-soft);padding:6px 12px;border-radius:999px;font-size:11.5px;font-weight:800;box-shadow:none;min-height:auto}
+.auth-card{position:relative}
 @media(max-width:820px){
   .auth-page{background:radial-gradient(120% 55% at 50% -8%,rgba(139,18,214,.11),transparent 55%),var(--paper)}
   .auth-card{box-shadow:0 22px 54px rgba(20,10,45,.16),0 4px 12px rgba(20,10,45,.06)}
@@ -16,40 +19,43 @@
 </head><body class="auth-page">
 <div class="auth-shell">
   <div class="auth-visual">
+    <button type="button" class="lang-switch-auth" data-lang-switch>EN</button>
     <div class="av-top">
       <img src="/assets/logo-full.png" alt="Worktic AI — Automatiza, Conecta, Escala" class="brand-lockup">
-      <span class="av-badge"><b></b>Todo tu negocio, una sola bandeja</span>
-      <h2>Convierte cada conversación en un cliente, sin perder ni un mensaje.</h2>
-      <p>WhatsApp, Telegram y Messenger unificados con un agente de IA entrenado por ti, CRM, catálogo, agenda y automatizaciones.</p>
+      <span class="av-badge"><b></b><span data-i18n="auth.hero_badge">Todo tu negocio, una sola bandeja</span></span>
+      <h2 data-i18n="auth.hero_h2">Convierte cada conversación en un cliente, sin perder ni un mensaje.</h2>
+      <p data-i18n="auth.hero_p">WhatsApp, Telegram y Messenger unificados con un agente de IA entrenado por ti, CRM, catálogo, agenda y automatizaciones.</p>
     </div>
     <div class="av-bottom">
       <div class="av-chips">
-        <div class="av-chip"><b>3</b><small>canales unificados</small></div>
-        <div class="av-chip"><b>24/7</b><small>atención automática</small></div>
-        <div class="av-chip"><b>&lt;30s</b><small>respuesta de la IA</small></div>
-        <div class="av-chip"><b>1 CRM</b><small>historial centralizado</small></div>
+        <div class="av-chip"><b>3</b><small data-i18n="auth.chip1_label">canales unificados</small></div>
+        <div class="av-chip"><b>24/7</b><small data-i18n="auth.chip2_label">atención automática</small></div>
+        <div class="av-chip"><b>&lt;30s</b><small data-i18n="auth.chip3_label">respuesta de la IA</small></div>
+        <div class="av-chip"><b>1 CRM</b><small data-i18n="auth.chip4_label">historial centralizado</small></div>
       </div>
-      <div class="av-foot"><span>✓ Plan Free disponible</span><span>✓ IA administrada por Worktic</span><span>✓ Pagos USDT</span></div>
+      <div class="av-foot"><span data-i18n="auth.foot1">✓ Plan Free disponible</span><span data-i18n="auth.foot2">✓ IA administrada por Worktic</span><span data-i18n="auth.foot3">✓ Pagos USDT</span></div>
     </div>
   </div>
   <div class="auth-card-wrap">
     <div class="auth-card">
-      <div class="brand big"><img src="/assets/logo-mark.png" alt="Worktic AI" class="brand-mark"><div><b>Worktic AI</b><small>Atención omnicanal inteligente</small></div></div>
-      <span class="av-badge mobile-badge"><b></b>Todo tu negocio, una sola bandeja</span>
-      <div class="tabs"><button type="button" id="loginTab" class="active" aria-controls="loginForm">Ingresar</button><button type="button" id="registerTab" aria-controls="registerForm">Crear cuenta</button></div>
-      <form id="loginForm" class="form"><label>Correo<input name="email" type="email" value="" required></label><label>Contraseña<input name="password" type="password" value="" required></label><button>Ingresar</button></form>
+      <button type="button" class="lang-switch-card" data-lang-switch>EN</button>
+      <div class="brand big"><img src="/assets/logo-mark.png" alt="Worktic AI" class="brand-mark"><div><b>Worktic AI</b><small data-i18n="auth.tagline">Atención omnicanal inteligente</small></div></div>
+      <span class="av-badge mobile-badge"><b></b><span data-i18n="auth.mobile_badge">Todo tu negocio, una sola bandeja</span></span>
+      <div class="tabs"><button type="button" id="loginTab" class="active" aria-controls="loginForm" data-i18n="auth.tab_login">Ingresar</button><button type="button" id="registerTab" aria-controls="registerForm" data-i18n="auth.tab_register">Crear cuenta</button></div>
+      <form id="loginForm" class="form"><label><span data-i18n="auth.email_label">Correo</span><input name="email" type="email" value="" required></label><label><span data-i18n="auth.password_label">Contraseña</span><input name="password" type="password" value="" required></label><button data-i18n="auth.login_btn">Ingresar</button></form>
       <form id="registerForm" class="form" hidden>
-        <label>¿Cómo usarás Worktic?<select name="account_type" id="accountType"><option value="personal">Uso personal</option><option value="company">Empresa o equipo</option></select></label>
-        <label>Tu nombre<input name="name" required></label>
-        <label id="companyLabel">Nombre del espacio o negocio<input name="company" placeholder="Mi negocio"></label>
-        <label>Correo<input name="email" type="email" required></label>
-        <label>Contraseña<input name="password" type="password" minlength="8" required></label>
-        <div class="notice">Tu cuenta comienza automáticamente en el plan Free. Podrás cambiar de plan desde la plataforma.</div>
-        <button>Crear cuenta gratis</button>
+        <label><span data-i18n="auth.account_type_label">¿Cómo usarás Worktic?</span><select name="account_type" id="accountType"><option value="personal" data-i18n="auth.account_personal">Uso personal</option><option value="company" data-i18n="auth.account_company">Empresa o equipo</option></select></label>
+        <label><span data-i18n="auth.name_label">Tu nombre</span><input name="name" required></label>
+        <label id="companyLabel"><span data-i18n="auth.company_label">Nombre del espacio o negocio</span><input name="company" placeholder="Mi negocio" data-i18n-ph="auth.company_ph"></label>
+        <label><span data-i18n="auth.email_label">Correo</span><input name="email" type="email" required></label>
+        <label><span data-i18n="auth.password_label">Contraseña</span><input name="password" type="password" minlength="8" required></label>
+        <div class="notice" data-i18n="auth.register_notice">Tu cuenta comienza automáticamente en el plan Free. Podrás cambiar de plan desde la plataforma.</div>
+        <button data-i18n="auth.register_btn">Crear cuenta gratis</button>
       </form>
-      <p class="hint">Worktic AI · Automatiza, conecta y escala tu negocio.</p>
+      <p class="hint" data-i18n="auth.hint">Worktic AI · Automatiza, conecta y escala tu negocio.</p>
       <div id="authError" class="error"></div>
     </div>
   </div>
 </div>
+<script src="/i18n.js"></script>
 <script src="/login.js"></script></body></html>
