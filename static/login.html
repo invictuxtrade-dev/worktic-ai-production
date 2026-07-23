@@ -1,0 +1,8 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acceso · Worktic CRM AI</title><link rel="stylesheet" href="/styles.css"></head><body class="auth-page"><div class="auth-card"><div class="brand big"><span>W</span><div><b>Worktic CRM AI</b><small>Atención omnicanal inteligente</small></div></div><div class="tabs"><button type="button" id="loginTab" class="active" aria-controls="loginForm">Ingresar</button><button type="button" id="registerTab" aria-controls="registerForm">Crear cuenta</button></div><form id="loginForm" class="form"><label>Correo<input name="email" type="email" value="admin@worktic.local" required></label><label>Contraseña<input name="password" type="password" value="Admin123!" required></label><button>Ingresar</button></form><form id="registerForm" class="form" hidden>
+<label>¿Cómo usarás Worktic?<select name="account_type" id="accountType"><option value="personal">Uso personal</option><option value="company">Empresa o equipo</option></select></label>
+<label>Tu nombre<input name="name" required></label>
+<label id="companyLabel">Nombre del espacio o negocio<input name="company" placeholder="Mi negocio"></label>
+<label>Correo<input name="email" type="email" required></label>
+<label>Contraseña<input name="password" type="password" minlength="8" required></label>
+<div class="notice">Tu cuenta comienza automáticamente en el plan Free. Podrás cambiar de plan desde la plataforma.</div>
+<button>Crear cuenta gratis</button></form><p class="hint">Superadministrador inicial: admin@worktic.local · Admin123! Cambia esta contraseña antes de producción.</p><div id="authError" class="error"></div></div><script src="/login.js"></script></body></html>

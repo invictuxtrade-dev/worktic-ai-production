@@ -1,0 +1,9 @@
+WORKTIC OMNICHANNEL AI V3
+
+1. Instale Go 1.24 o superior.
+2. Ejecute INSTALAR_DEPENDENCIAS_WINDOWS.bat.
+3. Ejecute INICIAR_WINDOWS.bat.
+4. Abra http://localhost:8080.
+5. Conecte WhatsApp, Telegram y configure OpenAI desde la interfaz.
+
+Para conservar la sesión de la V2, copie data/worktic.db antes de arrancar la V3.

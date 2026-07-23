@@ -1,0 +1,8 @@
+const $=s=>document.querySelector(s);const api=async(u,o={})=>{const r=await fetch(u,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...o});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Error');return d};
+$('#loginTab').onclick=()=>{$('#loginForm').hidden=false;$('#registerForm').hidden=true;$('#loginTab').classList.add('active');$('#registerTab').classList.remove('active')};$('#registerTab').onclick=()=>{$('#loginForm').hidden=true;$('#registerForm').hidden=false;$('#registerTab').classList.add('active');$('#loginTab').classList.remove('active')};
+$('#loginForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/auth/login',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(e.target)))});location.href='/app.html'}catch(x){$('#authError').textContent=x.message}};
+$('#registerForm').onsubmit=async e=>{e.preventDefault();try{await api('/api/auth/register',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(e.target)))});location.href='/app.html'}catch(x){$('#authError').textContent=x.message}};
+fetch('/api/auth/me',{credentials:'same-origin'}).then(r=>{if(r.ok)location.replace('/app.html')}).catch(()=>{});
+const accountType=document.querySelector('#accountType');if(accountType)accountType.onchange=()=>{document.querySelector('#companyLabel').querySelector('span')?.remove();document.querySelector('#companyLabel').firstChild.textContent=accountType.value==='personal'?'Nombre de tu espacio (opcional)':'Nombre de la empresa'};
+
+const requestedTab=new URLSearchParams(location.search).get('tab');if(requestedTab==='register')document.querySelector('#registerTab').click();else document.querySelector('#loginTab').click();
