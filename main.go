@@ -16,10 +16,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/skip2/go-qrcode"
@@ -36,6 +38,9 @@ import (
 type Config struct {
 	Port                     string
 	AppName                  string
+	AppEnv                   string
+	BaseURL                  string
+	DataDir                  string
 	DatabaseDSN              string
 	MaxMessageLength         int
 	SendCooldownSeconds      int
@@ -233,6 +238,9 @@ type App struct {
 func main() {
 	loadEnvFile(".env")
 	cfg := loadConfig()
+	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
+		log.Fatalf("no se pudo preparar DATA_DIR: %v", err)
+	}
 	dbPath := strings.TrimPrefix(strings.Split(cfg.DatabaseDSN, "?")[0], "file:")
 	if dir := filepath.Dir(dbPath); dir != "." && dir != "" {
 		_ = os.MkdirAll(dir, 0o755)
@@ -296,6 +304,8 @@ func main() {
 	mux.HandleFunc("/api/team/invitations/accept", app.acceptTeamInvitationHandler)
 	mux.HandleFunc("/api/products", app.productsHandler)
 	mux.HandleFunc("/api/appointments", app.appointmentsHandler)
+	mux.HandleFunc("/healthz", app.healthHandler)
+	mux.HandleFunc("/readyz", app.readyHandler)
 	mux.HandleFunc("/api/status", app.statusHandler)
 	mux.HandleFunc("/api/channels/connections", app.channelConnectionsHandler)
 	mux.HandleFunc("/api/channels/action", app.channelActionHandler)
@@ -351,16 +361,69 @@ func main() {
 	mux.HandleFunc("/l/", app.publicLandingHandler)
 	mux.Handle("/", http.FileServer(http.Dir("./static")))
 
-	server := &http.Server{Addr: ":" + cfg.Port, Handler: secureHeaders(app.authMiddleware(mux)), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second}
-	log.Printf("%s activo en http://localhost:%s", cfg.AppName, cfg.Port)
-	log.Fatal(server.ListenAndServe())
+	server := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           secureHeaders(app.authMiddleware(mux)),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       90 * time.Second,
+	}
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		log.Printf("%s activo en :%s (%s)", cfg.AppName, cfg.Port, cfg.AppEnv)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("servidor HTTP: %v", err)
+		}
+	}()
+
+	<-stop
+	log.Printf("apagado controlado iniciado")
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	_ = server.Shutdown(ctx)
+	if app.channelManager != nil {
+		app.channelManager.shutdown()
+	}
+	if app.client != nil {
+		app.client.Disconnect()
+	}
+	_ = db.Close()
+	log.Printf("apagado completado")
+}
+
+func (a *App) healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
+func (a *App) readyHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if err := a.db.PingContext(ctx); err != nil {
+		writeError(w, errors.New("base de datos no disponible"), http.StatusServiceUnavailable)
+		return
+	}
+	writeJSON(w, map[string]any{"status": "ready", "environment": a.cfg.AppEnv})
 }
 
 func loadConfig() Config {
+	dataDir := env("DATA_DIR", "data")
+	port := env("PORT", env("APP_PORT", "8080"))
+	dsn := env("DATABASE_DSN", "")
+	if dsn == "" {
+		dsn = "file:" + filepath.Join(dataDir, "worktic.db") + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+	}
 	return Config{
-		Port:                     env("APP_PORT", "8080"),
-		AppName:                  env("APP_NAME", "Worktic AI V13 Multi-Tenant Channels"),
-		DatabaseDSN:              env("DATABASE_DSN", "file:data/worktic.db?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"),
+		Port:                     port,
+		AppName:                  env("APP_NAME", "Worktic AI V14 Render Production"),
+		AppEnv:                   strings.ToLower(env("APP_ENV", "development")),
+		BaseURL:                  strings.TrimRight(env("BASE_URL", "http://localhost:"+port), "/"),
+		DataDir:                  dataDir,
+		DatabaseDSN:              dsn,
 		MaxMessageLength:         envInt("MAX_MESSAGE_LENGTH", 2000),
 		SendCooldownSeconds:      envInt("SEND_COOLDOWN_SECONDS", 3),
 		AutoReplyCooldownSeconds: envInt("AUTO_REPLY_COOLDOWN_SECONDS", 30),
@@ -1531,7 +1594,7 @@ func (a *App) createSession(w http.ResponseWriter, userID int64) error {
 	if err != nil {
 		return err
 	}
-	http.SetCookie(w, &http.Cookie{Name: "worktic_session", Value: t, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: exp})
+	http.SetCookie(w, &http.Cookie{Name: "worktic_session", Value: t, Path: "/", HttpOnly: true, Secure: a.cfg.AppEnv == "production", SameSite: http.SameSiteLaxMode, Expires: exp})
 	return nil
 }
 func (a *App) loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -1642,7 +1705,7 @@ func (a *App) authLogoutHandler(w http.ResponseWriter, r *http.Request) {
 	if c, e := r.Cookie("worktic_session"); e == nil {
 		_, _ = a.db.Exec(`DELETE FROM app_sessions WHERE token=?`, c.Value)
 	}
-	http.SetCookie(w, &http.Cookie{Name: "worktic_session", Value: "", Path: "/", MaxAge: -1, HttpOnly: true})
+	http.SetCookie(w, &http.Cookie{Name: "worktic_session", Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.cfg.AppEnv == "production", SameSite: http.SameSiteLaxMode})
 	writeJSON(w, map[string]any{"ok": true})
 }
 func (a *App) meHandler(w http.ResponseWriter, r *http.Request) { writeJSON(w, a.currentUser(r)) }

@@ -1,3 +1,7 @@
+# Worktic AI V14 — Render Production Candidate
+
+Versión preparada para despliegue Docker en Render con disco persistente, endpoints de salud, apagado controlado, cookies seguras en producción y almacenamiento multi-tenant configurable. Lee `RENDER_DEPLOYMENT.md` y `V14_PRODUCTION_CHECKLIST.md` antes de abrir el registro público.
+
 # Worktic AI V13.1 — Team WhatsApp Premium
 
 Versión multitenant con canales aislados, sistema multiagente, facturación por planes, invitaciones de equipo por WhatsApp, CRUD profesional y diseño premium responsive.
