@@ -733,3 +733,35 @@ dialog#modal .modal-scroll{padding:28px 28px 12px}dialog#modal .modal-heading{ma
 dialog#modal .modal-scroll>h2:first-child{font-size:22px;margin:0 0 6px;padding-bottom:18px;border-bottom:1px solid var(--line)}dialog#modal label{margin:0!important;padding:0!important}dialog#modal .grid2{margin:0!important}dialog#modal .notice{margin:2px 0 4px}dialog#modal input,dialog#modal select,dialog#modal textarea{margin:0!important}dialog#modal .form{padding-top:4px}.modal-scroll{background:linear-gradient(180deg,#fff,#fcfbff)}
 @media(max-width:900px){.agenda-test-grid{grid-template-columns:1fr 1fr}.agenda-test-grid button{grid-column:1/-1}}@media(max-width:600px){.agenda-test-grid{grid-template-columns:1fr}.agenda-test-grid button{grid-column:auto}.premium-panel{padding:16px}}
 .connection-test-list{display:grid;gap:10px;margin:18px 0}.connection-test-row{display:flex;align-items:center;gap:11px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}.connection-test-row b{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;font-size:14px}.connection-test-row.ok b{background:#dcfce7;color:#166534}.connection-test-row.fail b{background:#fee2e2;color:#991b1b}.connection-test-row span{font-weight:700}
+
+/* ======================================================================
+   Worktic AI — Premium Form System 2026
+   Unified visual language for every application form and modal.
+   ====================================================================== */
+.form,dialog#modal .modal-scroll,.social-form{--field-h:48px}
+.form-section{background:linear-gradient(180deg,#fff,#fcfbff);border:1px solid #e8e4f2;border-radius:18px;padding:20px;box-shadow:0 8px 24px rgba(34,24,70,.035);display:grid;gap:16px}
+.form-section-title{display:flex;align-items:flex-start;gap:12px;margin-bottom:2px}
+.form-section-title::before{content:'';width:4px;align-self:stretch;min-height:36px;border-radius:99px;background:var(--brand-grad)}
+.form-section-title h3{margin:0;font-size:15px;letter-spacing:-.015em}.form-section-title p{margin:4px 0 0;color:var(--text-mute);font-size:12.5px;line-height:1.45}
+.form label,.social-form label,dialog#modal label{position:relative;display:grid;gap:8px;font-size:12.5px;font-weight:750;letter-spacing:.005em;color:#262238}
+.form input,.form select,.form textarea,.social-form input,.social-form select,.social-form textarea,dialog#modal input,dialog#modal select,dialog#modal textarea{min-height:var(--field-h);border:1px solid #dcd7e8;border-radius:12px;padding:12px 14px;background:#fff;color:#211d2d;box-shadow:0 1px 2px rgba(20,16,40,.025),inset 0 1px 0 rgba(255,255,255,.8);transition:border-color .18s ease,box-shadow .18s ease,background .18s ease,transform .12s ease}
+.form input:hover,.form select:hover,.form textarea:hover,.social-form input:hover,.social-form select:hover,.social-form textarea:hover,dialog#modal input:hover,dialog#modal select:hover,dialog#modal textarea:hover{border-color:#bdb5d2;background:#fff}
+.form input:focus,.form select:focus,.form textarea:focus,.social-form input:focus,.social-form select:focus,.social-form textarea:focus,dialog#modal input:focus,dialog#modal select:focus,dialog#modal textarea:focus{border-color:#8a5cf5;box-shadow:0 0 0 4px rgba(123,58,237,.10),0 8px 22px rgba(76,43,145,.07);background:#fff}
+.form textarea,.social-form textarea,dialog#modal textarea{min-height:118px;line-height:1.55;resize:vertical}
+.form select,.social-form select,dialog#modal select{cursor:pointer}
+.form .grid2,dialog#modal .grid2{gap:16px 18px}
+.form .actions,dialog#modal .actions{margin-top:6px}
+.form .check,dialog#modal .check{background:#faf9fd;border:1px solid #e6e2ee;border-radius:12px;padding:12px 14px;min-height:48px}
+.form .check:hover,dialog#modal .check:hover{border-color:#cbc3dd;background:#fff}
+.form .check input,dialog#modal .check input{min-height:auto;width:18px;height:18px}
+::placeholder{color:#aaa3b7;opacity:1}
+dialog#modal{width:min(760px,calc(100vw - 32px));border:1px solid rgba(132,104,210,.22);box-shadow:0 35px 100px rgba(18,12,36,.38)}
+dialog#modal .modal-scroll{padding:32px 34px 14px}
+dialog#modal .modal-heading{padding-bottom:20px;margin-bottom:22px;border-bottom:1px solid #ece8f3}
+dialog#modal .modal-heading h2{font-size:23px;margin:5px 0 0;letter-spacing:-.035em;color:#171322}
+dialog#modal .modal-heading p{font-size:13.5px;margin-top:7px;line-height:1.5}
+dialog#modal .eyebrow{font-size:10px;letter-spacing:.16em;color:#a23ce7}
+dialog#modal .actions,dialog#modal .modal-actions{margin:24px -34px 0;padding:16px 34px 18px;background:linear-gradient(180deg,rgba(255,255,255,0),#fff 24%,#fff);backdrop-filter:blur(12px)}
+dialog#modal .actions button,dialog#modal .modal-actions button{min-height:46px;border-radius:12px;padding-inline:22px}
+.connection-test-list{display:grid;gap:10px;margin:4px 0 18px}.connection-test-row{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:10px;padding:13px 14px;border:1px solid #e6e2ee;border-radius:13px;background:#fbfafd}.connection-test-row b{width:25px;height:25px;border-radius:50%;display:grid;place-items:center}.connection-test-row.ok b{background:#dcf8e8;color:#13834c}.connection-test-row.neutral b{background:#f0edf5;color:#8a8198}.connection-test-row span{font-weight:750}.connection-test-row small{color:var(--text-mute);font-size:11px}.notice.warning{background:#fff9e8;border-color:#f0d98c;color:#75510a}.notice.warning small{display:block;margin-top:6px}.notice.warning span{display:inline-block;margin-top:8px;line-height:1.45}
+@media(max-width:700px){dialog#modal .modal-scroll{padding:24px 18px 10px}dialog#modal .actions,dialog#modal .modal-actions{margin:20px -18px 0;padding:14px 18px calc(15px + env(safe-area-inset-bottom))}.form-section{padding:16px;border-radius:15px}.connection-test-row{grid-template-columns:28px 1fr}.connection-test-row small{grid-column:2}}

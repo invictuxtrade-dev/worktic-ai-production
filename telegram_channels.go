@@ -302,7 +302,26 @@ func (a *App) testTelegramConnection(r *http.Request, c ChannelConnection) (map[
 		repaired = true
 	}
 	matches := strings.TrimRight(info.URL, "/") == strings.TrimRight(resolved, "/")
-	operational := matches && (strings.TrimSpace(info.LastErrorMessage) == "" || repaired)
+
+	// Telegram conserva el último error aunque el webhook ya haya procesado
+	// mensajes correctamente. Comparamos ese error con la actividad real de
+	// la conexión para no generar falsas alarmas en "Probar conexión".
+	var lastInbound, lastOutbound string
+	_ = a.db.QueryRow(`SELECT COALESCE(MAX(timestamp),'') FROM worktic_messages WHERE tenant_id=? AND channel_connection_id=? AND channel='telegram' AND direction='in'`, c.TenantID, c.ID).Scan(&lastInbound)
+	_ = a.db.QueryRow(`SELECT COALESCE(MAX(timestamp),'') FROM worktic_messages WHERE tenant_id=? AND channel_connection_id=? AND channel='telegram' AND direction='out' AND status='ai_sent'`, c.TenantID, c.ID).Scan(&lastOutbound)
+	latestSuccess := time.Time{}
+	for _, raw := range []string{lastInbound, lastOutbound} {
+		if parsed, parseErr := time.Parse(time.RFC3339, raw); parseErr == nil && parsed.After(latestSuccess) {
+			latestSuccess = parsed
+		}
+	}
+	lastTelegramErrorAt := time.Time{}
+	if info.LastErrorDate > 0 {
+		lastTelegramErrorAt = time.Unix(info.LastErrorDate, 0).UTC()
+	}
+	errorHistorical := strings.TrimSpace(info.LastErrorMessage) != "" && !latestSuccess.IsZero() && latestSuccess.After(lastTelegramErrorAt)
+	activeTelegramError := strings.TrimSpace(info.LastErrorMessage) != "" && !errorHistorical && !repaired
+	operational := matches && !activeTelegramError
 	result := map[string]any{
 		"ok":                   operational,
 		"platform":             "telegram",
@@ -320,7 +339,18 @@ func (a *App) testTelegramConnection(r *http.Request, c ChannelConnection) (map[
 		"auto_repaired":        repaired,
 		"pending_updates":      info.PendingUpdateCount,
 		"last_error":           info.LastErrorMessage,
-		"status":               map[bool]string{true: "operational", false: "attention_required"}[operational],
+		"last_error_at": func() string {
+			if lastTelegramErrorAt.IsZero() {
+				return ""
+			}
+			return lastTelegramErrorAt.Format(time.RFC3339)
+		}(),
+		"error_historical": errorHistorical,
+		"active_error":     activeTelegramError,
+		"last_inbound_at":  lastInbound,
+		"last_outbound_at": lastOutbound,
+		"recent_success":   !latestSuccess.IsZero(),
+		"status":           map[bool]string{true: "operational", false: "attention_required"}[operational],
 	}
 	return result, nil
 }
