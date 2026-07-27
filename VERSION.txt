@@ -1,2 +1,4 @@
 Worktic AI Social Hub Multitenant Analytics + Full ES/EN i18n
 2026-07-27
+
+Landing public i18n fix: 2026-07-27
