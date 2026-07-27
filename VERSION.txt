@@ -1,1 +1,2 @@
-Worktic AI Social Hub vNext — Official Connectors + True Multitenancy + RBAC + Advanced Analytics
+Worktic AI Social Hub Multitenant Analytics + Full ES/EN i18n
+2026-07-27
