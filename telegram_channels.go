@@ -132,6 +132,69 @@ func telegramAPICall(ctx context.Context, token, method string, values url.Value
 	return nil
 }
 
+// resolveTelegramWebhookURL follows only HTTP redirects and returns the final
+// public URL that Telegram must call directly. Telegram rejects webhook
+// endpoints that answer with 301/302/307/308, so Worktic canonicalizes the
+// address before registering it.
+func resolveTelegramWebhookURL(ctx context.Context, candidate string) (string, []string, error) {
+	current := strings.TrimSpace(candidate)
+	if current == "" {
+		return "", nil, errors.New("URL de webhook vacía")
+	}
+	history := []string{current}
+	client := &http.Client{
+		Timeout: 12 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	for i := 0; i < 6; i++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, current, bytes.NewReader([]byte(`{}`)))
+		if err != nil {
+			return "", history, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "Worktic-Telegram-Webhook-Probe/1.0")
+		resp, err := client.Do(req)
+		if err != nil {
+			return "", history, fmt.Errorf("no fue posible comprobar la URL pública del webhook: %w", err)
+		}
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+		resp.Body.Close()
+		if resp.StatusCode < 300 || resp.StatusCode > 399 {
+			return current, history, nil
+		}
+		location := strings.TrimSpace(resp.Header.Get("Location"))
+		if location == "" {
+			return "", history, fmt.Errorf("el webhook responde HTTP %d sin indicar destino", resp.StatusCode)
+		}
+		base, err := url.Parse(current)
+		if err != nil {
+			return "", history, err
+		}
+		next, err := base.Parse(location)
+		if err != nil {
+			return "", history, err
+		}
+		if next.Scheme != "https" {
+			return "", history, fmt.Errorf("el webhook redirige a una URL no segura: %s", next.String())
+		}
+		current = next.String()
+		history = append(history, current)
+	}
+	return "", history, errors.New("el webhook tiene demasiadas redirecciones")
+}
+
+func setTelegramWebhook(ctx context.Context, token, webhookURL, secret string) error {
+	values := url.Values{
+		"url":                  {webhookURL},
+		"secret_token":         {secret},
+		"drop_pending_updates": {"false"},
+		"allowed_updates":      {`["message"]`},
+	}
+	return telegramAPICall(ctx, token, "setWebhook", values, nil)
+}
+
 func (a *App) publicBaseURL(r *http.Request) (string, error) {
 	configured := strings.TrimRight(strings.TrimSpace(a.cfg.BaseURL), "/")
 	if configured != "" && !strings.Contains(configured, "localhost") && !strings.Contains(configured, "127.0.0.1") {
@@ -175,15 +238,16 @@ func (a *App) configureTelegramWebhook(r *http.Request, c ChannelConnection, tok
 	if err != nil {
 		return bot, telegramWebhookInfo{}, "", err
 	}
-	webhookURL := base + "/webhooks/telegram/" + url.PathEscape(c.PublicID)
-	secret := randomToken(16)
-	values := url.Values{
-		"url":                  {webhookURL},
-		"secret_token":         {secret},
-		"drop_pending_updates": {"false"},
-		"allowed_updates":      {`["message"]`},
+	candidateURL := base + "/webhooks/telegram/" + url.PathEscape(c.PublicID)
+	webhookURL, redirectHistory, err := resolveTelegramWebhookURL(ctx, candidateURL)
+	if err != nil {
+		return bot, telegramWebhookInfo{}, "", err
 	}
-	if err := telegramAPICall(ctx, token, "setWebhook", values, nil); err != nil {
+	if len(redirectHistory) > 1 {
+		log.Printf("[TG-WEBHOOK] URL canonicalizada: %s -> %s", candidateURL, webhookURL)
+	}
+	secret := randomToken(16)
+	if err := setTelegramWebhook(ctx, token, webhookURL, secret); err != nil {
 		return bot, telegramWebhookInfo{}, "", err
 	}
 	var info telegramWebhookInfo
@@ -201,22 +265,44 @@ func (a *App) testTelegramConnection(r *http.Request, c ChannelConnection) (map[
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	var bot telegramBotInfo
 	if err := telegramAPICall(ctx, creds.Token, "getMe", nil, &bot); err != nil {
-		return nil, err
-	}
-	var info telegramWebhookInfo
-	if err := telegramAPICall(ctx, creds.Token, "getWebhookInfo", nil, &info); err != nil {
 		return nil, err
 	}
 	base, err := a.publicBaseURL(r)
 	if err != nil {
 		return nil, err
 	}
-	expected := base + "/webhooks/telegram/" + c.PublicID
-	operational := strings.TrimRight(info.URL, "/") == strings.TrimRight(expected, "/") && info.LastErrorMessage == ""
+	candidate := base + "/webhooks/telegram/" + url.PathEscape(c.PublicID)
+	resolved, redirectHistory, err := resolveTelegramWebhookURL(ctx, candidate)
+	if err != nil {
+		return nil, err
+	}
+	var info telegramWebhookInfo
+	if err := telegramAPICall(ctx, creds.Token, "getWebhookInfo", nil, &info); err != nil {
+		return nil, err
+	}
+	repaired := false
+	currentMatches := strings.TrimRight(info.URL, "/") == strings.TrimRight(resolved, "/")
+	redirectError := strings.Contains(strings.ToLower(info.LastErrorMessage), "redirect") || strings.Contains(info.LastErrorMessage, "307") || strings.Contains(info.LastErrorMessage, "301") || strings.Contains(info.LastErrorMessage, "302") || strings.Contains(info.LastErrorMessage, "308")
+	if !currentMatches || redirectError {
+		if strings.TrimSpace(creds.WebhookSecret) == "" {
+			creds.WebhookSecret = randomToken(16)
+		}
+		if err := setTelegramWebhook(ctx, creds.Token, resolved, creds.WebhookSecret); err != nil {
+			return nil, err
+		}
+		if err := telegramAPICall(ctx, creds.Token, "getWebhookInfo", nil, &info); err != nil {
+			return nil, err
+		}
+		credsEncrypted := encryptTelegramCredentials(creds, a.cfg.ChannelEncryptionKey)
+		_, _ = a.db.Exec(`UPDATE channel_connections SET encrypted_credentials=?,last_error='',updated_at=? WHERE id=?`, credsEncrypted, time.Now().UTC().Format(time.RFC3339), c.ID)
+		repaired = true
+	}
+	matches := strings.TrimRight(info.URL, "/") == strings.TrimRight(resolved, "/")
+	operational := matches && (strings.TrimSpace(info.LastErrorMessage) == "" || repaired)
 	result := map[string]any{
 		"ok":                   operational,
 		"platform":             "telegram",
@@ -225,9 +311,13 @@ func (a *App) testTelegramConnection(r *http.Request, c ChannelConnection) (map[
 		"bot_username":         bot.Username,
 		"bot_name":             bot.FirstName,
 		"webhook_configured":   info.URL != "",
-		"webhook_matches":      strings.TrimRight(info.URL, "/") == strings.TrimRight(expected, "/"),
+		"webhook_matches":      matches,
 		"webhook_url":          info.URL,
-		"expected_webhook_url": expected,
+		"expected_webhook_url": resolved,
+		"original_webhook_url": candidate,
+		"redirect_detected":    len(redirectHistory) > 1,
+		"redirect_history":     redirectHistory,
+		"auto_repaired":        repaired,
 		"pending_updates":      info.PendingUpdateCount,
 		"last_error":           info.LastErrorMessage,
 		"status":               map[bool]string{true: "operational", false: "attention_required"}[operational],

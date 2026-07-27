@@ -1,2 +1,7 @@
 Worktic AI v2.0 Premium Enterprise Stable
 Build: 2026-07-27
+
+Telegram 307 Final Fix:
+- Canonicalización automática del webhook.
+- Reparación automática desde Probar conexión.
+- Telegram recibe una URL HTTPS directa, sin redirects.
