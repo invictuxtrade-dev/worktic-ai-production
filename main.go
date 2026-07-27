@@ -2226,10 +2226,37 @@ func (a *App) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
 			ServiceID      int64  `json:"service_id"`
 			Timezone       string `json:"timezone"`
 		}
-		_ = json.NewDecoder(r.Body).Decode(&q)
-		_, e := a.db.Exec(`UPDATE crm_appointments SET contact_name=?,contact_phone=?,service=?,starts_at=?,duration_minutes=?,status=?,notes=?,professional_id=?,service_id=?,timezone=? WHERE id=? AND tenant_id=?`, q.ContactName, q.ContactPhone, q.Service, q.StartsAt, q.DurationMinutes, q.Status, q.Notes, q.ProfessionalID, q.ServiceID, q.Timezone, q.ID, tid)
+		if e := json.NewDecoder(r.Body).Decode(&q); e != nil {
+			writeError(w, errors.New("datos de cita inválidos"), 400)
+			return
+		}
+		if q.ID <= 0 || strings.TrimSpace(q.ContactName) == "" || strings.TrimSpace(q.Service) == "" || strings.TrimSpace(q.StartsAt) == "" {
+			writeError(w, errors.New("cliente, servicio y fecha son obligatorios"), 400)
+			return
+		}
+		if q.DurationMinutes <= 0 {
+			q.DurationMinutes = 30
+		}
+		if q.Status == "" {
+			q.Status = "Programada"
+		}
+		if q.Timezone == "" {
+			q.Timezone = "America/Bogota"
+		}
+		var overlap int
+		_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_appointments WHERE tenant_id=? AND professional_id=? AND id<>? AND status NOT IN ('Cancelada','No asistió') AND starts_at < datetime(?, '+' || ? || ' minutes') AND datetime(starts_at, '+' || duration_minutes || ' minutes') > ?`, tid, q.ProfessionalID, q.ID, q.StartsAt, q.DurationMinutes, q.StartsAt).Scan(&overlap)
+		if overlap > 0 {
+			writeError(w, errors.New("ese horario ya está ocupado para el profesional seleccionado"), 409)
+			return
+		}
+		res, e := a.db.Exec(`UPDATE crm_appointments SET contact_name=?,contact_phone=?,service=?,starts_at=?,duration_minutes=?,status=?,notes=?,professional_id=?,service_id=?,timezone=? WHERE id=? AND tenant_id=?`, q.ContactName, q.ContactPhone, q.Service, q.StartsAt, q.DurationMinutes, q.Status, q.Notes, q.ProfessionalID, q.ServiceID, q.Timezone, q.ID, tid)
 		if e != nil {
 			writeError(w, e, 500)
+			return
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			writeError(w, errors.New("cita no encontrada"), 404)
 			return
 		}
 		writeJSON(w, map[string]any{"ok": true})

@@ -37,6 +37,15 @@ type AgendaHours struct {
 	Active         bool   `json:"active"`
 }
 
+func canManageAgenda(role string) bool {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "superadmin", "owner", "admin", "supervisor":
+		return true
+	default:
+		return false
+	}
+}
+
 func initAgendaPremiumSchema(db *sql.DB) error {
 	stmts := []string{
 		`ALTER TABLE crm_appointments ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 0`,
@@ -76,7 +85,7 @@ func (a *App) agendaSettingsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodPut {
-		if u.Role != "owner" && u.Role != "admin" && u.Role != "superadmin" {
+		if !canManageAgenda(u.Role) {
 			writeError(w, errors.New("sin permiso para configurar la agenda"), 403)
 			return
 		}
@@ -136,7 +145,7 @@ func (a *App) agendaProfessionalsHandler(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, out)
 		return
 	}
-	if u.Role != "owner" && u.Role != "admin" && u.Role != "superadmin" {
+	if !canManageAgenda(u.Role) {
 		writeError(w, errors.New("sin permiso"), 403)
 		return
 	}
@@ -206,7 +215,7 @@ func (a *App) agendaServicesHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, out)
 		return
 	}
-	if u.Role != "owner" && u.Role != "admin" && u.Role != "superadmin" {
+	if !canManageAgenda(u.Role) {
 		writeError(w, errors.New("sin permiso"), 403)
 		return
 	}
@@ -272,39 +281,99 @@ func (a *App) agendaHoursHandler(w http.ResponseWriter, r *http.Request) {
 		for rows.Next() {
 			var x AgendaHours
 			var active int
-			_ = rows.Scan(&x.ID, &x.TenantID, &x.ProfessionalID, &x.Weekday, &x.Start, &x.End, &active)
+			if e = rows.Scan(&x.ID, &x.TenantID, &x.ProfessionalID, &x.Weekday, &x.Start, &x.End, &active); e != nil {
+				writeError(w, e, 500)
+				return
+			}
 			x.Active = active == 1
 			out = append(out, x)
 		}
 		writeJSON(w, out)
 		return
 	}
-	if u.Role != "owner" && u.Role != "admin" && u.Role != "superadmin" {
-		writeError(w, errors.New("sin permiso"), 403)
+	if !canManageAgenda(u.Role) {
+		writeError(w, errors.New("sin permiso para gestionar la disponibilidad"), 403)
 		return
 	}
-	var q struct {
-		ProfessionalID int64  `json:"professional_id"`
-		Weekday        int    `json:"weekday"`
-		Start          string `json:"start_time"`
-		End            string `json:"end_time"`
-		Active         bool   `json:"active"`
+	if r.Method == http.MethodDelete {
+		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+		if id <= 0 {
+			writeError(w, errors.New("horario inválido"), 400)
+			return
+		}
+		res, e := a.db.Exec(`DELETE FROM agenda_hours WHERE id=? AND tenant_id=?`, id, tid)
+		if e != nil {
+			writeError(w, e, 500)
+			return
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			writeError(w, errors.New("horario no encontrado"), 404)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+		return
 	}
-	_ = json.NewDecoder(r.Body).Decode(&q)
+	var q AgendaHours
+	if e := json.NewDecoder(r.Body).Decode(&q); e != nil {
+		writeError(w, errors.New("datos inválidos"), 400)
+		return
+	}
+	q.Start = strings.TrimSpace(q.Start)
+	q.End = strings.TrimSpace(q.End)
 	if q.Weekday < 0 || q.Weekday > 6 || q.Start == "" || q.End == "" || q.Start >= q.End {
 		writeError(w, errors.New("horario inválido"), 400)
 		return
+	}
+	if q.ProfessionalID > 0 {
+		var n int
+		_ = a.db.QueryRow(`SELECT COUNT(*) FROM agenda_professionals WHERE id=? AND tenant_id=?`, q.ProfessionalID, tid).Scan(&n)
+		if n == 0 {
+			writeError(w, errors.New("profesional no encontrado"), 400)
+			return
+		}
 	}
 	active := 0
 	if q.Active {
 		active = 1
 	}
-	_, e := a.db.Exec(`INSERT OR REPLACE INTO agenda_hours(tenant_id,professional_id,weekday,start_time,end_time,active) VALUES(?,?,?,?,?,?)`, tid, q.ProfessionalID, q.Weekday, q.Start, q.End, active)
-	if e != nil {
-		writeError(w, e, 500)
-		return
+	switch r.Method {
+	case http.MethodPost:
+		res, e := a.db.Exec(`INSERT INTO agenda_hours(tenant_id,professional_id,weekday,start_time,end_time,active) VALUES(?,?,?,?,?,?)`, tid, q.ProfessionalID, q.Weekday, q.Start, q.End, active)
+		if e != nil {
+			if strings.Contains(strings.ToLower(e.Error()), "unique") {
+				writeError(w, errors.New("ese bloque horario ya existe"), 409)
+				return
+			}
+			writeError(w, e, 500)
+			return
+		}
+		q.ID, _ = res.LastInsertId()
+		q.TenantID = tid
+		writeJSON(w, q)
+	case http.MethodPut:
+		if q.ID <= 0 {
+			writeError(w, errors.New("horario inválido"), 400)
+			return
+		}
+		res, e := a.db.Exec(`UPDATE agenda_hours SET professional_id=?,weekday=?,start_time=?,end_time=?,active=? WHERE id=? AND tenant_id=?`, q.ProfessionalID, q.Weekday, q.Start, q.End, active, q.ID, tid)
+		if e != nil {
+			if strings.Contains(strings.ToLower(e.Error()), "unique") {
+				writeError(w, errors.New("ese bloque horario ya existe"), 409)
+				return
+			}
+			writeError(w, e, 500)
+			return
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			writeError(w, errors.New("horario no encontrado"), 404)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	default:
+		http.Error(w, "Método no permitido", 405)
 	}
-	writeJSON(w, map[string]any{"ok": true})
 }
 
 func (a *App) agendaAvailabilityHandler(w http.ResponseWriter, r *http.Request) {
@@ -313,18 +382,63 @@ func (a *App) agendaAvailabilityHandler(w http.ResponseWriter, r *http.Request) 
 		writeError(w, err, 401)
 		return
 	}
-	date := r.URL.Query().Get("date")
+	date := strings.TrimSpace(r.URL.Query().Get("date"))
 	pid, _ := strconv.ParseInt(r.URL.Query().Get("professional_id"), 10, 64)
 	sid, _ := strconv.ParseInt(r.URL.Query().Get("service_id"), 10, 64)
+	currentID, _ := strconv.ParseInt(r.URL.Query().Get("current_appointment_id"), 10, 64)
 	d, e := time.Parse("2006-01-02", date)
 	if e != nil {
 		writeError(w, errors.New("fecha inválida"), 400)
 		return
 	}
-	var duration = 30
-	_ = a.db.QueryRow(`SELECT duration_minutes FROM agenda_services WHERE id=? AND tenant_id=?`, sid, tid).Scan(&duration)
+
+	var timezone string
+	var interval, notice, advance, allowWeekends int
+	_ = a.db.QueryRow(`SELECT timezone,slot_interval,min_notice_hours,max_advance_days,allow_weekends FROM agenda_settings WHERE tenant_id=?`, tid).Scan(&timezone, &interval, &notice, &advance, &allowWeekends)
+	if timezone == "" {
+		timezone = "America/Bogota"
+	}
+	if interval < 5 {
+		interval = 30
+	}
+	if advance < 1 {
+		advance = 60
+	}
+	loc, e := time.LoadLocation(timezone)
+	if e != nil {
+		loc, _ = time.LoadLocation("America/Bogota")
+	}
+	now := time.Now().In(loc)
+	dayStart := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, loc)
+	if dayStart.Before(time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)) || dayStart.After(now.AddDate(0, 0, advance)) {
+		writeJSON(w, map[string]any{"date": date, "professional_id": pid, "service_id": sid, "slots": []string{}, "timezone": timezone})
+		return
+	}
+	if allowWeekends == 0 && (d.Weekday() == time.Saturday || d.Weekday() == time.Sunday) {
+		writeJSON(w, map[string]any{"date": date, "professional_id": pid, "service_id": sid, "slots": []string{}, "timezone": timezone})
+		return
+	}
+	var duration, buffer int
+	if sid > 0 {
+		if e = a.db.QueryRow(`SELECT duration_minutes,buffer_minutes FROM agenda_services WHERE id=? AND tenant_id=? AND active=1`, sid, tid).Scan(&duration, &buffer); e != nil {
+			writeError(w, errors.New("servicio no encontrado o inactivo"), 400)
+			return
+		}
+	} else {
+		duration = 30
+	}
+
 	weekday := int(d.Weekday())
-	rows, e := a.db.Query(`SELECT start_time,end_time FROM agenda_hours WHERE tenant_id=? AND professional_id IN (0,?) AND weekday=? AND active=1 ORDER BY professional_id DESC,start_time`, tid, pid, weekday)
+	// Si el profesional tiene horario propio para el día, se usa solo ese. De lo contrario se usa el horario general.
+	hourPID := int64(0)
+	if pid > 0 {
+		var n int
+		_ = a.db.QueryRow(`SELECT COUNT(*) FROM agenda_hours WHERE tenant_id=? AND professional_id=? AND weekday=? AND active=1`, tid, pid, weekday).Scan(&n)
+		if n > 0 {
+			hourPID = pid
+		}
+	}
+	rows, e := a.db.Query(`SELECT start_time,end_time FROM agenda_hours WHERE tenant_id=? AND professional_id=? AND weekday=? AND active=1 ORDER BY start_time`, tid, hourPID, weekday)
 	if e != nil {
 		writeError(w, e, 500)
 		return
@@ -334,21 +448,41 @@ func (a *App) agendaAvailabilityHandler(w http.ResponseWriter, r *http.Request) 
 	rs := []rng{}
 	for rows.Next() {
 		var x rng
-		_ = rows.Scan(&x.s, &x.e)
+		if e = rows.Scan(&x.s, &x.e); e != nil {
+			writeError(w, e, 500)
+			return
+		}
 		rs = append(rs, x)
 	}
+
 	slots := []string{}
+	seen := map[string]bool{}
 	for _, x := range rs {
-		st, _ := time.Parse("15:04", x.s)
-		en, _ := time.Parse("15:04", x.e)
-		for cur := st; !cur.Add(time.Duration(duration) * time.Minute).After(en); cur = cur.Add(30 * time.Minute) {
-			ts := fmt.Sprintf("%sT%s:00", date, cur.Format("15:04"))
-			var n int
-			_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_appointments WHERE tenant_id=? AND professional_id=? AND status NOT IN ('Cancelada','No asistió') AND starts_at < datetime(?, '+' || ? || ' minutes') AND datetime(starts_at, '+' || duration_minutes || ' minutes') > ?`, tid, pid, ts, duration, ts).Scan(&n)
-			if n == 0 {
+		stClock, es := time.Parse("15:04", x.s)
+		enClock, ee := time.Parse("15:04", x.e)
+		if es != nil || ee != nil {
+			continue
+		}
+		start := time.Date(d.Year(), d.Month(), d.Day(), stClock.Hour(), stClock.Minute(), 0, 0, loc)
+		end := time.Date(d.Year(), d.Month(), d.Day(), enClock.Hour(), enClock.Minute(), 0, 0, loc)
+		for cur := start; !cur.Add(time.Duration(duration) * time.Minute).After(end); cur = cur.Add(time.Duration(interval) * time.Minute) {
+			if cur.Before(now.Add(time.Duration(notice) * time.Hour)) {
+				continue
+			}
+			ts := cur.Format("2006-01-02T15:04:05")
+			endTS := cur.Add(time.Duration(duration+buffer) * time.Minute).Format("2006-01-02T15:04:05")
+			var blocked int
+			_ = a.db.QueryRow(`SELECT COUNT(*) FROM agenda_blocks WHERE tenant_id=? AND professional_id IN (0,?) AND starts_at < ? AND ends_at > ?`, tid, pid, endTS, ts).Scan(&blocked)
+			if blocked > 0 {
+				continue
+			}
+			var occupied int
+			_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_appointments WHERE tenant_id=? AND professional_id=? AND id<>? AND status NOT IN ('Cancelada','No asistió') AND starts_at < ? AND datetime(starts_at, '+' || (duration_minutes + ?) || ' minutes') > ?`, tid, pid, currentID, endTS, buffer, ts).Scan(&occupied)
+			if occupied == 0 && !seen[ts] {
+				seen[ts] = true
 				slots = append(slots, ts)
 			}
 		}
 	}
-	writeJSON(w, map[string]any{"date": date, "professional_id": pid, "service_id": sid, "slots": slots})
+	writeJSON(w, map[string]any{"date": date, "professional_id": pid, "service_id": sid, "slots": slots, "timezone": timezone})
 }
