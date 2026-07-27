@@ -279,6 +279,9 @@ func main() {
 	if err = initChannelTenantSchema(db); err != nil {
 		log.Fatal(err)
 	}
+	if err = migrateAgentTenants(db); err != nil {
+		log.Fatalf("agent tenant migration: %v", err)
+	}
 
 	container, err := sqlstore.New(context.Background(), "sqlite", cfg.DatabaseDSN, waLog.Stdout("DB", "WARN", true))
 	if err != nil {

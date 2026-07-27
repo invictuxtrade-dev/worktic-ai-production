@@ -330,6 +330,7 @@ func (cm *ChannelManager) handleWAEvent(id int64, evt interface{}) {
 		_, _ = cm.app.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, rt.conn.TenantID, id, "whatsapp", v.Info.ID, chat, sender, "in", typ, text, "received", now)
 		_, _ = cm.app.db.Exec(`INSERT INTO worktic_contacts(tenant_id,channel_connection_id,chat_jid,channel,phone,name,unread,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(chat_jid) DO UPDATE SET unread=worktic_contacts.unread+1,name=CASE WHEN excluded.name<>'' THEN excluded.name ELSE worktic_contacts.name END,updated_at=excluded.updated_at`, rt.conn.TenantID, id, chat, "whatsapp", shortJID(v.Info.Chat.String()), strings.TrimSpace(v.Info.PushName), now)
 		_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_message_at=?,updated_at=? WHERE id=?`, now, now, id)
+		go cm.maybeTenantAIReply(rt, v.Info.Chat, chat, text)
 	case *events.Connected:
 		ext := ""
 		if rt.wa.Store.ID != nil {
@@ -353,6 +354,94 @@ func (cm *ChannelManager) handleWAEvent(id int64, evt interface{}) {
 	case *events.LoggedOut:
 		cm.updateStatus(id, "revoked", "La sesión fue cerrada desde WhatsApp")
 	}
+}
+
+func (cm *ChannelManager) maybeTenantAIReply(rt *channelRuntime, recipient types.JID, storedChat, text string) {
+	if rt == nil || rt.wa == nil || strings.TrimSpace(text) == "" || cm.app.openAIKey() == "" {
+		return
+	}
+	key := fmt.Sprintf("tenant-ai:%d:%d:%s", rt.conn.TenantID, rt.conn.ID, storedChat)
+	cm.app.mu.Lock()
+	if t, ok := cm.app.autoLast[key]; ok && time.Since(t) < time.Duration(cm.app.cfg.AutoReplyCooldownSeconds)*time.Second {
+		cm.app.mu.Unlock()
+		return
+	}
+	cm.app.autoLast[key] = time.Now()
+	cm.app.mu.Unlock()
+
+	agentID := rt.conn.AssignedAgentID
+	if agentID == 0 {
+		resolved, err := cm.app.resolveAgent(rt.conn.TenantID, "whatsapp", "", text, 0, 0, 0)
+		if err == nil {
+			agentID = resolved
+		}
+	}
+	history := cm.tenantRecentHistory(rt.conn.TenantID, rt.conn.ID, storedChat, 10)
+	system := ""
+	if agentID > 0 {
+		var ag AIAgent
+		var isDefault int
+		err := cm.app.db.QueryRow(`SELECT id,tenant_id,name,type,description,objective,tone,language,instructions,knowledge,greeting,away_message,handoff_rules,tools,channels,status,is_default,monthly_budget,created_at,updated_at FROM ai_agents WHERE id=? AND tenant_id=? AND status='active'`, agentID, rt.conn.TenantID).Scan(
+			&ag.ID, &ag.TenantID, &ag.Name, &ag.Type, &ag.Description, &ag.Objective, &ag.Tone, &ag.Language, &ag.Instructions, &ag.Knowledge, &ag.Greeting, &ag.AwayMessage, &ag.HandoffRules, &ag.Tools, &ag.Channels, &ag.Status, &isDefault, &ag.MonthlyBudget, &ag.CreatedAt, &ag.UpdatedAt,
+		)
+		if err != nil {
+			_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=?`, "El agente asignado no existe o no está activo", time.Now().UTC().Format(time.RFC3339), rt.conn.ID)
+			return
+		}
+		system = fmt.Sprintf("Eres %s, agente especializado de tipo %s. Objetivo: %s. Tono: %s. Idioma: %s. Instrucciones: %s. Conocimiento verificado: %s. Herramientas permitidas: %s. No inventes datos y responde de forma humana, clara y breve. Historial reciente:\n%s", ag.Name, ag.Type, ag.Objective, ag.Tone, ag.Language, ag.Instructions, ag.Knowledge, ag.Tools, history)
+	} else {
+		legacy := cm.app.loadAgent()
+		if !legacy.Enabled {
+			_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=?`, "No hay un agente activo asignado al canal", time.Now().UTC().Format(time.RFC3339), rt.conn.ID)
+			return
+		}
+		system = fmt.Sprintf("Eres %s, asistente principal de %s. Objetivo: %s. Tono: %s. Instrucciones: %s. Conocimiento verificado: %s. No inventes datos y responde de forma humana, clara y breve. Historial reciente:\n%s", legacy.Name, legacy.Company, legacy.Objective, legacy.Tone, legacy.Instructions, legacy.Knowledge, history)
+	}
+	reply, err := cm.app.callOpenAI(system, text)
+	period := time.Now().UTC().Format("2006-01")
+	if err != nil {
+		if agentID > 0 {
+			_, _ = cm.app.db.Exec(`INSERT INTO ai_agent_usage(tenant_id,agent_id,period,channel,conversations,responses,errors) VALUES(?,?,?,'whatsapp',1,0,1) ON CONFLICT(tenant_id,agent_id,period,channel) DO UPDATE SET conversations=conversations+1,errors=errors+1`, rt.conn.TenantID, agentID, period)
+		}
+		_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=?`, err.Error(), time.Now().UTC().Format(time.RFC3339), rt.conn.ID)
+		return
+	}
+	if strings.TrimSpace(reply) == "" {
+		return
+	}
+	time.Sleep(700 * time.Millisecond)
+	resp, err := rt.wa.SendMessage(context.Background(), recipient, &waProto.Message{Conversation: proto.String(reply)})
+	if err != nil {
+		_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=?`, err.Error(), time.Now().UTC().Format(time.RFC3339), rt.conn.ID)
+		return
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, _ = cm.app.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, rt.conn.TenantID, rt.conn.ID, "whatsapp", resp.ID, storedChat, "ai", "out", "text", reply, "ai_sent", now)
+	if agentID > 0 {
+		_, _ = cm.app.db.Exec(`INSERT INTO ai_agent_usage(tenant_id,agent_id,period,channel,conversations,responses) VALUES(?,?,?,'whatsapp',1,1) ON CONFLICT(tenant_id,agent_id,period,channel) DO UPDATE SET conversations=conversations+1,responses=responses+1`, rt.conn.TenantID, agentID, period)
+	}
+	_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_error='',updated_at=? WHERE id=?`, now, rt.conn.ID)
+}
+
+func (cm *ChannelManager) tenantRecentHistory(tenantID, connectionID int64, chat string, limit int) string {
+	rows, err := cm.app.db.Query(`SELECT direction,text FROM worktic_messages WHERE tenant_id=? AND channel_connection_id=? AND chat_jid=? ORDER BY id DESC LIMIT ?`, tenantID, connectionID, chat, limit)
+	if err != nil {
+		return ""
+	}
+	defer rows.Close()
+	var lines []string
+	for rows.Next() {
+		var direction, value string
+		if rows.Scan(&direction, &value) != nil {
+			continue
+		}
+		who := "Cliente"
+		if direction == "out" {
+			who = "Asistente"
+		}
+		lines = append([]string{who + ": " + value}, lines...)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (cm *ChannelManager) runtime(id int64) *channelRuntime {

@@ -106,21 +106,38 @@ func agentLimit(plan string) int {
 }
 
 func (a *App) agentTenant(r *http.Request) (int64, *User, error) {
-	u := a.currentUser(r)
-	if u == nil {
-		return 0, nil, errors.New("sesión requerida")
-	}
-	// En esta versión el tenant operativo es el propietario de la suscripción.
-	// Para cuentas de equipo, se resuelve por empresa al owner más antiguo.
-	if u.Role == "superadmin" {
-		return u.ID, u, nil
-	}
-	var tenant int64
-	err := a.db.QueryRow(`SELECT id FROM app_users WHERE company=? AND role='owner' ORDER BY id LIMIT 1`, u.Company).Scan(&tenant)
+	return a.tenantForRequest(r)
+}
+
+// migrateAgentTenants normaliza instalaciones anteriores donde ai_agents.tenant_id
+// guardaba el ID del propietario en vez del tenant empresarial real.
+func migrateAgentTenants(db *sql.DB) error {
+	rows, err := db.Query(`SELECT id,tenant_id FROM ai_agents`)
 	if err != nil {
-		tenant = u.ID
+		return err
 	}
-	return tenant, u, nil
+	defer rows.Close()
+	type pair struct{ id, oldTenant int64 }
+	var agents []pair
+	for rows.Next() {
+		var x pair
+		if rows.Scan(&x.id, &x.oldTenant) == nil {
+			agents = append(agents, x)
+		}
+	}
+	for _, x := range agents {
+		var realTenant int64
+		if db.QueryRow(`SELECT tenant_id FROM app_users WHERE id=?`, x.oldTenant).Scan(&realTenant) != nil || realTenant == 0 || realTenant == x.oldTenant {
+			continue
+		}
+		_, _ = db.Exec(`UPDATE ai_agents SET tenant_id=? WHERE id=?`, realTenant, x.id)
+		_, _ = db.Exec(`UPDATE ai_agent_routes SET tenant_id=? WHERE agent_id=?`, realTenant, x.id)
+		_, _ = db.Exec(`UPDATE ai_agent_usage SET tenant_id=? WHERE agent_id=?`, realTenant, x.id)
+		_, _ = db.Exec(`UPDATE ai_agent_permissions SET tenant_id=? WHERE agent_id=?`, realTenant, x.id)
+		_, _ = db.Exec(`UPDATE ai_agent_audit SET tenant_id=? WHERE agent_id=?`, realTenant, x.id)
+		_, _ = db.Exec(`UPDATE channel_connections SET assigned_agent_id=? WHERE tenant_id=? AND assigned_agent_id=?`, x.id, realTenant, x.id)
+	}
+	return nil
 }
 
 func canManageAgents(role string) bool {
