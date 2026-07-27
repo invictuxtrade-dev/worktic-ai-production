@@ -282,6 +282,9 @@ func main() {
 	if err = initAgendaPremiumSchema(db); err != nil {
 		log.Fatal(err)
 	}
+	if err = initCatalogPremiumSchema(db); err != nil {
+		log.Fatal(err)
+	}
 	if err = migrateAgentTenants(db); err != nil {
 		log.Fatalf("agent tenant migration: %v", err)
 	}
@@ -320,7 +323,9 @@ func main() {
 	mux.HandleFunc("/api/admin/users", app.usersHandler)
 	mux.HandleFunc("/api/team/invitations", app.teamInvitationsHandler)
 	mux.HandleFunc("/api/team/invitations/accept", app.acceptTeamInvitationHandler)
-	mux.HandleFunc("/api/products", app.productsHandler)
+	mux.HandleFunc("/api/products", app.catalogProductsHandler)
+	mux.HandleFunc("/api/catalog/upload", app.catalogImageUploadHandler)
+	mux.HandleFunc("/uploads/catalog/", app.catalogUploadFileHandler)
 	mux.HandleFunc("/api/appointments", app.appointmentsHandler)
 	mux.HandleFunc("/api/agenda/settings", app.agendaSettingsHandler)
 	mux.HandleFunc("/api/agenda/professionals", app.agendaProfessionalsHandler)
@@ -1395,7 +1400,9 @@ func (a *App) aiResponse(userText, history string) (string, error) {
 	}
 	ag := a.loadAgent()
 	products := []string{}
-	if rows, err := a.db.Query(`SELECT name,description,price,currency,stock FROM crm_products WHERE active=1 ORDER BY name`); err == nil {
+	tid := int64(0)
+	_ = a.db.QueryRow(`SELECT id FROM tenants ORDER BY id LIMIT 1`).Scan(&tid)
+	if rows, err := a.db.Query(`SELECT name,description,CASE WHEN promotional_price>0 THEN promotional_price ELSE price END,currency,stock FROM crm_products WHERE tenant_id=? AND active=1 ORDER BY featured DESC,name`, tid); err == nil {
 		defer rows.Close()
 		for rows.Next() {
 			var name, desc, currency string
@@ -2091,7 +2098,7 @@ func (a *App) usersHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Método no permitido", 405)
 	}
 }
-func (a *App) productsHandler(w http.ResponseWriter, r *http.Request) {
+func (a *App) legacyProductsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		rows, e := a.db.Query(`SELECT id,name,description,price,currency,stock,active,updated_at FROM crm_products ORDER BY updated_at DESC`)
@@ -2441,7 +2448,8 @@ func (a *App) quotaAllowed(r *http.Request, kind string) error {
 	switch kind {
 	case "products":
 		max = p.MaxProducts
-		_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_products`).Scan(&used)
+		tid, _, _ := a.tenantForRequest(r)
+		_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_products WHERE tenant_id=?`, tid).Scan(&used)
 	case "rules":
 		max = p.MaxRules
 		_ = a.db.QueryRow(`SELECT COUNT(*) FROM worktic_auto_rules`).Scan(&used)
