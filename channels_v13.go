@@ -32,21 +32,22 @@ import (
 )
 
 type ChannelConnection struct {
-	ID                 int64  `json:"id"`
-	TenantID           int64  `json:"tenant_id"`
-	PublicID           string `json:"public_id"`
-	Type               string `json:"type"`
-	Name               string `json:"name"`
-	Status             string `json:"status"`
-	ExternalAccountID  string `json:"external_account_id"`
-	AssignedAgentID    int64  `json:"assigned_agent_id"`
-	ConfigJSON         string `json:"config_json"`
-	LastConnectedAt    string `json:"last_connected_at"`
-	LastDisconnectedAt string `json:"last_disconnected_at"`
-	LastMessageAt      string `json:"last_message_at"`
-	LastError          string `json:"last_error"`
-	CreatedAt          string `json:"created_at"`
-	UpdatedAt          string `json:"updated_at"`
+	ID                   int64  `json:"id"`
+	TenantID             int64  `json:"tenant_id"`
+	PublicID             string `json:"public_id"`
+	Type                 string `json:"type"`
+	Name                 string `json:"name"`
+	Status               string `json:"status"`
+	ExternalAccountID    string `json:"external_account_id"`
+	AssignedAgentID      int64  `json:"assigned_agent_id"`
+	ConfigJSON           string `json:"config_json"`
+	EncryptedCredentials string `json:"-"`
+	LastConnectedAt      string `json:"last_connected_at"`
+	LastDisconnectedAt   string `json:"last_disconnected_at"`
+	LastMessageAt        string `json:"last_message_at"`
+	LastError            string `json:"last_error"`
+	CreatedAt            string `json:"created_at"`
+	UpdatedAt            string `json:"updated_at"`
 }
 
 type channelRuntime struct {
@@ -254,14 +255,14 @@ func (a *App) channelTypeLimitForPlan(p Plan, typ string) int {
 }
 
 func (cm *ChannelManager) restoreActive() {
-	rows, err := cm.app.db.Query(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE status IN ('connected','reconnecting','connecting') ORDER BY id`)
+	rows, err := cm.app.db.Query(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,encrypted_credentials,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE status IN ('connected','reconnecting','connecting') ORDER BY id`)
 	if err != nil {
 		return
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var c ChannelConnection
-		_ = rows.Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt)
+		_ = rows.Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.EncryptedCredentials, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt)
 		if c.Type == "whatsapp_qr" {
 			go func(x ChannelConnection) {
 				time.Sleep(time.Duration(x.ID%8) * time.Second)
@@ -494,7 +495,7 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	switch r.Method {
 	case http.MethodGet:
-		rows, e := a.db.Query(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE tenant_id=? ORDER BY id DESC`, tid)
+		rows, e := a.db.Query(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,encrypted_credentials,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE tenant_id=? ORDER BY id DESC`, tid)
 		if e != nil {
 			writeError(w, e, 500)
 			return
@@ -503,7 +504,7 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 		out := []ChannelConnection{}
 		for rows.Next() {
 			var c ChannelConnection
-			_ = rows.Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt)
+			_ = rows.Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.EncryptedCredentials, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt)
 			out = append(out, c)
 		}
 		p, _, _ := a.activePlan(a.billingAccountUserID(u))
@@ -581,10 +582,11 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 		Token      string `json:"token"`
 		ExternalID string `json:"external_id"`
 		AgentID    int64  `json:"agent_id"`
+		AppSecret  string `json:"app_secret"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&q)
 	var c ChannelConnection
-	if a.db.QueryRow(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE id=? AND tenant_id=?`, q.ID, tid).Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt) != nil {
+	if a.db.QueryRow(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,encrypted_credentials,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE id=? AND tenant_id=?`, q.ID, tid).Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.EncryptedCredentials, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt) != nil {
 		writeError(w, errors.New("conexión no encontrada"), 404)
 		return
 	}
@@ -614,12 +616,17 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if c.Type == "messenger" {
 			if strings.TrimSpace(q.Token) == "" {
-				writeError(w, errors.New("token obligatorio"), 400)
+				writeError(w, errors.New("Page Access Token obligatorio"), 400)
 				return
 			}
-			secret := encryptLocal(q.Token, a.cfg.ChannelEncryptionKey)
-			cfg, _ := json.Marshal(map[string]string{"token": secret, "external_id": q.ExternalID})
-			_, _ = a.db.Exec(`UPDATE channel_connections SET encrypted_credentials=?,external_account_id=?,config_json=?,status='connected',assigned_agent_id=?,last_connected_at=?,last_error='',updated_at=? WHERE id=? AND tenant_id=?`, secret, q.ExternalID, string(cfg), q.AgentID, now, now, q.ID, tid)
+			result, cfgErr := a.configureMessenger(r, c, strings.TrimSpace(q.Token), strings.TrimSpace(q.ExternalID), strings.TrimSpace(q.AppSecret))
+			if cfgErr != nil {
+				writeError(w, cfgErr, 502)
+				return
+			}
+			_, _ = a.db.Exec(`UPDATE channel_connections SET assigned_agent_id=? WHERE id=? AND tenant_id=?`, q.AgentID, q.ID, tid)
+			writeJSON(w, result)
+			return
 		}
 	case "test":
 		if c.Type == "telegram" {
@@ -639,6 +646,15 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 				_, _ = a.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=? AND tenant_id=?`, detail, now, q.ID, tid)
 			}
 			_, _ = a.db.Exec(`INSERT INTO channel_audit(tenant_id,connection_id,user_id,action,detail,created_at) VALUES(?,?,?,?,?,?)`, tid, q.ID, u.ID, "test", c.Type, now)
+			writeJSON(w, result)
+			return
+		}
+		if c.Type == "messenger" {
+			result, testErr := a.testMessengerConnection(r, c)
+			if testErr != nil {
+				writeError(w, testErr, 502)
+				return
+			}
 			writeJSON(w, result)
 			return
 		}
