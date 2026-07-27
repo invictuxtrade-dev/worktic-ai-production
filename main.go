@@ -55,6 +55,14 @@ type Config struct {
 	USDTTRC20Address         string
 	PaymentConfirmations     int
 	ChannelEncryptionKey     string
+	MetaAppID                string
+	MetaAppSecret            string
+	LinkedInClientID         string
+	LinkedInClientSecret     string
+	TikTokClientKey          string
+	TikTokClientSecret       string
+	GoogleClientID           string
+	GoogleClientSecret       string
 }
 
 type StoredMessage struct {
@@ -253,6 +261,9 @@ func main() {
 	if err = initSchema(db); err != nil {
 		log.Fatal(err)
 	}
+	if err = initSocialHubSchema(db); err != nil {
+		log.Fatalf("social hub schema: %v", err)
+	}
 	if err = initMarketingSchema(db); err != nil {
 		log.Fatal(err)
 	}
@@ -280,6 +291,7 @@ func main() {
 	client := whatsmeow.NewClient(deviceStore, waLog.Stdout("WA", "INFO", true))
 
 	app := &App{cfg: cfg, db: db, client: client, qrState: "idle", autoLast: map[string]time.Time{}, tgStop: make(chan struct{})}
+	go app.runSocialPublisher()
 	app.channelManager = NewChannelManager(app)
 	go app.channelManager.restoreActive()
 	client.AddEventHandler(app.handleWAEvent)
@@ -342,6 +354,15 @@ func main() {
 	mux.HandleFunc("/api/admin/overview", app.adminOverviewHandler)
 	mux.HandleFunc("/api/admin/payments", app.adminPaymentsHandler)
 	mux.HandleFunc("/api/admin/subscriptions", app.adminSubscriptionsHandler)
+	mux.HandleFunc("/api/social/overview", app.socialOverviewHandler)
+	mux.HandleFunc("/api/social/analytics", app.socialAnalyticsHandler)
+	mux.HandleFunc("/api/social/metrics/ingest", app.socialMetricsIngestHandler)
+	mux.HandleFunc("/api/social/connections", app.socialConnectionsHandler)
+	mux.HandleFunc("/api/social/posts", app.socialPostsHandler)
+	mux.HandleFunc("/api/social/publish", app.socialPublishHandler)
+	mux.HandleFunc("/api/social/oauth/start", app.socialOAuthStartHandler)
+	mux.HandleFunc("/api/social/oauth/callback/", app.socialOAuthCallbackHandler)
+	mux.HandleFunc("/api/social/test", app.socialConnectionTestHandler)
 	mux.HandleFunc("/api/marketing/overview", app.marketingOverviewHandler)
 	mux.HandleFunc("/api/marketing/limits", app.marketingLimitsHandler)
 	mux.HandleFunc("/api/marketing/campaigns", app.marketingCampaignsHandler)
@@ -437,6 +458,14 @@ func loadConfig() Config {
 		USDTTRC20Address:         env("USDT_TRC20_ADDRESS", ""),
 		PaymentConfirmations:     envInt("PAYMENT_CONFIRMATIONS", 12),
 		ChannelEncryptionKey:     env("CHANNEL_ENCRYPTION_KEY", env("APP_NAME", "change-me-v13")),
+		MetaAppID:                env("META_APP_ID", ""),
+		MetaAppSecret:            env("META_APP_SECRET", ""),
+		LinkedInClientID:         env("LINKEDIN_CLIENT_ID", ""),
+		LinkedInClientSecret:     env("LINKEDIN_CLIENT_SECRET", ""),
+		TikTokClientKey:          env("TIKTOK_CLIENT_KEY", ""),
+		TikTokClientSecret:       env("TIKTOK_CLIENT_SECRET", ""),
+		GoogleClientID:           env("GOOGLE_CLIENT_ID", ""),
+		GoogleClientSecret:       env("GOOGLE_CLIENT_SECRET", ""),
 	}
 }
 

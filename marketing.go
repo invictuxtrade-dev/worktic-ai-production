@@ -119,7 +119,13 @@ func (a *App) tenantFor(r *http.Request) (int64, *User, error) {
 	if u == nil {
 		return 0, nil, fmt.Errorf("sesión requerida")
 	}
-	return u.ID, u, nil
+	if u.TenantID == 0 {
+		return 0, u, fmt.Errorf("cuenta sin empresa o espacio asignado")
+	}
+	// El tenant se resuelve desde la sesión autenticada. Todos los miembros de
+	// una empresa comparten el mismo tenant y, por tanto, las mismas conexiones,
+	// calendario, publicaciones y métricas del Social Hub.
+	return u.TenantID, u, nil
 }
 func marketingLimitsFor(plan string) MarketingLimits {
 	switch plan {

@@ -1,1 +1,1 @@
-14.0.0-render-production-candidate
+Worktic AI Social Hub vNext — Official Connectors + True Multitenancy + RBAC + Advanced Analytics
