@@ -641,6 +641,13 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, result)
 			return
 		}
+	case "details":
+		if c.Type == "messenger" {
+			writeJSON(w, a.messengerConnectionDetails(r, c))
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "platform": c.Type, "status": c.Status})
+		return
 	case "test":
 		if c.Type == "telegram" {
 			result, testErr := a.testTelegramConnection(r, c)
