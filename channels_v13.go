@@ -357,9 +357,14 @@ func (cm *ChannelManager) handleWAEvent(id int64, evt interface{}) {
 }
 
 func (cm *ChannelManager) maybeTenantAIReply(rt *channelRuntime, recipient types.JID, storedChat, text string) {
-	if rt == nil || rt.wa == nil || strings.TrimSpace(text) == "" || cm.app.openAIKey() == "" {
+	if rt == nil || rt.wa == nil || strings.TrimSpace(text) == "" {
 		return
 	}
+	if cm.app.openAIKey() == "" {
+		_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=?`, "Falta configurar OPENAI_API_KEY", time.Now().UTC().Format(time.RFC3339), rt.conn.ID)
+		return
+	}
+	log.Printf("[WA-AI] recibido tenant=%d conexion=%d chat=%s", rt.conn.TenantID, rt.conn.ID, storedChat)
 	key := fmt.Sprintf("tenant-ai:%d:%d:%s", rt.conn.TenantID, rt.conn.ID, storedChat)
 	cm.app.mu.Lock()
 	if t, ok := cm.app.autoLast[key]; ok && time.Since(t) < time.Duration(cm.app.cfg.AutoReplyCooldownSeconds)*time.Second {
@@ -384,19 +389,24 @@ func (cm *ChannelManager) maybeTenantAIReply(rt *channelRuntime, recipient types
 		err := cm.app.db.QueryRow(`SELECT id,tenant_id,name,type,description,objective,tone,language,instructions,knowledge,greeting,away_message,handoff_rules,tools,channels,status,is_default,monthly_budget,created_at,updated_at FROM ai_agents WHERE id=? AND tenant_id=? AND status='active'`, agentID, rt.conn.TenantID).Scan(
 			&ag.ID, &ag.TenantID, &ag.Name, &ag.Type, &ag.Description, &ag.Objective, &ag.Tone, &ag.Language, &ag.Instructions, &ag.Knowledge, &ag.Greeting, &ag.AwayMessage, &ag.HandoffRules, &ag.Tools, &ag.Channels, &ag.Status, &isDefault, &ag.MonthlyBudget, &ag.CreatedAt, &ag.UpdatedAt,
 		)
-		if err != nil {
-			_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=?`, "El agente asignado no existe o no está activo", time.Now().UTC().Format(time.RFC3339), rt.conn.ID)
-			return
+		if err == nil {
+			system = fmt.Sprintf("Eres %s, agente especializado de tipo %s. Objetivo: %s. Tono: %s. Idioma: %s. Instrucciones: %s. Conocimiento verificado: %s. Herramientas permitidas: %s. No inventes datos y responde de forma humana, clara y breve. Historial reciente:\n%s", ag.Name, ag.Type, ag.Objective, ag.Tone, ag.Language, ag.Instructions, ag.Knowledge, ag.Tools, history)
+		} else {
+			// Una asignación antigua o inválida nunca debe dejar al canal sin respuesta.
+			// Se limpia la asignación y se usa el Asistente Principal como respaldo.
+			agentID = 0
+			_, _ = cm.app.db.Exec(`UPDATE channel_connections SET assigned_agent_id=0,last_error=?,updated_at=? WHERE id=?`, "Agente asignado inválido; usando Asistente Principal", time.Now().UTC().Format(time.RFC3339), rt.conn.ID)
 		}
-		system = fmt.Sprintf("Eres %s, agente especializado de tipo %s. Objetivo: %s. Tono: %s. Idioma: %s. Instrucciones: %s. Conocimiento verificado: %s. Herramientas permitidas: %s. No inventes datos y responde de forma humana, clara y breve. Historial reciente:\n%s", ag.Name, ag.Type, ag.Objective, ag.Tone, ag.Language, ag.Instructions, ag.Knowledge, ag.Tools, history)
-	} else {
+	}
+	if system == "" {
 		legacy := cm.app.loadAgent()
 		if !legacy.Enabled {
-			_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=?`, "No hay un agente activo asignado al canal", time.Now().UTC().Format(time.RFC3339), rt.conn.ID)
+			_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=?`, "Activa el Asistente Principal o asigna un Agente Especializado activo", time.Now().UTC().Format(time.RFC3339), rt.conn.ID)
 			return
 		}
 		system = fmt.Sprintf("Eres %s, asistente principal de %s. Objetivo: %s. Tono: %s. Instrucciones: %s. Conocimiento verificado: %s. No inventes datos y responde de forma humana, clara y breve. Historial reciente:\n%s", legacy.Name, legacy.Company, legacy.Objective, legacy.Tone, legacy.Instructions, legacy.Knowledge, history)
 	}
+	log.Printf("[WA-AI] generando respuesta tenant=%d conexion=%d agente=%d", rt.conn.TenantID, rt.conn.ID, agentID)
 	reply, err := cm.app.callOpenAI(system, text)
 	period := time.Now().UTC().Format("2006-01")
 	if err != nil {
@@ -421,6 +431,7 @@ func (cm *ChannelManager) maybeTenantAIReply(rt *channelRuntime, recipient types
 		_, _ = cm.app.db.Exec(`INSERT INTO ai_agent_usage(tenant_id,agent_id,period,channel,conversations,responses) VALUES(?,?,?,'whatsapp',1,1) ON CONFLICT(tenant_id,agent_id,period,channel) DO UPDATE SET conversations=conversations+1,responses=responses+1`, rt.conn.TenantID, agentID, period)
 	}
 	_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_error='',updated_at=? WHERE id=?`, now, rt.conn.ID)
+	log.Printf("[WA-AI] respuesta enviada tenant=%d conexion=%d mensaje=%s", rt.conn.TenantID, rt.conn.ID, resp.ID)
 }
 
 func (cm *ChannelManager) tenantRecentHistory(tenantID, connectionID int64, chat string, limit int) string {

@@ -706,3 +706,24 @@ dialog#modal textarea{width:100%;min-width:0}
 .docs-app-link{color:var(--acid);text-decoration:none;font-weight:800;white-space:nowrap}
 .docs-app-link:hover{color:#fff;text-decoration:none}
 @media(max-width:760px){.docs-app-link{font-size:12px}}
+
+/* ==========================================================
+   Worktic AI v2.0 — Premium form system
+   Consistent spacing, readable labels and polished controls.
+   ========================================================== */
+.form,.social-form,form{--form-gap:18px}
+.form{display:grid;gap:var(--form-gap)}
+.form .grid2,.form-grid,.grid2{gap:18px}
+.form label,.social-form label,dialog#modal label{display:grid;gap:8px;font-size:13px;font-weight:700;color:var(--text)}
+.form label>small,.social-form label>small,dialog#modal label>small,.field-help{font-weight:500;color:var(--text-mute);line-height:1.45}
+.form input,.form select,.form textarea,.social-form input,.social-form select,.social-form textarea,dialog#modal input,dialog#modal select,dialog#modal textarea{
+  min-height:46px;padding:12px 14px;border-radius:12px;border:1px solid var(--line-2);background:var(--card);font-size:14px;line-height:1.45;transition:border-color .16s,box-shadow .16s,background .16s
+}
+.form textarea,.social-form textarea,dialog#modal textarea{min-height:112px;padding-top:13px}
+.form input:hover,.form select:hover,.form textarea:hover,.social-form input:hover,.social-form select:hover,.social-form textarea:hover{border-color:#c9c3dd}
+.form input:focus,.form select:focus,.form textarea:focus,.social-form input:focus,.social-form select:focus,.social-form textarea:focus,dialog#modal input:focus,dialog#modal select:focus,dialog#modal textarea:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 4px rgba(123,58,237,.11);background:#fff}
+.form-section{padding:20px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,#fff,var(--paper))}
+.form-section-title{margin:0 0 4px;font-size:16px}.form-section-desc{margin:0 0 18px;color:var(--text-mute);font-size:13px}
+.actions,.modal-actions{gap:10px;padding-top:4px}.actions button,.modal-actions button{min-height:44px;padding-inline:18px}
+dialog#modal .modal-scroll{padding:28px 28px 12px}dialog#modal .modal-heading{margin-bottom:22px}dialog#modal .form{gap:18px}
+@media(max-width:700px){.form .grid2,.form-grid,.grid2{grid-template-columns:1fr!important;gap:15px}.form-section{padding:16px}dialog#modal .modal-scroll{padding:22px 16px 8px}.form input,.form select,.form textarea,.social-form input,.social-form select,.social-form textarea{font-size:16px}}
