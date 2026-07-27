@@ -279,6 +279,9 @@ func main() {
 	if err = initChannelTenantSchema(db); err != nil {
 		log.Fatal(err)
 	}
+	if err = initAgendaPremiumSchema(db); err != nil {
+		log.Fatal(err)
+	}
 	if err = migrateAgentTenants(db); err != nil {
 		log.Fatalf("agent tenant migration: %v", err)
 	}
@@ -319,6 +322,11 @@ func main() {
 	mux.HandleFunc("/api/team/invitations/accept", app.acceptTeamInvitationHandler)
 	mux.HandleFunc("/api/products", app.productsHandler)
 	mux.HandleFunc("/api/appointments", app.appointmentsHandler)
+	mux.HandleFunc("/api/agenda/settings", app.agendaSettingsHandler)
+	mux.HandleFunc("/api/agenda/professionals", app.agendaProfessionalsHandler)
+	mux.HandleFunc("/api/agenda/services", app.agendaServicesHandler)
+	mux.HandleFunc("/api/agenda/hours", app.agendaHoursHandler)
+	mux.HandleFunc("/api/agenda/availability", app.agendaAvailabilityHandler)
 	mux.HandleFunc("/healthz", app.healthHandler)
 	mux.HandleFunc("/readyz", app.readyHandler)
 	mux.HandleFunc("/api/status", app.statusHandler)
@@ -357,6 +365,7 @@ func main() {
 	mux.HandleFunc("/api/admin/overview", app.adminOverviewHandler)
 	mux.HandleFunc("/api/admin/payments", app.adminPaymentsHandler)
 	mux.HandleFunc("/api/admin/subscriptions", app.adminSubscriptionsHandler)
+	mux.HandleFunc("/api/admin/plans", app.adminPlansHandler)
 	mux.HandleFunc("/api/social/overview", app.socialOverviewHandler)
 	mux.HandleFunc("/api/social/analytics", app.socialAnalyticsHandler)
 	mux.HandleFunc("/api/social/metrics/ingest", app.socialMetricsIngestHandler)
@@ -2151,46 +2160,72 @@ func (a *App) productsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (a *App) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
+	tid, _, err := a.tenantForRequest(r)
+	if err != nil {
+		writeError(w, err, 401)
+		return
+	}
 	switch r.Method {
 	case http.MethodGet:
-		rows, e := a.db.Query(`SELECT id,contact_name,contact_phone,service,starts_at,duration_minutes,status,notes,created_at FROM crm_appointments ORDER BY starts_at`)
+		rows, e := a.db.Query(`SELECT id,contact_name,contact_phone,service,starts_at,duration_minutes,status,notes,created_at,professional_id,service_id,timezone FROM crm_appointments WHERE tenant_id=? ORDER BY starts_at`, tid)
 		if e != nil {
 			writeError(w, e, 500)
 			return
 		}
 		defer rows.Close()
-		out := []Appointment{}
+		out := []map[string]any{}
 		for rows.Next() {
 			var x Appointment
-			_ = rows.Scan(&x.ID, &x.ContactName, &x.ContactPhone, &x.Service, &x.StartsAt, &x.DurationMinutes, &x.Status, &x.Notes, &x.CreatedAt)
-			out = append(out, x)
+			var professionalID, serviceID int64
+			var timezone string
+			_ = rows.Scan(&x.ID, &x.ContactName, &x.ContactPhone, &x.Service, &x.StartsAt, &x.DurationMinutes, &x.Status, &x.Notes, &x.CreatedAt, &professionalID, &serviceID, &timezone)
+			out = append(out, map[string]any{"id": x.ID, "contact_name": x.ContactName, "contact_phone": x.ContactPhone, "service": x.Service, "starts_at": x.StartsAt, "duration_minutes": x.DurationMinutes, "status": x.Status, "notes": x.Notes, "created_at": x.CreatedAt, "professional_id": professionalID, "service_id": serviceID, "timezone": timezone})
 		}
 		writeJSON(w, out)
 	case http.MethodPost:
-		var x Appointment
-		_ = json.NewDecoder(r.Body).Decode(&x)
-		if x.ContactName == "" || x.Service == "" || x.StartsAt == "" {
+		var q struct {
+			Appointment
+			ProfessionalID int64  `json:"professional_id"`
+			ServiceID      int64  `json:"service_id"`
+			Timezone       string `json:"timezone"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&q)
+		if q.ContactName == "" || q.Service == "" || q.StartsAt == "" {
 			writeError(w, errors.New("cliente, servicio y fecha son obligatorios"), 400)
 			return
 		}
-		if x.DurationMinutes <= 0 {
-			x.DurationMinutes = 30
+		if q.DurationMinutes <= 0 {
+			q.DurationMinutes = 30
 		}
-		if x.Status == "" {
-			x.Status = "Programada"
+		if q.Status == "" {
+			q.Status = "Programada"
 		}
-		x.CreatedAt = time.Now().UTC().Format(time.RFC3339)
-		res, e := a.db.Exec(`INSERT INTO crm_appointments(contact_name,contact_phone,service,starts_at,duration_minutes,status,notes,created_at) VALUES(?,?,?,?,?,?,?,?)`, x.ContactName, x.ContactPhone, x.Service, x.StartsAt, x.DurationMinutes, x.Status, x.Notes, x.CreatedAt)
+		if q.Timezone == "" {
+			q.Timezone = "America/Bogota"
+		}
+		var overlap int
+		_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_appointments WHERE tenant_id=? AND professional_id=? AND status NOT IN ('Cancelada','No asistió') AND starts_at < datetime(?, '+' || ? || ' minutes') AND datetime(starts_at, '+' || duration_minutes || ' minutes') > ?`, tid, q.ProfessionalID, q.StartsAt, q.DurationMinutes, q.StartsAt).Scan(&overlap)
+		if overlap > 0 {
+			writeError(w, errors.New("ese horario ya está ocupado para el profesional seleccionado"), 409)
+			return
+		}
+		q.CreatedAt = time.Now().UTC().Format(time.RFC3339)
+		res, e := a.db.Exec(`INSERT INTO crm_appointments(tenant_id,contact_name,contact_phone,service,starts_at,duration_minutes,status,notes,created_at,professional_id,service_id,timezone) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, tid, q.ContactName, q.ContactPhone, q.Service, q.StartsAt, q.DurationMinutes, q.Status, q.Notes, q.CreatedAt, q.ProfessionalID, q.ServiceID, q.Timezone)
 		if e != nil {
 			writeError(w, e, 500)
 			return
 		}
-		x.ID, _ = res.LastInsertId()
-		writeJSON(w, x)
+		q.ID, _ = res.LastInsertId()
+		writeJSON(w, q)
 	case http.MethodPut:
-		var x Appointment
-		_ = json.NewDecoder(r.Body).Decode(&x)
-		_, e := a.db.Exec(`UPDATE crm_appointments SET contact_name=?,contact_phone=?,service=?,starts_at=?,duration_minutes=?,status=?,notes=? WHERE id=?`, x.ContactName, x.ContactPhone, x.Service, x.StartsAt, x.DurationMinutes, x.Status, x.Notes, x.ID)
+		var q struct {
+			Appointment
+			ProfessionalID int64  `json:"professional_id"`
+			ServiceID      int64  `json:"service_id"`
+			Timezone       string `json:"timezone"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&q)
+		_, e := a.db.Exec(`UPDATE crm_appointments SET contact_name=?,contact_phone=?,service=?,starts_at=?,duration_minutes=?,status=?,notes=?,professional_id=?,service_id=?,timezone=? WHERE id=? AND tenant_id=?`, q.ContactName, q.ContactPhone, q.Service, q.StartsAt, q.DurationMinutes, q.Status, q.Notes, q.ProfessionalID, q.ServiceID, q.Timezone, q.ID, tid)
 		if e != nil {
 			writeError(w, e, 500)
 			return
@@ -2198,7 +2233,7 @@ func (a *App) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": true})
 	case http.MethodDelete:
 		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
-		_, e := a.db.Exec(`DELETE FROM crm_appointments WHERE id=?`, id)
+		_, e := a.db.Exec(`DELETE FROM crm_appointments WHERE id=? AND tenant_id=?`, id, tid)
 		if e != nil {
 			writeError(w, e, 500)
 			return

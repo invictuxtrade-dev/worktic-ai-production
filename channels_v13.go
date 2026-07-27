@@ -111,10 +111,15 @@ CREATE TABLE IF NOT EXISTS channel_events (
 	} {
 		_, _ = db.Exec(stmt)
 	}
-	_, _ = db.Exec(`UPDATE billing_plans SET max_channels=1,max_whatsapp=1,max_telegram=1,max_messenger=0,max_agents=1 WHERE code='free'`)
-	_, _ = db.Exec(`UPDATE billing_plans SET max_channels=2,max_whatsapp=1,max_telegram=2,max_messenger=1,max_agents=2 WHERE code='personal'`)
-	_, _ = db.Exec(`UPDATE billing_plans SET max_channels=5,max_whatsapp=3,max_telegram=5,max_messenger=3,max_agents=5 WHERE code='business'`)
-	_, _ = db.Exec(`UPDATE billing_plans SET max_channels=15,max_whatsapp=10,max_telegram=15,max_messenger=10,max_agents=15 WHERE code='enterprise'`)
+	var planLimitsMigrated string
+	_ = db.QueryRow(`SELECT value FROM worktic_settings WHERE key='channel_plan_limits_v2'`).Scan(&planLimitsMigrated)
+	if planLimitsMigrated == "" {
+		_, _ = db.Exec(`UPDATE billing_plans SET max_channels=1,max_whatsapp=1,max_telegram=1,max_messenger=0,max_agents=1 WHERE code='free'`)
+		_, _ = db.Exec(`UPDATE billing_plans SET max_channels=2,max_whatsapp=1,max_telegram=2,max_messenger=1,max_agents=2 WHERE code='personal'`)
+		_, _ = db.Exec(`UPDATE billing_plans SET max_channels=5,max_whatsapp=3,max_telegram=5,max_messenger=3,max_agents=5 WHERE code='business'`)
+		_, _ = db.Exec(`UPDATE billing_plans SET max_channels=15,max_whatsapp=10,max_telegram=15,max_messenger=10,max_agents=15 WHERE code='enterprise'`)
+		_, _ = db.Exec(`INSERT OR REPLACE INTO worktic_settings(key,value) VALUES('channel_plan_limits_v2','done')`)
+	}
 	return migrateTenants(db)
 }
 
@@ -231,6 +236,21 @@ func channelTypeLimit(p Plan, typ string) int {
 		return 0
 	}
 	return 0
+}
+
+func (a *App) channelTypeLimitForPlan(p Plan, typ string) int {
+	var wa, tg, msg int
+	if err := a.db.QueryRow(`SELECT max_whatsapp,max_telegram,max_messenger FROM billing_plans WHERE code=?`, p.Code).Scan(&wa, &tg, &msg); err == nil {
+		switch typ {
+		case "whatsapp_qr":
+			return wa
+		case "telegram":
+			return tg
+		case "messenger":
+			return msg
+		}
+	}
+	return channelTypeLimit(p, typ)
 }
 
 func (cm *ChannelManager) restoreActive() {
@@ -486,8 +506,8 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 			_ = rows.Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt)
 			out = append(out, c)
 		}
-		p, _, _ := a.activePlan(u.ID)
-		writeJSON(w, map[string]any{"connections": out, "max_total": p.MaxChannels, "limits": map[string]int{"whatsapp_qr": channelTypeLimit(p, "whatsapp_qr"), "telegram": channelTypeLimit(p, "telegram"), "messenger": channelTypeLimit(p, "messenger")}})
+		p, _, _ := a.activePlan(a.billingAccountUserID(u))
+		writeJSON(w, map[string]any{"connections": out, "max_total": p.MaxChannels, "limits": map[string]int{"whatsapp_qr": a.channelTypeLimitForPlan(p, "whatsapp_qr"), "telegram": a.channelTypeLimitForPlan(p, "telegram"), "messenger": a.channelTypeLimitForPlan(p, "messenger")}})
 	case http.MethodPost:
 		if u.Role != "owner" && u.Role != "admin" && u.Role != "superadmin" {
 			writeError(w, errors.New("sin permiso para conectar canales"), 403)
@@ -500,7 +520,7 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 			writeError(w, errors.New("tipo de canal no soportado"), 400)
 			return
 		}
-		p, _, _ := a.activePlan(u.ID)
+		p, _, _ := a.activePlan(a.billingAccountUserID(u))
 		var total, byType int
 		_ = a.db.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE tenant_id=? AND status<>'deleted'`, tid).Scan(&total)
 		_ = a.db.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE tenant_id=? AND type=? AND status<>'deleted'`, tid, q.Type).Scan(&byType)
@@ -508,7 +528,7 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 			writeError(w, fmt.Errorf("tu plan permite %d conexiones", p.MaxChannels), 403)
 			return
 		}
-		if byType >= channelTypeLimit(p, q.Type) {
+		if byType >= a.channelTypeLimitForPlan(p, q.Type) {
 			writeError(w, fmt.Errorf("límite alcanzado para %s", q.Type), 403)
 			return
 		}
