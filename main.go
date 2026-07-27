@@ -345,6 +345,7 @@ func main() {
 	mux.HandleFunc("/api/send", app.sendHandler)
 	mux.HandleFunc("/api/rules", app.rulesHandler)
 	mux.HandleFunc("/api/telegram", app.telegramHandler)
+	mux.HandleFunc("/webhooks/telegram/", app.telegramWebhookHandler)
 	mux.HandleFunc("/api/messenger", app.messengerHandler)
 	mux.HandleFunc("/webhooks/meta/messenger", app.messengerWebhookHandler)
 	mux.HandleFunc("/api/agent", app.agentHandler)
@@ -1608,7 +1609,7 @@ func (a *App) currentUser(r *http.Request) *User {
 }
 func (a *App) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/api/auth/login") || strings.HasPrefix(r.URL.Path, "/api/auth/register") || strings.HasPrefix(r.URL.Path, "/api/team/invitations/accept") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/messenger") {
+		if !strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/api/auth/login") || strings.HasPrefix(r.URL.Path, "/api/auth/register") || strings.HasPrefix(r.URL.Path, "/api/team/invitations/accept") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/messenger") || strings.HasPrefix(r.URL.Path, "/webhooks/telegram/") {
 			next.ServeHTTP(w, r)
 			return
 		}

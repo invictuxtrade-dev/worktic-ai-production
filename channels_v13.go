@@ -552,6 +552,9 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 			writeError(w, errors.New("conexión no encontrada"), 404)
 			return
 		}
+		if typ == "telegram" {
+			a.deleteTelegramWebhook(id)
+		}
 		if rt := a.channelManager.runtime(id); rt != nil && rt.wa != nil {
 			rt.wa.Disconnect()
 		}
@@ -594,7 +597,22 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		if c.Type == "telegram" || c.Type == "messenger" {
+		if c.Type == "telegram" {
+			if strings.TrimSpace(q.Token) == "" {
+				writeError(w, errors.New("token obligatorio"), 400)
+				return
+			}
+			bot, info, webhookSecret, hookErr := a.configureTelegramWebhook(r, c, strings.TrimSpace(q.Token))
+			if hookErr != nil {
+				_, _ = a.db.Exec(`UPDATE channel_connections SET status='error',last_error=?,updated_at=? WHERE id=? AND tenant_id=?`, hookErr.Error(), now, q.ID, tid)
+				writeError(w, hookErr, 502)
+				return
+			}
+			creds := encryptTelegramCredentials(telegramChannelCredentials{Token: strings.TrimSpace(q.Token), WebhookSecret: webhookSecret}, a.cfg.ChannelEncryptionKey)
+			cfg, _ := json.Marshal(map[string]any{"external_id": bot.Username, "bot_id": bot.ID, "bot_name": bot.FirstName, "webhook_url": info.URL})
+			_, _ = a.db.Exec(`UPDATE channel_connections SET encrypted_credentials=?,external_account_id=?,config_json=?,status='connected',assigned_agent_id=?,last_connected_at=?,last_error='',updated_at=? WHERE id=? AND tenant_id=?`, creds, bot.Username, string(cfg), q.AgentID, now, now, q.ID, tid)
+		}
+		if c.Type == "messenger" {
 			if strings.TrimSpace(q.Token) == "" {
 				writeError(w, errors.New("token obligatorio"), 400)
 				return
@@ -603,7 +621,33 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 			cfg, _ := json.Marshal(map[string]string{"token": secret, "external_id": q.ExternalID})
 			_, _ = a.db.Exec(`UPDATE channel_connections SET encrypted_credentials=?,external_account_id=?,config_json=?,status='connected',assigned_agent_id=?,last_connected_at=?,last_error='',updated_at=? WHERE id=? AND tenant_id=?`, secret, q.ExternalID, string(cfg), q.AgentID, now, now, q.ID, tid)
 		}
+	case "test":
+		if c.Type == "telegram" {
+			result, testErr := a.testTelegramConnection(r, c)
+			if testErr != nil {
+				_, _ = a.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=? AND tenant_id=?`, testErr.Error(), now, q.ID, tid)
+				writeError(w, testErr, 502)
+				return
+			}
+			if ok, _ := result["ok"].(bool); ok {
+				_, _ = a.db.Exec(`UPDATE channel_connections SET status='connected',last_error='',updated_at=? WHERE id=? AND tenant_id=?`, now, q.ID, tid)
+			} else {
+				detail, _ := result["last_error"].(string)
+				if detail == "" {
+					detail = "El webhook no coincide con esta conexión"
+				}
+				_, _ = a.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=? AND tenant_id=?`, detail, now, q.ID, tid)
+			}
+			_, _ = a.db.Exec(`INSERT INTO channel_audit(tenant_id,connection_id,user_id,action,detail,created_at) VALUES(?,?,?,?,?,?)`, tid, q.ID, u.ID, "test", c.Type, now)
+			writeJSON(w, result)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": c.Status == "connected", "platform": c.Type, "status": c.Status})
+		return
 	case "disconnect":
+		if c.Type == "telegram" {
+			a.deleteTelegramWebhook(q.ID)
+		}
 		if rt := a.channelManager.runtime(q.ID); rt != nil && rt.wa != nil {
 			rt.wa.Disconnect()
 		}
