@@ -92,6 +92,7 @@ var I18N = {
 "nav.billing":{es:"Plan y membresía",en:"Plan & Billing"},
 "nav.admin":{es:"Administración Worktic",en:"Worktic Administration"},
 "nav.setup":{es:"Guías",en:"Guides"},
+"nav.docs":{es:"Documentación",en:"Documentation"},
 "brand.tagline":{es:"CRM Omnichannel AI",en:"Omnichannel AI CRM"},
 "nav.logout":{es:"Cerrar sesión",en:"Log out"},
 "mobile.title.default":{es:"Resumen",en:"Overview"},
@@ -545,6 +546,7 @@ var I18N = {
 "lp.nav_canales":{es:"Canales",en:"Channels"},
 "lp.nav_planes":{es:"Planes",en:"Pricing"},
 "lp.nav_faq":{es:"FAQ",en:"FAQ"},
+"lp.nav_docs":{es:"Documentación",en:"Documentation"},
 "lp.nav_cta":{es:"Crear cuenta",en:"Create account"},
 "lp.hero_badge":{es:"El motor que te consigue clientes, en automático",en:"The engine that gets you clients, automatically"},
 "lp.hero_h1_1":{es:"Consigue clientes en automático y",en:"Get clients automatically and"},
@@ -639,6 +641,7 @@ var I18N = {
 "lp.final_lead":{es:"Crea tu cuenta Free, lanza tu primera campaña y conecta tu agente omnicanal.",en:"Create your Free account, launch your first campaign and connect your omnichannel agent."},
 "lp.final_cta":{es:"Crear cuenta gratis →",en:"Create free account →"},
 "lp.footer_tagline":{es:"El motor que te consigue clientes, en automático.",en:"The engine that gets you clients, automatically."},
+"lp.footer_docs":{es:"Documentación",en:"Documentation"},
 "lp.footer_rights":{es:"© 2026 Worktic. Todos los derechos reservados.",en:"© 2026 Worktic. All rights reserved."},
 
 /* ══════════════════ FASE 2 — app.js: contenido dinámico ══════════════════ */
