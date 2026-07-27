@@ -615,11 +615,24 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 			_, _ = a.db.Exec(`UPDATE channel_connections SET encrypted_credentials=?,external_account_id=?,config_json=?,status='connected',assigned_agent_id=?,last_connected_at=?,last_error='',updated_at=? WHERE id=? AND tenant_id=?`, creds, bot.Username, string(cfg), q.AgentID, now, now, q.ID, tid)
 		}
 		if c.Type == "messenger" {
-			if strings.TrimSpace(q.Token) == "" {
-				writeError(w, errors.New("Page Access Token obligatorio"), 400)
-				return
+			pageToken := strings.TrimSpace(q.Token)
+			pageID := strings.TrimSpace(q.ExternalID)
+			appSecret := strings.TrimSpace(q.AppSecret)
+			if pageToken == "" {
+				previous, previousErr := a.messengerCredentialsFor(c)
+				if previousErr != nil || previous.PageToken == "" {
+					writeError(w, errors.New("Page Access Token obligatorio"), 400)
+					return
+				}
+				pageToken = previous.PageToken
+				if appSecret == "" {
+					appSecret = previous.AppSecret
+				}
 			}
-			result, cfgErr := a.configureMessenger(r, c, strings.TrimSpace(q.Token), strings.TrimSpace(q.ExternalID), strings.TrimSpace(q.AppSecret))
+			if pageID == "" {
+				pageID = c.ExternalAccountID
+			}
+			result, cfgErr := a.configureMessenger(r, c, pageToken, pageID, appSecret)
 			if cfgErr != nil {
 				writeError(w, cfgErr, 502)
 				return

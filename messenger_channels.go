@@ -82,7 +82,23 @@ func (a *App) configureMessenger(r *http.Request, c ChannelConnection, pageToken
 	if pageID != "" && pageID != page.ID {
 		return nil, fmt.Errorf("el Page ID no coincide; Meta detectó %s", page.ID)
 	}
-	verify := "wtm_" + randomToken(18)
+	verify := ""
+	var previousCfg map[string]any
+	_ = json.Unmarshal([]byte(c.ConfigJSON), &previousCfg)
+	if previousCfg != nil {
+		verify, _ = previousCfg["verify_token"].(string)
+	}
+	if verify == "" {
+		if previous, previousErr := a.messengerCredentialsFor(c); previousErr == nil {
+			verify = previous.VerifyToken
+			if appSecret == "" {
+				appSecret = previous.AppSecret
+			}
+		}
+	}
+	if verify == "" {
+		verify = "wtm_" + randomToken(18)
+	}
 	base, err := a.publicBaseURL(r)
 	if err != nil {
 		return nil, err
@@ -113,7 +129,9 @@ func (a *App) testMessengerConnection(r *http.Request, c ChannelConnection) (map
 		return nil, err
 	}
 	var cfg map[string]any
-	_ = json.Unmarshal([]byte(c.ConfigJSON), &cfg)
+	if json.Unmarshal([]byte(c.ConfigJSON), &cfg) != nil || cfg == nil {
+		cfg = map[string]any{}
+	}
 	hook, _ := cfg["webhook_url"].(string)
 	verify, _ := cfg["verify_token"].(string)
 	if hook == "" || verify == "" {
@@ -130,20 +148,35 @@ func (a *App) testMessengerConnection(r *http.Request, c ChannelConnection) (map
 		cfg["verify_token"] = verify
 		cfg["page_id"] = page.ID
 		cfg["page_name"] = page.Name
+		cfg["subscribed_fields"] = []string{"messages", "messaging_postbacks", "message_reads", "message_deliveries"}
 		cfgRaw, _ := json.Marshal(cfg)
-		_, _ = a.db.Exec(`UPDATE channel_connections SET encrypted_credentials=?,config_json=?,updated_at=? WHERE id=?`, enc, string(cfgRaw), time.Now().UTC().Format(time.RFC3339), c.ID)
+		_, _ = a.db.Exec(`UPDATE channel_connections SET encrypted_credentials=?,config_json=?,external_account_id=?,updated_at=? WHERE id=? AND tenant_id=?`, enc, string(cfgRaw), page.ID, time.Now().UTC().Format(time.RFC3339), c.ID, c.TenantID)
 	}
-	subErr := a.messengerGraph(http.MethodPost, "/"+page.ID+"/subscribed_apps", cr.PageToken, url.Values{"subscribed_fields": {"messages,messaging_postbacks,message_reads,message_deliveries"}}, nil)
-	now := time.Now().UTC().Format(time.RFC3339)
-	if subErr == nil {
-		_, _ = a.db.Exec(`UPDATE channel_connections SET last_error='',updated_at=? WHERE id=?`, now, c.ID)
-	}
-	return map[string]any{"ok": subErr == nil, "platform": "messenger", "page_id": page.ID, "page_name": page.Name, "token_valid": true, "webhook_url": hook, "verify_token": verify, "page_subscribed": subErr == nil, "subscription_error": func() string {
-		if subErr != nil {
-			return subErr.Error()
-		}
-		return ""
-	}(), "assigned_agent_id": c.AssignedAgentID, "status": c.Status, "last_message_at": c.LastMessageAt, "last_error": c.LastError}, nil
+
+	// No intentamos suscribir la página automáticamente aquí. Meta exige permisos
+	// avanzados en muchas apps y un intento fallido produce falsas alarmas aunque
+	// el token, la página y el endpoint estén correctos. La suscripción se completa
+	// una sola vez desde Meta Developers usando los datos que devolvemos abajo.
+	lastMessageAt := c.LastMessageAt
+	operational := c.Status == "connected" && page.ID != "" && hook != "" && verify != ""
+	return map[string]any{
+		"ok":                  operational,
+		"platform":            "messenger",
+		"page_id":             page.ID,
+		"page_name":           page.Name,
+		"token_valid":         true,
+		"webhook_url":         hook,
+		"verify_token":        verify,
+		"page_subscribed":     nil,
+		"subscription_manual": true,
+		"subscription_error":  "",
+		"assigned_agent_id":   c.AssignedAgentID,
+		"status":              c.Status,
+		"last_message_at":     lastMessageAt,
+		"last_error":          c.LastError,
+		"recommended_fields":  []string{"messages", "messaging_postbacks", "message_reads", "message_deliveries"},
+		"configuration_ready": true,
+	}, nil
 }
 
 func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Request) {
