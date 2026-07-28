@@ -135,6 +135,7 @@
       saveDraft(originalID, payload);
       if (!payload.name) return formError('Escribe el nombre interno de la landing. Tus demás datos ya están protegidos.');
       if (!payload.headline) return formError('Escribe el título principal. Tus demás datos ya están protegidos.');
+      if (typeof window.validateLandingHeroImageV2 === 'function' && !window.validateLandingHeroImageV2()) return formError('La imagen principal no cumple el estándar 4:3. Usa mínimo 1200 × 900 px; recomendamos 1600 × 1200 px.');
 
       button.disabled = true;
       const oldText = button.textContent;

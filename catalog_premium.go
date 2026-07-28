@@ -238,9 +238,9 @@ func catalogBoolInt(v bool) int {
 
 func validCatalogImage(header *multipart.FileHeader) (string, error) {
 	ext := strings.ToLower(filepath.Ext(header.Filename))
-	allowed := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true}
+	allowed := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true}
 	if !allowed[ext] {
-		return "", errors.New("formato no permitido; usa JPG, PNG, WEBP o GIF")
+		return "", errors.New("formato no permitido; usa JPG, PNG o WEBP")
 	}
 	return ext, nil
 }
@@ -279,6 +279,24 @@ func (a *App) catalogImageUploadHandler(w http.ResponseWriter, r *http.Request) 
 		writeError(w, err, 400)
 		return
 	}
+	data, err := io.ReadAll(io.LimitReader(file, (5<<20)+1))
+	if err != nil {
+		writeError(w, errors.New("no fue posible leer la imagen"), 400)
+		return
+	}
+	if len(data) > 5<<20 {
+		writeError(w, errors.New("imagen demasiado grande; máximo 5 MB"), 400)
+		return
+	}
+	info, err := inspectUploadedImage(data, ext)
+	if err != nil {
+		writeError(w, err, 400)
+		return
+	}
+	if err := validateCatalogImageStandard(info); err != nil {
+		writeError(w, err, 400)
+		return
+	}
 	dir := filepath.Join(a.cfg.DataDir, "catalog_uploads", strconv.FormatInt(tid, 10))
 	if err = os.MkdirAll(dir, 0755); err != nil {
 		writeError(w, err, 500)
@@ -286,18 +304,19 @@ func (a *App) catalogImageUploadHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	name := fmt.Sprintf("%d_%d%s", time.Now().UnixNano(), tid, ext)
 	target := filepath.Join(dir, name)
-	dst, err := os.Create(target)
-	if err != nil {
+	if err = os.WriteFile(target, data, 0644); err != nil {
 		writeError(w, err, 500)
 		return
 	}
-	defer dst.Close()
-	if _, err = io.Copy(dst, file); err != nil {
-		_ = os.Remove(target)
-		writeError(w, err, 500)
-		return
-	}
-	writeJSON(w, map[string]any{"url": "/uploads/catalog/" + strconv.FormatInt(tid, 10) + "/" + name})
+	writeJSON(w, map[string]any{
+		"url":                "/uploads/catalog/" + strconv.FormatInt(tid, 10) + "/" + name,
+		"width":              info.Width,
+		"height":             info.Height,
+		"format":             info.Format,
+		"recommended_width":  1200,
+		"recommended_height": 1200,
+		"ratio":              "1:1",
+	})
 }
 
 func (a *App) catalogUploadFileHandler(w http.ResponseWriter, r *http.Request) {

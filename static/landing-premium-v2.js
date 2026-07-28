@@ -11,7 +11,9 @@
 
   const parseJSON = (raw, fallback) => { try { return JSON.parse(raw || '') ?? fallback; } catch (_) { return fallback; } };
   const premiumOf = item => ({ ...premiumDefaults, ...parseJSON(item.premium_json, {}) });
-  const shortChannel = type => ({ whatsapp: 'WA', telegram: 'TG', messenger: 'MS', instagram: 'IG', facebook: 'FB', linkedin: 'IN', tiktok: 'TK', youtube: 'YT' }[type] || '↗');
+  const channelType = type => window.workticChannelType ? window.workticChannelType(type) : String(type || 'link').toLowerCase().replace('_qr', '');
+  const channelIcon = type => window.workticChannelIcon ? window.workticChannelIcon(type) : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1.5 1.5 0 0 0 2.1 0l3.5-3.5a3 3 0 0 0-4.2-4.2l-2 2-1.4-1.4 2-2a5 5 0 0 1 7.1 7.1l-3.5 3.5a3.5 3.5 0 0 1-5 0l1.4-1.5Z"/></svg>';
+  const landingImageStandard = { recommendedWidth: 1600, recommendedHeight: 1200, minWidth: 1200, minHeight: 900, targetRatio: 4 / 3, tolerance: 0.05 };
   const videoEmbed = raw => {
     try {
       const u = new URL((raw || '').trim());
@@ -83,7 +85,7 @@
     const icons = $('#wtl2PChannels');
     if (icons) {
       const choices = $$('.wtl2-channel input:checked').slice(0, 4);
-      icons.innerHTML = choices.map(i => `<span>${shortChannel(i.dataset.type)}</span>`).join('');
+      icons.innerHTML = choices.map(i => { const type = channelType(i.dataset.type); return `<span class="wtl2-pchannel wtl2-channel-${type}">${channelIcon(type)}</span>`; }).join('');
     }
     updateMediaPreview();
   }
@@ -98,13 +100,53 @@
     });
   }
 
+  const imageRatioOK = ({ width, height }) => {
+    if (!width || !height) return false;
+    const ratio = width / height;
+    return Math.abs(ratio - landingImageStandard.targetRatio) / landingImageStandard.targetRatio <= landingImageStandard.tolerance;
+  };
+
+  const landingImageStatus = dimensions => {
+    if (!dimensions?.width || !dimensions?.height) return { state: 'pending', title: 'Dimensiones pendientes', text: 'Usa 1600 × 1200 px, relación 4:3. Mínimo aceptado: 1200 × 900 px.' };
+    const largeEnough = dimensions.width >= landingImageStandard.minWidth && dimensions.height >= landingImageStandard.minHeight;
+    const ratioOK = imageRatioOK(dimensions);
+    if (!largeEnough || !ratioOK) return { state: 'error', title: `${dimensions.width} × ${dimensions.height} px · No cumple`, text: !largeEnough ? 'La imagen es demasiado pequeña. Mínimo 1200 × 900 px.' : 'La proporción debe ser 4:3. Usa, por ejemplo, 1600 × 1200 px.' };
+    const exact = dimensions.width === landingImageStandard.recommendedWidth && dimensions.height === landingImageStandard.recommendedHeight;
+    return { state: exact ? 'perfect' : 'ok', title: `${dimensions.width} × ${dimensions.height} px · ${exact ? 'Perfecta' : 'Compatible'}`, text: exact ? 'Tamaño premium exacto para escritorio y móvil.' : 'Cumple el estándar 4:3. Para máxima nitidez recomendamos 1600 × 1200 px.' };
+  };
+
+  function renderHeroMetrics(dimensions) {
+    const box = $('#lpHeroMetrics');
+    if (!box) return;
+    const status = landingImageStatus(dimensions);
+    box.className = `wtl2-image-metrics ${status.state}`;
+    box.innerHTML = `<span class="wtl2-metric-icon">${status.state === 'error' ? '!' : status.state === 'perfect' ? '✓' : 'i'}</span><span><b>${esc(status.title)}</b><small>${esc(status.text)}</small></span>`;
+    box.dataset.valid = status.state === 'error' ? '0' : '1';
+  }
+
+  function inspectImageURL(raw) {
+    const url = String(raw || '').trim();
+    if (!url) { renderHeroMetrics(null); return; }
+    const img = new Image();
+    img.onload = () => renderHeroMetrics({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => {
+      const box = $('#lpHeroMetrics');
+      if (box) {
+        box.className = 'wtl2-image-metrics pending';
+        box.innerHTML = '<span class="wtl2-metric-icon">i</span><span><b>No pudimos medir esta URL</b><small>Verifica que sea pública. El estándar recomendado sigue siendo 1600 × 1200 px, relación 4:3.</small></span>';
+        box.dataset.valid = '1';
+      }
+    };
+    img.src = url + (url.includes('?') ? '&' : '?') + 'wtl_measure=1';
+  }
+
   async function uploadHeroImage(file) {
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) return formError('La imagen supera 8 MB. Usa JPG, PNG o WEBP optimizado.');
     const dimensions = await validateImage(file);
-    if (dimensions.width && (dimensions.width < 1200 || dimensions.height < 700)) {
-      toast(`La imagen mide ${dimensions.width} × ${dimensions.height}. Para un resultado premium recomendamos mínimo 1200 × 800 px.`);
-    }
+    const status = landingImageStatus(dimensions);
+    renderHeroMetrics(dimensions);
+    if (status.state === 'error') return formError(`${status.title}. ${status.text}`);
     const button = $('#lpUploadButton');
     const previous = button?.textContent;
     if (button) { button.disabled = true; button.textContent = 'Subiendo imagen…'; }
@@ -117,6 +159,7 @@
       $('input[name="lpMediaType"][value="image"]').checked = true;
       const thumb = $('#lpImageThumb');
       if (thumb) thumb.innerHTML = `<img src="${esc(data.url)}" alt="Imagen cargada">`;
+      renderHeroMetrics({ width: Number(data.width || dimensions.width), height: Number(data.height || dimensions.height) });
       updateLivePreview();
       $('#modalContent').dispatchEvent(new Event('input', { bubbles: true }));
       toast('Imagen cargada correctamente');
@@ -140,6 +183,12 @@
     });
   }
   window.collectLandingPremiumV2 = buildPremiumJSON;
+  window.validateLandingHeroImageV2 = () => {
+    const mediaType = $('input[name="lpMediaType"]:checked')?.value || 'image';
+    const imageURL = ($('#lpHero')?.value || '').trim();
+    if (mediaType === 'video' || !imageURL) return true;
+    return $('#lpHeroMetrics')?.dataset.valid !== '0';
+  };
 
   openLandingEditor = function(item = {}) {
     const benefits = parseJSON(item.benefits_json, []), features = parseJSON(item.features_json, []), testimonials = parseJSON(item.testimonials_json, []), faqs = parseJSON(item.faq_json, []);
@@ -176,11 +225,11 @@
           </div>
         </section>
         <section id="wtl2-media" class="wtl2-step" hidden>
-          <div class="wtl2-section"><div class="wtl2-section-head"><div><h3>Multimedia principal</h3><p>Usa una imagen horizontal de alta calidad o un video de YouTube/Vimeo.</p></div><span class="wtl2-badge">1600 × 1200 recomendado</span></div>
+          <div class="wtl2-section"><div class="wtl2-section-head"><div><h3>Multimedia principal</h3><p>La portada mantiene una proporción profesional y consistente en escritorio, tablet y móvil.</p></div><span class="wtl2-badge">Estándar 4:3</span></div>
             <div class="wtl2-media-switch"><label><input type="radio" name="lpMediaType" value="image" ${mediaType === 'image' ? 'checked' : ''}><span>🖼️ Imagen principal</span></label><label><input type="radio" name="lpMediaType" value="video" ${mediaType === 'video' ? 'checked' : ''}><span>▶️ Video principal</span></label></div><br>
             <div class="wtl2-upload"><div id="lpImageThumb" class="wtl2-media-thumb">${item.hero_image ? `<img src="${esc(item.hero_image)}" alt="Vista previa">` : '<span>Vista previa<br>relación 4:3</span>'}</div><div class="wtl2-upload-actions">
-              <label class="wtl2-drop"><input id="lpHeroFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden><strong id="lpUploadButton">Subir imagen desde el equipo</strong><span>JPG, PNG o WEBP · máximo 8 MB</span></label>
-              <label class="wtl2-field"><span>O pega la URL de la imagen</span><input id="lpHero" value="${esc(item.hero_image || '')}" placeholder="https://..."></label>
+              <label class="wtl2-drop"><input id="lpHeroFile" type="file" accept="image/jpeg,image/png,image/webp" hidden><strong id="lpUploadButton">Subir imagen desde el equipo</strong><span>1600 × 1200 ideal · mínimo 1200 × 900 · JPG, PNG o WEBP · máximo 8 MB</span></label>
+              <label class="wtl2-field"><span>O pega la URL de la imagen</span><input id="lpHero" value="${esc(item.hero_image || '')}" placeholder="https://..."><small>La URL debe apuntar a una imagen pública con relación 4:3.</small></label><div id="lpHeroMetrics" class="wtl2-image-metrics pending"><span class="wtl2-metric-icon">i</span><span><b>Estándar visual de la portada</b><small>1600 × 1200 px recomendado · mínimo 1200 × 900 px · relación 4:3.</small></span></div>
               <div class="wtl2-grid2"><label class="wtl2-field"><span>Texto alternativo</span><input id="lpHeroAlt" value="${esc(premium.hero_alt || '')}" placeholder="Describe brevemente la imagen"></label><label class="wtl2-field"><span>Ajuste de imagen</span><select id="lpHeroFit"><option value="cover">Cubrir el espacio</option><option value="contain">Mostrar completa</option></select></label></div>
             </div></div>
           </div>
@@ -222,7 +271,8 @@
     $('#lpCTAMode').onchange = () => { setCTAMode(ctaURL); updateLivePreview(); };
     $('#lpCTACustom').oninput = () => setCTAMode(ctaURL);
     $('#lpHeroFile').onchange = event => uploadHeroImage(event.target.files?.[0]);
-    $('#lpHero').oninput = () => { const value = $('#lpHero').value.trim(); $('#lpImageThumb').innerHTML = value ? `<img src="${esc(value)}" alt="Vista previa">` : '<span>Vista previa<br>relación 4:3</span>'; updateLivePreview(); };
+    let heroURLTimer = 0;
+    $('#lpHero').oninput = () => { const value = $('#lpHero').value.trim(); $('#lpImageThumb').innerHTML = value ? `<img src="${esc(value)}" alt="Vista previa">` : '<span>Vista previa<br>relación 4:3</span>'; updateLivePreview(); clearTimeout(heroURLTimer); heroURLTimer = setTimeout(() => inspectImageURL(value), 350); };
     $('#lpVideoURL').oninput = updateLivePreview;
     $$('input[name="lpMediaType"]').forEach(input => input.onchange = updateLivePreview);
     $('#modalContent').addEventListener('input', updateLivePreview); $('#modalContent').addEventListener('change', updateLivePreview);
@@ -230,7 +280,7 @@
     loadChannels().then(channels => {
       const selected = new Set(premium.channel_keys || []), grid = $('#lpChannelGrid');
       if (!grid) return;
-      grid.innerHTML = channels.length ? channels.map(ch => `<label class="wtl2-channel"><input type="checkbox" value="${esc(ch.key)}" data-type="${esc(ch.type)}" ${selected.has(ch.key) || (!premium.channel_keys?.length && ['whatsapp','telegram','messenger','instagram'].includes(ch.type)) ? 'checked' : ''}><span class="wtl2-channel-card"><span class="wtl2-channel-icon">${shortChannel(ch.type)}</span><span><b>${esc(ch.label || ch.type)}</b><small>${esc(ch.name || ch.url)}</small></span></span></label>`).join('') : '<div class="wtl2-empty">No hay canales conectados. Conecta WhatsApp, Telegram, Messenger o una red social para mostrarlos aquí.</div>';
+      grid.innerHTML = channels.length ? channels.map(ch => { const type = channelType(ch.type); return `<label class="wtl2-channel"><input type="checkbox" value="${esc(ch.key)}" data-type="${esc(type)}" ${selected.has(ch.key) || (!premium.channel_keys?.length && ['whatsapp','telegram','messenger','instagram'].includes(type)) ? 'checked' : ''}><span class="wtl2-channel-card"><span class="wtl2-channel-icon wtl2-channel-${type}">${channelIcon(type)}</span><span><b>${esc(ch.label || ch.type)}</b><small>${esc(ch.name || ch.url)}</small></span></span></label>`; }).join('') : '<div class="wtl2-empty">No hay canales conectados. Conecta WhatsApp, Telegram, Messenger o una red social para mostrarlos aquí.</div>';
       $$('.wtl2-channel input').forEach(input => input.onchange = updateLivePreview);
       updateLivePreview();
     });
@@ -257,6 +307,7 @@
       if (!payload.name) return formError('Escribe el nombre interno.'); if (!payload.headline) return formError('Escribe el título principal.');
       try { await api('/api/marketing/landings', { method: item.id ? 'PUT' : 'POST', body: JSON.stringify(payload) }); $('#modal').close(); await loadLandings(); toast('Landing guardada'); } catch (error) { formError(error.message); }
     };
+    inspectImageURL(item.hero_image || '');
     updateLivePreview();
   };
 })();

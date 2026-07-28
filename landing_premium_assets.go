@@ -300,6 +300,25 @@ func contactLabel(kind string) string {
 	return strings.Title(kind) //nolint:staticcheck
 }
 
+func landingChannelIcon(kind string) template.HTML {
+	kind = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(kind), "_qr"))
+	icons := map[string]string{
+		"whatsapp":  `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a9.5 9.5 0 0 0-8.3 14.1L2.4 21.6l5.7-1.3A9.5 9.5 0 1 0 12 2Zm0 17.2a7.7 7.7 0 0 1-3.9-1.1l-.4-.2-3.3.8.8-3.2-.2-.4A7.7 7.7 0 1 1 12 19.2Zm4.2-5.8c-.2-.1-1.3-.7-1.6-.7-.2-.1-.4-.1-.6.2l-.7.9c-.1.2-.3.2-.5.1-1.4-.7-2.4-1.3-3.3-2.9-.2-.3.2-.4.6-.9.1-.2.1-.3.2-.5 0-.2 0-.3-.1-.5l-.7-1.7c-.2-.4-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.1 4.9 4.3.7.3 1.2.5 1.7.6.7.2 1.3.2 1.8.1.5-.1 1.6-.7 1.9-1.3.2-.6.2-1.1.2-1.3-.1-.1-.2-.2-.4-.3Z"/></svg>`,
+		"telegram":  `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 3.3 18.4 20c-.2 1.2-.9 1.5-1.9.9l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.4-5 9.1-8.2c.4-.4-.1-.6-.6-.2L5.9 13.8 1 12.3c-1.1-.3-1.1-1.1.2-1.6L20.3 3c.9-.3 1.6.2 1.3.3Z"/></svg>`,
+		"messenger": `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.4 2 2 6.1 2 11.4c0 3 1.4 5.6 3.7 7.3V22l3.4-1.9c.9.3 1.9.5 2.9.5 5.6 0 10-4.1 10-9.4S17.6 2 12 2Zm1 12.6-2.5-2.7-4.8 2.7 5.3-5.6 2.5 2.7 4.8-2.7-5.3 5.6Z"/></svg>`,
+		"instagram": `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 2h9.6A5.2 5.2 0 0 1 22 7.2v9.6a5.2 5.2 0 0 1-5.2 5.2H7.2A5.2 5.2 0 0 1 2 16.8V7.2A5.2 5.2 0 0 1 7.2 2Zm-.2 2A3 3 0 0 0 4 7v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7Zm10.3 1.5a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>`,
+		"facebook":  `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.8 22v-8h2.7l.4-3.1h-3.1v-2c0-.9.3-1.5 1.6-1.5H17V4.6c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4.1v2.3H8V14h2.6v8h3.2Z"/></svg>`,
+		"linkedin":  `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.3 7.8A2.3 2.3 0 1 1 5.3 3a2.3 2.3 0 0 1 0 4.8ZM3.3 21V9.2h4V21h-4Zm6.4 0V9.2h3.8v1.6h.1c.5-1 1.8-2.1 3.7-2.1 4 0 4.7 2.6 4.7 6V21h-4v-5.6c0-1.3 0-3.1-1.9-3.1s-2.2 1.5-2.2 3V21h-4.2Z"/></svg>`,
+		"tiktok":    `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.8 2c.3 2 1.5 3.4 3.5 3.8v3.4a9 9 0 0 1-3.5-.9v6.9a6.2 6.2 0 1 1-5.4-6.1v3.5a2.8 2.8 0 1 0 2 2.7V2h3.4Z"/></svg>`,
+		"youtube":   `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.1a2.8 2.8 0 0 0-2-2C17.9 4.6 12 4.6 12 4.6s-5.9 0-7.6.5a2.8 2.8 0 0 0-2 2A29 29 0 0 0 2 12a29 29 0 0 0 .4 4.9 2.8 2.8 0 0 0 2 2c1.7.5 7.6.5 7.6.5s5.9 0 7.6-.5a2.8 2.8 0 0 0 2-2A29 29 0 0 0 22 12a29 29 0 0 0-.4-4.9ZM10 15.3V8.7l5.7 3.3-5.7 3.3Z"/></svg>`,
+		"link":      `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1.5 1.5 0 0 0 2.1 0l3.5-3.5a3 3 0 0 0-4.2-4.2l-2 2-1.4-1.4 2-2a5 5 0 0 1 7.1 7.1l-3.5 3.5a3.5 3.5 0 0 1-5 0l1.4-1.5Zm2.8-2.8a1.5 1.5 0 0 0-2.1 0l-3.5 3.5a3 3 0 1 0 4.2 4.2l2-2 1.4 1.4-2 2a5 5 0 0 1-7.1-7.1l3.5-3.5a3.5 3.5 0 0 1 5 0l-1.4 1.5Z"/></svg>`,
+	}
+	if icon, ok := icons[kind]; ok {
+		return template.HTML(icon) // #nosec G203 -- fixed internal SVG catalog, no user input.
+	}
+	return template.HTML(icons["link"]) // #nosec G203 -- fixed internal SVG catalog.
+}
+
 func (a *App) landingContactOptions(tenant int64, message string) []landingContactOption {
 	out := []landingContactOption{}
 	seen := map[string]bool{}
@@ -407,6 +426,24 @@ func (a *App) landingImageUploadHandler(w http.ResponseWriter, r *http.Request) 
 		writeError(w, err, http.StatusBadRequest)
 		return
 	}
+	data, err := io.ReadAll(io.LimitReader(file, (8<<20)+1))
+	if err != nil {
+		writeError(w, errors.New("no fue posible leer la imagen"), http.StatusBadRequest)
+		return
+	}
+	if len(data) > 8<<20 {
+		writeError(w, errors.New("imagen demasiado grande; máximo 8 MB"), http.StatusBadRequest)
+		return
+	}
+	info, err := inspectUploadedImage(data, ext)
+	if err != nil {
+		writeError(w, err, http.StatusBadRequest)
+		return
+	}
+	if err := validateLandingHeroStandard(info); err != nil {
+		writeError(w, err, http.StatusBadRequest)
+		return
+	}
 	dir := filepath.Join(a.cfg.DataDir, "landing_uploads", strconv.FormatInt(tenant, 10))
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		writeError(w, err, http.StatusInternalServerError)
@@ -414,18 +451,20 @@ func (a *App) landingImageUploadHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	name := fmt.Sprintf("hero_%d%s", time.Now().UnixNano(), ext)
 	target := filepath.Join(dir, name)
-	dst, err := os.Create(target)
-	if err != nil {
+	if err := os.WriteFile(target, data, 0644); err != nil {
 		writeError(w, err, http.StatusInternalServerError)
 		return
 	}
-	defer dst.Close()
-	if _, err := io.Copy(dst, file); err != nil {
-		_ = os.Remove(target)
-		writeError(w, err, http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, map[string]any{"ok": true, "url": "/uploads/landings/" + strconv.FormatInt(tenant, 10) + "/" + name})
+	writeJSON(w, map[string]any{
+		"ok":                 true,
+		"url":                "/uploads/landings/" + strconv.FormatInt(tenant, 10) + "/" + name,
+		"width":              info.Width,
+		"height":             info.Height,
+		"format":             info.Format,
+		"recommended_width":  1600,
+		"recommended_height": 1200,
+		"ratio":              "4:3",
+	})
 }
 
 func (a *App) landingUploadFileHandler(w http.ResponseWriter, r *http.Request) {
