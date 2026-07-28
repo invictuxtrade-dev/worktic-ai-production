@@ -589,113 +589,282 @@ type messengerInboundEvent struct {
 	IsEcho      bool
 	Timestamp   int64
 	IsSample    bool
+	SourcePath  string
+}
+
+type messengerWebhookWalkContext struct {
+	SenderID    string
+	RecipientID string
+	Timestamp   int64
+	Field       string
+}
+
+func messengerAnyString(v any) string {
+	switch x := v.(type) {
+	case string:
+		return strings.TrimSpace(x)
+	case json.Number:
+		return strings.TrimSpace(x.String())
+	case float64:
+		if x == float64(int64(x)) {
+			return fmt.Sprintf("%d", int64(x))
+		}
+		return strings.TrimSpace(fmt.Sprintf("%v", x))
+	case float32, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		return strings.TrimSpace(fmt.Sprint(x))
+	default:
+		return ""
+	}
+}
+
+func messengerAnyInt64(v any) int64 {
+	s := messengerAnyString(v)
+	if s == "" {
+		return 0
+	}
+	var n int64
+	_, _ = fmt.Sscan(s, &n)
+	return n
+}
+
+func messengerMap(v any) map[string]any {
+	m, _ := v.(map[string]any)
+	return m
+}
+
+func messengerSlice(v any) []any {
+	x, _ := v.([]any)
+	return x
+}
+
+func messengerNestedString(m map[string]any, keys ...string) string {
+	var current any = m
+	for _, key := range keys {
+		mm, ok := current.(map[string]any)
+		if !ok {
+			return ""
+		}
+		current = mm[key]
+	}
+	return messengerAnyString(current)
+}
+
+func messengerPartyID(v any) string {
+	if id := messengerAnyString(v); id != "" {
+		return id
+	}
+	m := messengerMap(v)
+	if m == nil {
+		return ""
+	}
+	for _, key := range []string{"id", "user_id", "page_id", "psid"} {
+		if id := messengerAnyString(m[key]); id != "" {
+			return id
+		}
+	}
+	return ""
+}
+
+func messengerMessageText(m map[string]any) (string, string) {
+	if m == nil {
+		return "", ""
+	}
+	if text := messengerAnyString(m["text"]); text != "" {
+		return text, "text"
+	}
+	if text := messengerNestedString(m, "text", "body"); text != "" {
+		return text, "text"
+	}
+	if payload := messengerNestedString(m, "quick_reply", "payload"); payload != "" {
+		return payload, "quick_reply"
+	}
+	if payload := messengerNestedString(m, "quickReply", "payload"); payload != "" {
+		return payload, "quick_reply"
+	}
+	if title := messengerAnyString(m["title"]); title != "" {
+		return title, "postback"
+	}
+	if payload := messengerAnyString(m["payload"]); payload != "" {
+		return payload, "postback"
+	}
+	if attachments := messengerSlice(m["attachments"]); len(attachments) > 0 {
+		first := messengerMap(attachments[0])
+		attachmentType := messengerAnyString(first["type"])
+		if attachmentType == "" {
+			attachmentType = "archivo"
+		}
+		if title := messengerNestedString(first, "payload", "title"); title != "" {
+			return title, "attachment"
+		}
+		return "[Adjunto: " + attachmentType + "]", "attachment"
+	}
+	if stickerID := messengerAnyString(m["sticker_id"]); stickerID != "" {
+		return "[Sticker]", "sticker"
+	}
+	return "", ""
+}
+
+func messengerAppendInboundEvent(events *[]messengerInboundEvent, seen map[string]bool, ctx messengerWebhookWalkContext, message map[string]any, postback map[string]any, sourcePath string) {
+	messageText, messageType := messengerMessageText(message)
+	if messageText == "" {
+		messageText, messageType = messengerMessageText(postback)
+	}
+	mid := ""
+	isEcho := false
+	if message != nil {
+		mid = firstNonEmpty(messengerAnyString(message["mid"]), messengerAnyString(message["id"]), messengerAnyString(message["message_id"]))
+		if v, ok := message["is_echo"].(bool); ok {
+			isEcho = v
+		}
+		if v, ok := message["isEcho"].(bool); ok {
+			isEcho = isEcho || v
+		}
+	}
+	if mid == "" && postback != nil {
+		mid = firstNonEmpty(messengerAnyString(postback["mid"]), messengerAnyString(postback["id"]), messengerAnyString(postback["message_id"]))
+	}
+	if messageType == "" && postback != nil {
+		messageType = "postback"
+	}
+	if messageType == "" {
+		messageType = "text"
+	}
+	isSample := strings.EqualFold(mid, "test_message_id") || strings.EqualFold(messageText, "test_message") || strings.HasPrefix(strings.ToLower(mid), "test_")
+	key := strings.Join([]string{ctx.SenderID, ctx.RecipientID, mid, messageText, fmt.Sprint(ctx.Timestamp), messageType}, "|")
+	if seen[key] {
+		return
+	}
+	seen[key] = true
+	*events = append(*events, messengerInboundEvent{
+		SenderID:    strings.TrimSpace(ctx.SenderID),
+		RecipientID: strings.TrimSpace(ctx.RecipientID),
+		MessageID:   strings.TrimSpace(mid),
+		Text:        strings.TrimSpace(messageText),
+		MessageType: messageType,
+		IsEcho:      isEcho,
+		Timestamp:   ctx.Timestamp,
+		IsSample:    isSample,
+		SourcePath:  sourcePath,
+	})
+}
+
+func messengerWalkWebhookNode(node any, path string, ctx messengerWebhookWalkContext, events *[]messengerInboundEvent, seen map[string]bool, paths map[string]bool) {
+	switch value := node.(type) {
+	case []any:
+		for i, item := range value {
+			messengerWalkWebhookNode(item, fmt.Sprintf("%s[%d]", path, i), ctx, events, seen, paths)
+		}
+	case map[string]any:
+		local := ctx
+		if field := messengerAnyString(value["field"]); field != "" {
+			local.Field = field
+		}
+		for _, key := range []string{"sender", "from"} {
+			if id := messengerPartyID(value[key]); id != "" {
+				local.SenderID = id
+				break
+			}
+		}
+		for _, key := range []string{"recipient", "to"} {
+			if id := messengerPartyID(value[key]); id != "" {
+				local.RecipientID = id
+				break
+			}
+		}
+		if id := firstNonEmpty(messengerAnyString(value["sender_id"]), messengerAnyString(value["from_id"])); id != "" {
+			local.SenderID = id
+		}
+		if id := firstNonEmpty(messengerAnyString(value["recipient_id"]), messengerAnyString(value["to_id"])); id != "" {
+			local.RecipientID = id
+		}
+		if ts := firstNonEmpty(messengerAnyString(value["timestamp"]), messengerAnyString(value["time"])); ts != "" {
+			local.Timestamp = messengerAnyInt64(ts)
+		}
+
+		message := messengerMap(value["message"])
+		postback := messengerMap(value["postback"])
+		if message != nil || postback != nil {
+			messengerAppendInboundEvent(events, seen, local, message, postback, path)
+			paths[path] = true
+		}
+
+		// Some current Meta webhook variants put one or more message objects
+		// inside value.messages[] instead of value.message. Preserve sender and
+		// recipient inherited from the parent while parsing each item.
+		if messages := messengerSlice(value["messages"]); len(messages) > 0 {
+			for i, rawMessage := range messages {
+				messageMap := messengerMap(rawMessage)
+				if messageMap == nil {
+					continue
+				}
+				messageCtx := local
+				if id := firstNonEmpty(messengerPartyID(messageMap["sender"]), messengerPartyID(messageMap["from"]), messengerAnyString(messageMap["from"])); id != "" {
+					messageCtx.SenderID = id
+				}
+				if id := firstNonEmpty(messengerPartyID(messageMap["recipient"]), messengerPartyID(messageMap["to"]), messengerAnyString(messageMap["to"])); id != "" {
+					messageCtx.RecipientID = id
+				}
+				if ts := firstNonEmpty(messengerAnyString(messageMap["timestamp"]), messengerAnyString(messageMap["time"])); ts != "" {
+					messageCtx.Timestamp = messengerAnyInt64(ts)
+				}
+				payloadMessage := messageMap
+				if nested := messengerMap(messageMap["message"]); nested != nil {
+					payloadMessage = nested
+				}
+				messengerAppendInboundEvent(events, seen, messageCtx, payloadMessage, messengerMap(messageMap["postback"]), fmt.Sprintf("%s.messages[%d]", path, i))
+				paths[fmt.Sprintf("%s.messages[]", path)] = true
+			}
+		}
+
+		for key, child := range value {
+			// message and postback were already consumed with the correct parent
+			// sender/recipient context. Walking them again would create duplicates.
+			if key == "message" || key == "postback" || key == "messages" {
+				continue
+			}
+			childPath := key
+			if path != "" {
+				childPath = path + "." + key
+			}
+			messengerWalkWebhookNode(child, childPath, local, events, seen, paths)
+		}
+	}
 }
 
 func decodeMessengerWebhookPayload(body []byte) (string, []messengerInboundEvent, string, error) {
-	var payload struct {
-		Object string `json:"object"`
-		Entry  []struct {
-			Messaging []struct {
-				Sender struct {
-					ID string `json:"id"`
-				} `json:"sender"`
-				Recipient struct {
-					ID string `json:"id"`
-				} `json:"recipient"`
-				Message struct {
-					MID        string `json:"mid"`
-					Text       string `json:"text"`
-					IsEcho     bool   `json:"is_echo"`
-					QuickReply struct {
-						Payload string `json:"payload"`
-					} `json:"quick_reply"`
-				} `json:"message"`
-				Postback struct {
-					Title   string `json:"title"`
-					Payload string `json:"payload"`
-				} `json:"postback"`
-				Timestamp int64 `json:"timestamp"`
-			} `json:"messaging"`
-			Changes []struct {
-				Field string `json:"field"`
-				Value struct {
-					Sender struct {
-						ID string `json:"id"`
-					} `json:"sender"`
-					Recipient struct {
-						ID string `json:"id"`
-					} `json:"recipient"`
-					Message struct {
-						MID        string `json:"mid"`
-						Text       string `json:"text"`
-						IsEcho     bool   `json:"is_echo"`
-						QuickReply struct {
-							Payload string `json:"payload"`
-						} `json:"quick_reply"`
-					} `json:"message"`
-					Postback struct {
-						Title   string `json:"title"`
-						Payload string `json:"payload"`
-					} `json:"postback"`
-					Timestamp int64 `json:"timestamp"`
-				} `json:"value"`
-			} `json:"changes"`
-		} `json:"entry"`
-	}
-	if err := json.Unmarshal(body, &payload); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	var payload any
+	if err := decoder.Decode(&payload); err != nil {
 		return "", nil, "invalid_json", err
 	}
+	objectType := ""
+	if root := messengerMap(payload); root != nil {
+		objectType = messengerAnyString(root["object"])
+	}
 	events := make([]messengerInboundEvent, 0)
-	shape := "unknown"
-	appendEvent := func(senderID, recipientID, mid, text, quickReply, postbackTitle, postbackPayload string, isEcho bool, timestamp int64) {
-		messageType := "text"
-		messageText := strings.TrimSpace(text)
-		if messageText == "" {
-			messageText = strings.TrimSpace(quickReply)
-			if messageText != "" {
-				messageType = "quick_reply"
-			}
-		}
-		if messageText == "" {
-			messageText = strings.TrimSpace(firstNonEmpty(postbackTitle, postbackPayload))
-			if messageText != "" {
-				messageType = "postback"
-			}
-		}
-		mid = strings.TrimSpace(mid)
-		isSample := strings.EqualFold(mid, "test_message_id") || strings.EqualFold(messageText, "test_message") || strings.HasPrefix(strings.ToLower(mid), "test_")
-		events = append(events, messengerInboundEvent{
-			SenderID:    strings.TrimSpace(senderID),
-			RecipientID: strings.TrimSpace(recipientID),
-			MessageID:   mid,
-			Text:        messageText,
-			MessageType: messageType,
-			IsEcho:      isEcho,
-			Timestamp:   timestamp,
-			IsSample:    isSample,
-		})
+	seen := map[string]bool{}
+	paths := map[string]bool{}
+	messengerWalkWebhookNode(payload, "root", messengerWebhookWalkContext{}, &events, seen, paths)
+	pathNames := make([]string, 0, len(paths))
+	for path := range paths {
+		pathNames = append(pathNames, path)
 	}
-	for _, entry := range payload.Entry {
-		if len(entry.Messaging) > 0 {
-			shape = "entry.messaging"
-		}
-		for _, m := range entry.Messaging {
-			appendEvent(m.Sender.ID, m.Recipient.ID, m.Message.MID, m.Message.Text, m.Message.QuickReply.Payload, m.Postback.Title, m.Postback.Payload, m.Message.IsEcho, m.Timestamp)
-		}
-		for _, change := range entry.Changes {
-			if !strings.EqualFold(strings.TrimSpace(change.Field), "messages") {
-				continue
-			}
-			if shape == "unknown" {
-				shape = "entry.changes.messages"
-			} else if shape != "entry.changes.messages" {
-				shape = "mixed"
-			}
-			v := change.Value
-			appendEvent(v.Sender.ID, v.Recipient.ID, v.Message.MID, v.Message.Text, v.Message.QuickReply.Payload, v.Postback.Title, v.Postback.Payload, v.Message.IsEcho, v.Timestamp)
-		}
+	if len(pathNames) == 0 {
+		return objectType, events, "unrecognized", nil
 	}
-	return payload.Object, events, shape, nil
+	// Stable enough for diagnostics without importing sort only for display.
+	shape := strings.Join(pathNames, ",")
+	return objectType, events, shape, nil
+}
+
+func messengerPayloadPreview(body []byte) string {
+	const limit = 16000
+	body = bytes.TrimSpace(body)
+	if len(body) > limit {
+		return string(body[:limit]) + "…"
+	}
+	return string(body)
 }
 
 func (a *App) recordMessengerChannelEvent(c ChannelConnection, eventType, status string, detail map[string]any) {
@@ -806,6 +975,8 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 		"user_agent":        r.Header.Get("User-Agent"),
 		"signature_present": strings.TrimSpace(r.Header.Get("X-Hub-Signature-256")) != "",
 		"read_error":        bodyReadError,
+		"payload_sha256":    fmt.Sprintf("%x", sha256.Sum256(body)),
+		"payload_preview":   messengerPayloadPreview(body),
 	})
 	log.Printf("[messenger webhook] HTTP POST received connection=%d tenant=%d public_id=%s bytes=%d content_type=%q signature=%t", c.ID, c.TenantID, c.PublicID, len(body), r.Header.Get("Content-Type"), strings.TrimSpace(r.Header.Get("X-Hub-Signature-256")) != "")
 	if bodyErr != nil {
@@ -838,6 +1009,14 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 
 	objectType, events, shape, parseErr := decodeMessengerWebhookPayload(body)
 	a.recordMessengerWebhookReceipt(c, shape, len(events), parseErr)
+	if parseErr == nil && len(events) == 0 {
+		a.recordMessengerChannelEvent(c, "messenger_webhook_unclassified", "no_message_candidates", map[string]any{
+			"object":          objectType,
+			"shape":           shape,
+			"payload_sha256":  fmt.Sprintf("%x", sha256.Sum256(body)),
+			"payload_preview": messengerPayloadPreview(body),
+		})
+	}
 	log.Printf("[messenger webhook] connection=%d tenant=%d public_id=%s object=%s shape=%s events=%d parse_error=%v", c.ID, c.TenantID, c.PublicID, objectType, shape, len(events), parseErr)
 
 	w.WriteHeader(http.StatusOK)
@@ -847,16 +1026,16 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 	}
 	for _, event := range events {
 		if event.IsEcho {
-			a.recordMessengerChannelEvent(c, "messenger_webhook_ignored", "echo", map[string]any{"message_id": event.MessageID})
+			a.recordMessengerChannelEvent(c, "messenger_webhook_ignored", "echo", map[string]any{"message_id": event.MessageID, "source_path": event.SourcePath, "sender_id": event.SenderID, "recipient_id": event.RecipientID})
 			continue
 		}
 		if event.IsSample {
-			a.recordMessengerChannelEvent(c, "messenger_webhook_sample", "accepted", map[string]any{"shape": shape, "message_id": event.MessageID, "text": event.Text})
+			a.recordMessengerChannelEvent(c, "messenger_webhook_sample", "accepted", map[string]any{"shape": shape, "message_id": event.MessageID, "text": event.Text, "source_path": event.SourcePath})
 			log.Printf("[messenger webhook] sample event accepted connection=%d shape=%s", c.ID, shape)
 			continue
 		}
 		if event.SenderID == "" || event.Text == "" {
-			a.recordMessengerChannelEvent(c, "messenger_webhook_ignored", "missing_sender_or_text", map[string]any{"shape": shape, "sender_id": event.SenderID, "message_id": event.MessageID, "message_type": event.MessageType})
+			a.recordMessengerChannelEvent(c, "messenger_webhook_ignored", "missing_sender_or_text", map[string]any{"shape": shape, "sender_id": event.SenderID, "recipient_id": event.RecipientID, "message_id": event.MessageID, "message_type": event.MessageType, "text": event.Text, "source_path": event.SourcePath})
 			continue
 		}
 		messageID := event.MessageID
@@ -865,7 +1044,7 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 		}
 		chat := "messenger:" + event.SenderID
 		now := time.Now().UTC().Format(time.RFC3339Nano)
-		a.recordMessengerChannelEvent(c, "messenger_message_received", "received", map[string]any{"shape": shape, "sender_id": event.SenderID, "recipient_id": event.RecipientID, "message_id": messageID, "message_type": event.MessageType})
+		a.recordMessengerChannelEvent(c, "messenger_message_received", "received", map[string]any{"shape": shape, "sender_id": event.SenderID, "recipient_id": event.RecipientID, "message_id": messageID, "message_type": event.MessageType, "source_path": event.SourcePath})
 
 		if _, err := a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "messenger", messageID, chat, event.SenderID, "in", event.MessageType, event.Text, "received", now); err != nil {
 			a.recordMessengerChannelEvent(c, "messenger_processing_error", "message_insert", map[string]any{"error": err.Error(), "message_id": messageID})
