@@ -587,6 +587,7 @@ type messengerInboundEvent struct {
 	Text        string
 	MessageType string
 	IsEcho      bool
+	IsStandby   bool
 	Timestamp   int64
 	IsSample    bool
 	SourcePath  string
@@ -742,6 +743,7 @@ func messengerAppendInboundEvent(events *[]messengerInboundEvent, seen map[strin
 		Text:        strings.TrimSpace(messageText),
 		MessageType: messageType,
 		IsEcho:      isEcho,
+		IsStandby:   strings.Contains(strings.ToLower(sourcePath), ".standby[") || strings.Contains(strings.ToLower(sourcePath), ".standby."),
 		Timestamp:   ctx.Timestamp,
 		IsSample:    isSample,
 		SourcePath:  sourcePath,
@@ -831,6 +833,35 @@ func messengerWalkWebhookNode(node any, path string, ctx messengerWebhookWalkCon
 	}
 }
 
+func messengerParseCanonicalEventArray(root map[string]any, arrayKey string, events *[]messengerInboundEvent, seen map[string]bool, paths map[string]bool) {
+	entries := messengerSlice(root["entry"])
+	for entryIndex, rawEntry := range entries {
+		entry := messengerMap(rawEntry)
+		if entry == nil {
+			continue
+		}
+		items := messengerSlice(entry[arrayKey])
+		for itemIndex, rawItem := range items {
+			item := messengerMap(rawItem)
+			if item == nil {
+				continue
+			}
+			ctx := messengerWebhookWalkContext{
+				SenderID:    firstNonEmpty(messengerPartyID(item["sender"]), messengerPartyID(item["from"]), messengerAnyString(item["sender_id"])),
+				RecipientID: firstNonEmpty(messengerPartyID(item["recipient"]), messengerPartyID(item["to"]), messengerAnyString(item["recipient_id"])),
+				Timestamp:   messengerAnyInt64(firstNonEmpty(messengerAnyString(item["timestamp"]), messengerAnyString(item["time"]))),
+			}
+			path := fmt.Sprintf("root.entry[%d].%s[%d]", entryIndex, arrayKey, itemIndex)
+			message := messengerMap(item["message"])
+			postback := messengerMap(item["postback"])
+			if message != nil || postback != nil {
+				messengerAppendInboundEvent(events, seen, ctx, message, postback, path)
+				paths[fmt.Sprintf("root.entry[].%s[]", arrayKey)] = true
+			}
+		}
+	}
+}
+
 func decodeMessengerWebhookPayload(body []byte) (string, []messengerInboundEvent, string, error) {
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
@@ -845,6 +876,13 @@ func decodeMessengerWebhookPayload(body []byte) (string, []messengerInboundEvent
 	events := make([]messengerInboundEvent, 0)
 	seen := map[string]bool{}
 	paths := map[string]bool{}
+	if root := messengerMap(payload); root != nil {
+		// Parse Messenger's documented arrays explicitly. In Conversation Routing,
+		// an existing thread can arrive under entry[].standby[] until this app takes
+		// thread control. The generic walker remains as a compatibility fallback.
+		messengerParseCanonicalEventArray(root, "messaging", &events, seen, paths)
+		messengerParseCanonicalEventArray(root, "standby", &events, seen, paths)
+	}
 	messengerWalkWebhookNode(payload, "root", messengerWebhookWalkContext{}, &events, seen, paths)
 	pathNames := make([]string, 0, len(paths))
 	for path := range paths {
@@ -1038,13 +1076,22 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 			a.recordMessengerChannelEvent(c, "messenger_webhook_ignored", "missing_sender_or_text", map[string]any{"shape": shape, "sender_id": event.SenderID, "recipient_id": event.RecipientID, "message_id": event.MessageID, "message_type": event.MessageType, "text": event.Text, "source_path": event.SourcePath})
 			continue
 		}
+		if event.IsStandby {
+			a.recordMessengerChannelEvent(c, "messenger_standby_message", "received", map[string]any{"sender_id": event.SenderID, "message_id": event.MessageID, "source_path": event.SourcePath})
+			// Existing conversations can remain owned by Meta Inbox or another app.
+			// Take/request control before the automatic reply, while still storing the
+			// inbound message even if Meta refuses the takeover.
+			if err := a.ensureMessengerThreadControl(c, event.SenderID); err != nil {
+				log.Printf("[messenger webhook] thread control failed connection=%d sender=%s error=%v", c.ID, event.SenderID, err)
+			}
+		}
 		messageID := event.MessageID
 		if messageID == "" {
 			messageID = "messenger-event-" + randomToken(10)
 		}
 		chat := "messenger:" + event.SenderID
 		now := time.Now().UTC().Format(time.RFC3339Nano)
-		a.recordMessengerChannelEvent(c, "messenger_message_received", "received", map[string]any{"shape": shape, "sender_id": event.SenderID, "recipient_id": event.RecipientID, "message_id": messageID, "message_type": event.MessageType, "source_path": event.SourcePath})
+		a.recordMessengerChannelEvent(c, "messenger_message_received", "received", map[string]any{"shape": shape, "sender_id": event.SenderID, "recipient_id": event.RecipientID, "message_id": messageID, "message_type": event.MessageType, "source_path": event.SourcePath, "standby": event.IsStandby})
 
 		if _, err := a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "messenger", messageID, chat, event.SenderID, "in", event.MessageType, event.Text, "received", now); err != nil {
 			a.recordMessengerChannelEvent(c, "messenger_processing_error", "message_insert", map[string]any{"error": err.Error(), "message_id": messageID})
@@ -1068,6 +1115,52 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 		go a.maybeMessengerAIReply(c, event.SenderID, chat, event.Text)
 	}
 
+}
+
+func (a *App) messengerThreadControl(c ChannelConnection, psid, action string) error {
+	psid = strings.TrimSpace(psid)
+	if psid == "" {
+		return errors.New("PSID vacío")
+	}
+	cr, err := a.messengerCredentialsFor(c)
+	if err != nil || strings.TrimSpace(cr.PageToken) == "" {
+		return errors.New("Page Access Token no disponible")
+	}
+	pageID := strings.TrimSpace(c.ExternalAccountID)
+	if pageID == "" {
+		var cfg map[string]any
+		_ = json.Unmarshal([]byte(c.ConfigJSON), &cfg)
+		pageID = messengerAnyString(cfg["page_id"])
+	}
+	if pageID == "" {
+		return errors.New("Page ID no disponible")
+	}
+	edge := "take_thread_control"
+	if action == "request" {
+		edge = "request_thread_control"
+	}
+	recipientJSON, _ := json.Marshal(map[string]string{"id": psid})
+	values := url.Values{
+		"recipient": {string(recipientJSON)},
+		"metadata":  {"worktic_conversation_routing"},
+	}
+	return a.messengerGraph(http.MethodPost, "/"+pageID+"/"+edge, cr.PageToken, values, nil)
+}
+
+func (a *App) ensureMessengerThreadControl(c ChannelConnection, psid string) error {
+	if err := a.messengerThreadControl(c, psid, "take"); err == nil {
+		a.recordMessengerChannelEvent(c, "messenger_thread_control", "taken", map[string]any{"psid": psid})
+		return nil
+	} else {
+		takeErr := err
+		if requestErr := a.messengerThreadControl(c, psid, "request"); requestErr == nil {
+			a.recordMessengerChannelEvent(c, "messenger_thread_control", "requested", map[string]any{"psid": psid, "take_error": takeErr.Error()})
+			return nil
+		} else {
+			a.recordMessengerChannelEvent(c, "messenger_thread_control", "failed", map[string]any{"psid": psid, "take_error": takeErr.Error(), "request_error": requestErr.Error()})
+			return fmt.Errorf("no se pudo tomar ni solicitar el control del hilo: %v / %v", takeErr, requestErr)
+		}
+	}
 }
 
 func (a *App) sendTenantMessengerText(ctx context.Context, tenantID int64, chat, text string) (string, error) {
