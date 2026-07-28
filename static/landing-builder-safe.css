@@ -1,0 +1,249 @@
+/* Landing Builder Premium aislado — no afecta ningún otro módulo */
+@media (min-width: 861px) {
+  dialog#modal:has(.landing-editor-shell) {
+    width: min(1240px, calc(100vw - 48px)) !important;
+    height: min(900px, calc(100dvh - 36px)) !important;
+    max-width: none !important;
+    max-height: none !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border-radius: 24px !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) #modalContent,
+  dialog#modal:has(.landing-editor-shell) .modal-scroll {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-editor-shell {
+    height: 100% !important;
+    max-height: none !important;
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr) !important;
+    background: #f7f6fa !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-editor-header {
+    padding: 24px 30px 20px !important;
+    min-height: 104px !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-builder-layout {
+    min-height: 0 !important;
+    height: 100% !important;
+    display: grid !important;
+    grid-template-columns: 250px minmax(0, 1fr) !important;
+    overflow: hidden !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-editor-nav {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    padding: 22px 16px !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-editor-main {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    display: grid !important;
+    grid-template-rows: minmax(0, 1fr) auto !important;
+    overflow: hidden !important;
+    background: #f8f7fb !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    width: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    display: block !important;
+    padding: 26px 30px 34px !important;
+    scrollbar-gutter: stable !important;
+    box-sizing: border-box !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step[hidden] {
+    display: none !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-step .form-section {
+    width: 100% !important;
+    max-width: 920px !important;
+    margin: 0 auto 22px !important;
+    padding: 26px !important;
+    box-sizing: border-box !important;
+    border-radius: 20px !important;
+    background: #fff !important;
+    border: 1px solid #e7e2ed !important;
+    box-shadow: 0 12px 32px rgba(43, 28, 68, .045) !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-step .grid2 {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 18px 20px !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-step label {
+    display: grid !important;
+    gap: 8px !important;
+    margin: 0 0 17px !important;
+    min-width: 0 !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-step input:not([type="checkbox"]):not([type="color"]),
+  dialog#modal:has(.landing-editor-shell) .landing-step select,
+  dialog#modal:has(.landing-editor-shell) .landing-step textarea {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    padding: 13px 14px !important;
+    border-radius: 12px !important;
+    line-height: 1.45 !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-step textarea {
+    resize: vertical !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-step #lpHeadline,
+  dialog#modal:has(.landing-editor-shell) .landing-step #lpSubheadline {
+    min-height: 104px !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-step #lpBenefits,
+  dialog#modal:has(.landing-editor-shell) .landing-step #lpTestimonials {
+    min-height: 170px !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-step #lpFeatures,
+  dialog#modal:has(.landing-editor-shell) .landing-step #lpFAQ {
+    min-height: 220px !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .sticky-modal-actions {
+    position: static !important;
+    margin: 0 !important;
+    padding: 16px 30px 18px !important;
+    min-height: 72px !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 12px !important;
+    background: rgba(255,255,255,.98) !important;
+    border-top: 1px solid #e6e1eb !important;
+    box-shadow: 0 -10px 28px rgba(31, 18, 48, .045) !important;
+    z-index: 5 !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .sticky-modal-actions button {
+    min-width: 150px !important;
+    min-height: 44px !important;
+  }
+}
+
+@media (max-width: 860px) {
+  dialog#modal:has(.landing-editor-shell) {
+    width: calc(100vw - 18px) !important;
+    height: calc(100dvh - 18px) !important;
+    max-height: none !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border-radius: 18px !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) #modalContent,
+  dialog#modal:has(.landing-editor-shell) .modal-scroll,
+  dialog#modal:has(.landing-editor-shell) .landing-editor-shell {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: none !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-editor-shell {
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr) !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-editor-header {
+    padding: 18px 18px 15px !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-builder-layout {
+    min-height: 0 !important;
+    height: 100% !important;
+    display: grid !important;
+    grid-template-rows: auto minmax(0, 1fr) !important;
+    grid-template-columns: 1fr !important;
+    overflow: hidden !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-editor-nav {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+    padding: 9px !important;
+    overflow: visible !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-editor-main {
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-rows: minmax(0,1fr) auto !important;
+    overflow: hidden !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step {
+    min-height: 0 !important;
+    height: 100% !important;
+    width: 100% !important;
+    display: block !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 16px 14px 26px !important;
+    box-sizing: border-box !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step[hidden] {
+    display: none !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-step .form-section {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 0 15px !important;
+    padding: 17px !important;
+    box-sizing: border-box !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .landing-step .grid2 {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .sticky-modal-actions {
+    margin: 0 !important;
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom)) !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    background: #fff !important;
+    border-top: 1px solid #e6e1eb !important;
+  }
+
+  dialog#modal:has(.landing-editor-shell) .sticky-modal-actions button {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
