@@ -1,0 +1,75 @@
+/* Worktic Superadmin Full — aislado del resto de la aplicación */
+#admin.wt-admin-full{min-width:0}
+#admin .wt-admin-shell{display:grid;gap:18px;min-width:0}
+#admin .wt-admin-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:22px;border:1px solid var(--line,#e8e3f2);border-radius:22px;background:linear-gradient(135deg,#fff 0%,#faf7ff 100%)}
+#admin .wt-admin-hero h2{margin:4px 0 7px;font-size:24px}
+#admin .wt-admin-hero p{margin:0;color:var(--muted,#766d86);max-width:720px}
+#admin .wt-admin-tabs{display:flex;gap:8px;flex-wrap:wrap;padding:7px;border:1px solid var(--line,#e8e3f2);border-radius:16px;background:#fff;position:sticky;top:0;z-index:4}
+#admin .wt-admin-tab{border:0;background:transparent;color:#5f5670;padding:10px 15px;border-radius:11px;font-weight:700;box-shadow:none}
+#admin .wt-admin-tab.active{background:#1a102d;color:#fff}
+#admin .wt-admin-panel{display:none;min-width:0}
+#admin .wt-admin-panel.active{display:block}
+#admin .wt-admin-card{border:1px solid var(--line,#e8e3f2);border-radius:20px;background:#fff;padding:18px;min-width:0;overflow:hidden}
+#admin .wt-admin-card-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}
+#admin .wt-admin-card-head h3{margin:0 0 3px;font-size:18px}
+#admin .wt-admin-card-head p{margin:0;color:var(--muted,#766d86);font-size:13px}
+#admin .wt-admin-toolbar{display:grid;grid-template-columns:minmax(220px,1.7fr) repeat(3,minmax(130px,.75fr)) auto;gap:10px;align-items:end;margin-bottom:14px;min-width:0}
+#admin .wt-admin-toolbar.payments{grid-template-columns:minmax(200px,1.5fr) repeat(5,minmax(120px,.75fr)) auto}
+#admin .wt-admin-toolbar.licenses{grid-template-columns:minmax(220px,1.5fr) repeat(3,minmax(130px,.75fr)) auto}
+#admin .wt-admin-toolbar label{display:grid;gap:5px;min-width:0;margin:0}
+#admin .wt-admin-toolbar label>span{font-size:10px;letter-spacing:.07em;text-transform:uppercase;font-weight:800;color:#81778f}
+#admin .wt-admin-toolbar input,#admin .wt-admin-toolbar select{width:100%;min-width:0;height:42px;padding:0 11px;border-radius:11px}
+#admin .wt-admin-table-wrap{width:100%;overflow:auto;border:1px solid #eee8f6;border-radius:15px}
+#admin .wt-admin-table{width:100%;min-width:920px;border-collapse:collapse;background:#fff}
+#admin .wt-admin-table th{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#857b93;text-align:left;padding:12px;background:#faf8fd;white-space:nowrap;border-bottom:1px solid #eee8f6}
+#admin .wt-admin-table td{padding:12px;border-bottom:1px solid #f0ecf5;vertical-align:middle;font-size:13px}
+#admin .wt-admin-table tr:last-child td{border-bottom:0}
+#admin .wt-admin-user-cell{display:grid;grid-template-columns:38px minmax(0,1fr);gap:10px;align-items:center;min-width:205px}
+#admin .wt-admin-avatar{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:#f0e8ff;color:#7425df;font-weight:800}
+#admin .wt-admin-user-cell b,#admin .wt-admin-user-cell small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#admin .wt-admin-user-cell small{color:#847a91;margin-top:2px}
+#admin .wt-admin-badge{display:inline-flex;align-items:center;gap:5px;min-height:26px;padding:4px 9px;border-radius:999px;background:#f3eff7;color:#62566e;font-size:11px;font-weight:800;white-space:nowrap}
+#admin .wt-admin-badge.active{background:#e9fbf2;color:#087b45}
+#admin .wt-admin-badge.blocked{background:#fff4df;color:#9a5b00}
+#admin .wt-admin-badge.deleted{background:#ffe9ee;color:#ad1739}
+#admin .wt-admin-badge.courtesy{background:#eee7ff;color:#6824c8}
+#admin .wt-admin-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:220px}
+#admin .wt-admin-actions button{padding:7px 10px;font-size:11px;border-radius:9px;white-space:nowrap}
+#admin .wt-admin-actions .wt-danger{background:#fff1f3;color:#b0183a;border:1px solid #ffd4dd;box-shadow:none}
+#admin .wt-admin-actions .wt-warn{background:#fff7e7;color:#8e5700;border:1px solid #ffe0a5;box-shadow:none}
+#admin .wt-admin-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;flex-wrap:wrap}
+#admin .wt-admin-pagination small{color:#7d7389}
+#admin .wt-admin-pages{display:flex;gap:6px;align-items:center}
+#admin .wt-admin-pages button{min-width:36px;padding:8px 10px;border-radius:9px}
+#admin .wt-admin-empty{padding:42px 20px;text-align:center;color:#746b80}
+#admin .wt-admin-empty b{display:block;color:#241a31;font-size:17px;margin-bottom:5px}
+#admin .wt-admin-plan-name{min-width:185px}
+#admin .wt-admin-plan-name b,#admin .wt-admin-plan-name small{display:block}
+#admin .wt-admin-plan-name small{color:#847a91;margin-top:3px}
+#admin .wt-admin-hash{display:block;max-width:170px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:ui-monospace,monospace;font-size:11px}
+#admin .wt-admin-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+#admin .wt-admin-summary>div{border:1px solid #ede7f4;border-radius:14px;padding:13px;background:#fcfbfe}
+#admin .wt-admin-summary b{display:block;font-size:20px;margin-bottom:3px}
+#admin .wt-admin-summary small{color:#7f758b}
+.wt-admin-form-note{padding:11px 13px;border-radius:12px;background:#f3f7ff;color:#275db8;font-size:12px;line-height:1.45}
+.wt-admin-courtesy-results{display:grid;gap:7px;max-height:230px;overflow:auto;margin-top:8px}
+.wt-admin-courtesy-user{width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;background:#fff;border:1px solid #e7e1ef;color:#261b32;box-shadow:none}
+.wt-admin-courtesy-user.selected{border-color:#8b35e8;background:#f7f1ff}
+.wt-admin-courtesy-user small{display:block;color:#81778d;font-weight:500;margin-top:2px}
+@media(max-width:1180px){
+ #admin .wt-admin-toolbar,#admin .wt-admin-toolbar.payments,#admin .wt-admin-toolbar.licenses{grid-template-columns:repeat(3,minmax(0,1fr))}
+ #admin .wt-admin-toolbar label:first-child{grid-column:span 2}
+}
+@media(max-width:760px){
+ #admin .wt-admin-hero,#admin .wt-admin-card-head{align-items:stretch;flex-direction:column}
+ #admin .wt-admin-tabs{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+ #admin .wt-admin-toolbar,#admin .wt-admin-toolbar.payments,#admin .wt-admin-toolbar.licenses{grid-template-columns:1fr 1fr}
+ #admin .wt-admin-toolbar label:first-child{grid-column:1/-1}
+ #admin .wt-admin-summary{grid-template-columns:1fr 1fr}
+}
+@media(max-width:480px){
+ #admin .wt-admin-toolbar,#admin .wt-admin-toolbar.payments,#admin .wt-admin-toolbar.licenses{grid-template-columns:1fr}
+ #admin .wt-admin-toolbar label:first-child{grid-column:auto}
+ #admin .wt-admin-summary{grid-template-columns:1fr}
+ #admin .wt-admin-tabs{grid-template-columns:1fr}
+}
