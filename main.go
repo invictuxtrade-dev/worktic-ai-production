@@ -282,6 +282,9 @@ func main() {
 	if err = initCRMContactsPremiumSchema(db); err != nil {
 		log.Fatalf("crm contacts schema: %v", err)
 	}
+	if err = initCRMOpportunitiesPremiumSchema(db); err != nil {
+		log.Fatalf("crm opportunities schema: %v", err)
+	}
 	if err = initAgendaPremiumSchema(db); err != nil {
 		log.Fatal(err)
 	}
@@ -365,7 +368,7 @@ func main() {
 	mux.HandleFunc("/api/agents/metrics", app.agentMetricsHandler)
 	mux.HandleFunc("/api/agents/permissions", app.agentPermissionsHandler)
 	mux.HandleFunc("/api/crm/contacts", app.crmContactsPremiumHandler)
-	mux.HandleFunc("/api/crm/opportunities", app.opportunitiesHandler)
+	mux.HandleFunc("/api/crm/opportunities", app.opportunitiesPremiumHandler)
 	mux.HandleFunc("/api/dashboard", app.dashboardHandler)
 	mux.HandleFunc("/api/plans", app.plansHandler)
 	mux.HandleFunc("/api/billing/entitlements", app.entitlementsHandler)
@@ -598,6 +601,7 @@ func (a *App) handleWAEvent(evt interface{}) {
 		}
 		name := strings.TrimSpace(v.Info.PushName)
 		_ = a.upsertContact(chat, shortJID(chat), name, 1)
+		_ = a.syncLegacyOpportunityIfSingleTenant(chat, "whatsapp", text, msg.Timestamp)
 		go a.maybeAutoReply("whatsapp", chat, text)
 	case *events.Connected:
 		a.mu.Lock()
@@ -1283,6 +1287,7 @@ func (a *App) telegramLoop(token string) {
 			m := StoredMessage{Channel: "telegram", WAID: "tg-" + strconv.FormatInt(u.Message.MessageID, 10), ChatJID: chat, SenderJID: id, Direction: "in", MessageType: "text", Text: u.Message.Text, Status: "received", Timestamp: time.Unix(u.Message.Date, 0).UTC().Format(time.RFC3339)}
 			_ = a.saveMessage(m)
 			_ = a.upsertContact(chat, id, name, 1)
+			_ = a.syncLegacyOpportunityIfSingleTenant(chat, "telegram", u.Message.Text, m.Timestamp)
 			go a.maybeAutoReply("telegram", chat, u.Message.Text)
 		}
 	}
@@ -1594,16 +1599,21 @@ func (a *App) opportunitiesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (a *App) dashboardHandler(w http.ResponseWriter, r *http.Request) {
+	tenant, _, err := a.tenantFor(r)
+	if err != nil {
+		writeError(w, err, http.StatusUnauthorized)
+		return
+	}
 	var conv, msgs, unread, contacts, opps, products, appointments int
 	var value float64
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM worktic_contacts`).Scan(&conv)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM worktic_messages`).Scan(&msgs)
-	_ = a.db.QueryRow(`SELECT COALESCE(SUM(unread),0) FROM worktic_contacts`).Scan(&unread)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_contacts`).Scan(&contacts)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_opportunities WHERE stage NOT IN ('Ganado','Perdido')`).Scan(&opps)
-	_ = a.db.QueryRow(`SELECT COALESCE(SUM(value),0) FROM crm_opportunities WHERE stage NOT IN ('Perdido')`).Scan(&value)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_products WHERE active=1`).Scan(&products)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_appointments WHERE status IN ('Programada','Confirmada')`).Scan(&appointments)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM worktic_contacts WHERE tenant_id=?`, tenant).Scan(&conv)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM worktic_messages WHERE tenant_id=?`, tenant).Scan(&msgs)
+	_ = a.db.QueryRow(`SELECT COALESCE(SUM(unread),0) FROM worktic_contacts WHERE tenant_id=?`, tenant).Scan(&unread)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_contacts WHERE tenant_id=? AND COALESCE(deleted_at,'')=''`, tenant).Scan(&contacts)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_opportunities WHERE tenant_id=? AND COALESCE(deleted_at,'')='' AND stage NOT IN ('Ganado','Perdido')`, tenant).Scan(&opps)
+	_ = a.db.QueryRow(`SELECT COALESCE(SUM(value),0) FROM crm_opportunities WHERE tenant_id=? AND COALESCE(deleted_at,'')='' AND stage NOT IN ('Perdido')`, tenant).Scan(&value)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_products WHERE tenant_id=? AND active=1`, tenant).Scan(&products)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_appointments WHERE tenant_id=? AND status IN ('Programada','Confirmada')`, tenant).Scan(&appointments)
 	writeJSON(w, map[string]any{"conversations": conv, "messages": msgs, "unread": unread, "contacts": contacts, "open_opportunities": opps, "pipeline_value": value, "products": products, "appointments": appointments})
 }
 
@@ -2400,8 +2410,10 @@ func (a *App) messengerWebhookHandler(w http.ResponseWriter, r *http.Request) {
 			if m.Timestamp > 0 {
 				ts = time.UnixMilli(m.Timestamp).UTC()
 			}
-			_ = a.saveMessage(StoredMessage{Channel: "messenger", WAID: m.Message.MID, ChatJID: chat, SenderJID: m.Sender.ID, Direction: "in", MessageType: "text", Text: m.Message.Text, Status: "received", Timestamp: ts.Format(time.RFC3339)})
+			timestamp := ts.Format(time.RFC3339)
+			_ = a.saveMessage(StoredMessage{Channel: "messenger", WAID: m.Message.MID, ChatJID: chat, SenderJID: m.Sender.ID, Direction: "in", MessageType: "text", Text: m.Message.Text, Status: "received", Timestamp: timestamp})
 			_ = a.upsertContact(chat, m.Sender.ID, "Usuario Messenger", 1)
+			_ = a.syncLegacyOpportunityIfSingleTenant(chat, "messenger", m.Message.Text, timestamp)
 			go a.maybeAutoReply("messenger", chat, m.Message.Text)
 		}
 	}

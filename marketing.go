@@ -470,9 +470,11 @@ func (a *App) publicLeadFormHandler(w http.ResponseWriter, r *http.Request) {
 		leadPhone := strings.TrimSpace(r.FormValue("phone"))
 		leadEmail := strings.TrimSpace(r.FormValue("email"))
 		createdAt := time.Now().UTC().Format(time.RFC3339)
-		_, e := a.db.Exec(`INSERT INTO marketing_leads(tenant_id,form_id,source,name,phone,email,city,interest,score,status,utm_source,utm_campaign,consent,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, tenant, f.ID, "worktic_form", leadName, leadPhone, leadEmail, r.FormValue("city"), r.FormValue("interest"), 60, "new", r.FormValue("utm_source"), r.FormValue("utm_campaign"), boolInt(consent), createdAt)
+		leadResult, e := a.db.Exec(`INSERT INTO marketing_leads(tenant_id,form_id,source,name,phone,email,city,interest,score,status,utm_source,utm_campaign,consent,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, tenant, f.ID, "worktic_form", leadName, leadPhone, leadEmail, r.FormValue("city"), r.FormValue("interest"), 60, "new", r.FormValue("utm_source"), r.FormValue("utm_campaign"), boolInt(consent), createdAt)
 		if e == nil {
 			_ = a.syncCRMContactAt(tenant, leadName, leadPhone, leadEmail, "landing", "form", "", createdAt)
+			leadID, _ := leadResult.LastInsertId()
+			_ = a.syncOpportunityFromLead(tenant, leadID, leadName, leadPhone, leadEmail, "landing", "form", r.FormValue("interest"), 60, createdAt)
 		}
 		if e != nil {
 			http.Error(w, "No fue posible registrar", 500)

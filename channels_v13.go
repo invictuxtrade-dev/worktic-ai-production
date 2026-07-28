@@ -352,6 +352,7 @@ func (cm *ChannelManager) handleWAEvent(id int64, evt interface{}) {
 		_, _ = cm.app.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, rt.conn.TenantID, id, "whatsapp", v.Info.ID, chat, sender, "in", typ, text, "received", now)
 		_, _ = cm.app.db.Exec(`INSERT INTO worktic_contacts(tenant_id,channel_connection_id,chat_jid,channel,phone,name,unread,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(chat_jid) DO UPDATE SET unread=worktic_contacts.unread+1,name=CASE WHEN excluded.name<>'' THEN excluded.name ELSE worktic_contacts.name END,updated_at=excluded.updated_at`, rt.conn.TenantID, id, chat, "whatsapp", shortJID(v.Info.Chat.String()), strings.TrimSpace(v.Info.PushName), now)
 		_ = cm.app.syncCRMContactAt(rt.conn.TenantID, strings.TrimSpace(v.Info.PushName), shortJID(v.Info.Chat.String()), "", "whatsapp", "conversation", chat, now)
+		_ = cm.app.syncOpportunityFromConversation(rt.conn.TenantID, chat, "whatsapp", text, now)
 		_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_message_at=?,updated_at=? WHERE id=?`, now, now, id)
 		go cm.maybeTenantAIReply(rt, v.Info.Chat, chat, text)
 	case *events.Connected:

@@ -290,7 +290,7 @@ func (a *App) crmContactsPremiumHandler(w http.ResponseWriter, r *http.Request) 
 			c.first_seen_at,c.last_activity_at,c.created_at,c.updated_at,
 			CASE WHEN c.external_id<>'' THEN (SELECT COUNT(*) FROM worktic_messages m WHERE m.chat_jid=c.external_id AND (m.tenant_id=c.tenant_id OR m.tenant_id=0)) ELSE 0 END,
 			(SELECT COUNT(*) FROM marketing_leads l WHERE l.tenant_id=c.tenant_id AND ((c.phone<>'' AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(l.phone,'+',''),' ',''),'-',''),'(',''),')',''),'.','')=c.phone) OR (c.email<>'' AND lower(l.email)=lower(c.email)))),
-			(SELECT COUNT(*) FROM crm_opportunities o WHERE o.contact_id=c.id),
+			(SELECT COUNT(*) FROM crm_opportunities o WHERE o.contact_id=c.id AND (o.tenant_id=c.tenant_id OR o.tenant_id=0) AND COALESCE(o.deleted_at,'')=''),
 			CASE WHEN c.external_id<>'' THEN COALESCE((SELECT text FROM worktic_messages m WHERE m.chat_jid=c.external_id AND (m.tenant_id=c.tenant_id OR m.tenant_id=0) ORDER BY m.id DESC LIMIT 1),'') ELSE '' END
 		FROM crm_contacts c WHERE c.tenant_id=? AND COALESCE(c.deleted_at,'')=''
 		ORDER BY COALESCE(NULLIF(c.last_activity_at,''),c.updated_at) DESC,c.id DESC`, tenant)
@@ -389,6 +389,7 @@ func (a *App) crmContactsPremiumHandler(w http.ResponseWriter, r *http.Request) 
 				return
 			}
 		}
+		_ = a.syncOpportunityFromContactStage(tenant, x.ID, x.Stage)
 		writeJSON(w, map[string]any{"ok": true, "id": x.ID, "merged": !isNew})
 
 	case http.MethodPut:
@@ -434,6 +435,7 @@ func (a *App) crmContactsPremiumHandler(w http.ResponseWriter, r *http.Request) 
 			writeError(w, errors.New("contacto no encontrado"), http.StatusNotFound)
 			return
 		}
+		_ = a.syncOpportunityFromContactStage(tenant, x.ID, x.Stage)
 		writeJSON(w, map[string]any{"ok": true, "id": x.ID})
 
 	case http.MethodDelete:
