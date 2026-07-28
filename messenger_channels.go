@@ -468,6 +468,45 @@ func (a *App) messengerConnectionDetails(r *http.Request, c ChannelConnection) m
 			appID = cr.AppID
 		}
 	}
+
+	// Durable webhook diagnostic. We prefer channel_events over config_json so
+	// another configuration save cannot erase the latest receipt marker.
+	lastHTTPAt, lastHTTPStatus, lastHTTPDetail := a.latestMessengerChannelEvent(c, "messenger_webhook_http")
+	lastProcessedAt, lastProcessedStatus, lastProcessedDetail := a.latestMessengerChannelEvent(c, "messenger_webhook_processed")
+	lastRealAt, lastRealStatus, lastRealDetail := a.latestMessengerChannelEvent(c, "messenger_message_received")
+	lastRejectedAt, lastRejectedStatus, lastRejectedDetail := a.latestMessengerChannelEvent(c, "messenger_webhook_rejected")
+
+	lastWebhookAt := lastHTTPAt
+	if lastWebhookAt == "" {
+		if v, ok := cfg["last_webhook_at"].(string); ok {
+			lastWebhookAt = v
+		}
+	}
+	lastMessageAt := strings.TrimSpace(c.LastMessageAt)
+	if lastRealAt != "" {
+		lastMessageAt = lastRealAt
+	}
+
+	lastShape := ""
+	lastEventCount := any(0)
+	lastWebhookError := ""
+	if strings.TrimSpace(lastProcessedDetail) != "" {
+		var d map[string]any
+		if json.Unmarshal([]byte(lastProcessedDetail), &d) == nil {
+			lastShape, _ = d["shape"].(string)
+			if n, ok := d["event_count"]; ok {
+				lastEventCount = n
+			}
+			lastWebhookError, _ = d["error"].(string)
+		}
+	}
+	if lastShape == "" {
+		lastShape, _ = cfg["last_webhook_shape"].(string)
+	}
+	if lastWebhookError == "" {
+		lastWebhookError, _ = cfg["last_webhook_error"].(string)
+	}
+
 	return map[string]any{
 		"ok":                       c.Status == "connected" && hook != "" && verify != "",
 		"platform":                 "messenger",
@@ -480,11 +519,21 @@ func (a *App) messengerConnectionDetails(r *http.Request, c ChannelConnection) m
 		"verify_token":             verify,
 		"assigned_agent_id":        c.AssignedAgentID,
 		"status":                   c.Status,
-		"last_message_at":          c.LastMessageAt,
-		"last_webhook_at":          cfg["last_webhook_at"],
-		"last_webhook_shape":       cfg["last_webhook_shape"],
-		"last_webhook_event_count": cfg["last_webhook_event_count"],
-		"last_webhook_error":       cfg["last_webhook_error"],
+		"last_message_at":          lastMessageAt,
+		"last_webhook_at":          lastWebhookAt,
+		"last_webhook_shape":       lastShape,
+		"last_webhook_event_count": lastEventCount,
+		"last_webhook_error":       lastWebhookError,
+		"last_webhook_http_status": lastHTTPStatus,
+		"last_webhook_http_detail": lastHTTPDetail,
+		"last_processed_at":        lastProcessedAt,
+		"last_processed_status":    lastProcessedStatus,
+		"last_processed_detail":    lastProcessedDetail,
+		"last_real_message_status": lastRealStatus,
+		"last_real_message_detail": lastRealDetail,
+		"last_rejected_at":         lastRejectedAt,
+		"last_rejected_status":     lastRejectedStatus,
+		"last_rejected_detail":     lastRejectedDetail,
 		"last_error":               c.LastError,
 		"metadata_warning":         metadataWarning,
 		"validation_warning":       validationWarning,
@@ -649,13 +698,53 @@ func decodeMessengerWebhookPayload(body []byte) (string, []messengerInboundEvent
 	return payload.Object, events, shape, nil
 }
 
+func (a *App) recordMessengerChannelEvent(c ChannelConnection, eventType, status string, detail map[string]any) {
+	if strings.TrimSpace(eventType) == "" {
+		return
+	}
+	if strings.TrimSpace(status) == "" {
+		status = "received"
+	}
+	if detail == nil {
+		detail = map[string]any{}
+	}
+	raw, _ := json.Marshal(detail)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		_, err = a.db.Exec(`INSERT INTO channel_events(tenant_id,connection_id,event_type,status,detail,created_at) VALUES(?,?,?,?,?,?)`, c.TenantID, c.ID, eventType, status, string(raw), now)
+		if err == nil {
+			return
+		}
+		time.Sleep(time.Duration(attempt+1) * 40 * time.Millisecond)
+	}
+	log.Printf("[messenger webhook] audit insert failed connection=%d event=%s error=%v", c.ID, eventType, err)
+}
+
+func (a *App) latestMessengerChannelEvent(c ChannelConnection, eventType string) (createdAt, status, detail string) {
+	_ = a.db.QueryRow(`SELECT created_at,status,detail FROM channel_events WHERE tenant_id=? AND connection_id=? AND event_type=? ORDER BY id DESC LIMIT 1`, c.TenantID, c.ID, eventType).Scan(&createdAt, &status, &detail)
+	return strings.TrimSpace(createdAt), strings.TrimSpace(status), strings.TrimSpace(detail)
+}
+
+// recordMessengerWebhookReceipt keeps the legacy config_json markers for
+// compatibility, but the diagnostic source of truth is channel_events. The
+// dedicated event table avoids losing webhook state when another action updates
+// config_json at the same time.
 func (a *App) recordMessengerWebhookReceipt(c ChannelConnection, shape string, eventCount int, parseErr error) {
+	detail := map[string]any{"shape": shape, "event_count": eventCount}
+	status := "processed"
+	if parseErr != nil {
+		status = "parse_error"
+		detail["error"] = parseErr.Error()
+	}
+	a.recordMessengerChannelEvent(c, "messenger_webhook_processed", status, detail)
+
 	cfg := map[string]any{}
 	_ = json.Unmarshal([]byte(c.ConfigJSON), &cfg)
 	if cfg == nil {
 		cfg = map[string]any{}
 	}
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
 	cfg["last_webhook_at"] = now
 	cfg["last_webhook_shape"] = shape
 	cfg["last_webhook_event_count"] = eventCount
@@ -665,7 +754,9 @@ func (a *App) recordMessengerWebhookReceipt(c ChannelConnection, shape string, e
 		delete(cfg, "last_webhook_error")
 	}
 	raw, _ := json.Marshal(cfg)
-	_, _ = a.db.Exec(`UPDATE channel_connections SET config_json=?,updated_at=? WHERE id=? AND tenant_id=?`, string(raw), now, c.ID, c.TenantID)
+	if _, err := a.db.Exec(`UPDATE channel_connections SET config_json=?,updated_at=? WHERE id=? AND tenant_id=?`, string(raw), now, c.ID, c.TenantID); err != nil {
+		log.Printf("[messenger webhook] legacy diagnostic update failed connection=%d error=%v", c.ID, err)
+	}
 }
 
 func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Request) {
@@ -702,18 +793,44 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	body, bodyErr := io.ReadAll(io.LimitReader(r.Body, 2<<20))
+	bodyReadError := ""
+	if bodyErr != nil {
+		bodyReadError = bodyErr.Error()
+	}
+	a.recordMessengerChannelEvent(c, "messenger_webhook_http", "received", map[string]any{
+		"method":            r.Method,
+		"path":              r.URL.Path,
+		"content_type":      r.Header.Get("Content-Type"),
+		"content_length":    len(body),
+		"user_agent":        r.Header.Get("User-Agent"),
+		"signature_present": strings.TrimSpace(r.Header.Get("X-Hub-Signature-256")) != "",
+		"read_error":        bodyReadError,
+	})
+	log.Printf("[messenger webhook] HTTP POST received connection=%d tenant=%d public_id=%s bytes=%d content_type=%q signature=%t", c.ID, c.TenantID, c.PublicID, len(body), r.Header.Get("Content-Type"), strings.TrimSpace(r.Header.Get("X-Hub-Signature-256")) != "")
+	if bodyErr != nil {
+		a.recordMessengerChannelEvent(c, "messenger_webhook_rejected", "body_read_error", map[string]any{"error": bodyErr.Error()})
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+
 	cr, err := a.messengerCredentialsFor(c)
 	if err != nil || strings.TrimSpace(cr.PageToken) == "" {
+		detail := "Messenger credentials are not configured"
+		if err != nil {
+			detail = err.Error()
+		}
+		a.recordMessengerChannelEvent(c, "messenger_webhook_rejected", "not_configured", map[string]any{"error": detail})
 		http.Error(w, "not configured", http.StatusServiceUnavailable)
 		return
 	}
-	body, _ := io.ReadAll(io.LimitReader(r.Body, 2<<20))
 	if cr.AppSecret != "" {
 		sig := strings.TrimPrefix(r.Header.Get("X-Hub-Signature-256"), "sha256=")
 		mac := hmac.New(sha256.New, []byte(cr.AppSecret))
 		mac.Write(body)
 		expected := hex.EncodeToString(mac.Sum(nil))
 		if sig == "" || !hmac.Equal([]byte(sig), []byte(expected)) {
+			a.recordMessengerChannelEvent(c, "messenger_webhook_rejected", "invalid_signature", map[string]any{"signature_present": sig != ""})
 			http.Error(w, "invalid signature", 403)
 			return
 		}
@@ -729,11 +846,17 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	for _, event := range events {
-		if event.IsEcho || event.SenderID == "" || event.Text == "" {
+		if event.IsEcho {
+			a.recordMessengerChannelEvent(c, "messenger_webhook_ignored", "echo", map[string]any{"message_id": event.MessageID})
 			continue
 		}
 		if event.IsSample {
+			a.recordMessengerChannelEvent(c, "messenger_webhook_sample", "accepted", map[string]any{"shape": shape, "message_id": event.MessageID, "text": event.Text})
 			log.Printf("[messenger webhook] sample event accepted connection=%d shape=%s", c.ID, shape)
+			continue
+		}
+		if event.SenderID == "" || event.Text == "" {
+			a.recordMessengerChannelEvent(c, "messenger_webhook_ignored", "missing_sender_or_text", map[string]any{"shape": shape, "sender_id": event.SenderID, "message_id": event.MessageID, "message_type": event.MessageType})
 			continue
 		}
 		messageID := event.MessageID
@@ -741,12 +864,27 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 			messageID = "messenger-event-" + randomToken(10)
 		}
 		chat := "messenger:" + event.SenderID
-		now := time.Now().UTC().Format(time.RFC3339)
-		_, _ = a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "messenger", messageID, chat, event.SenderID, "in", event.MessageType, event.Text, "received", now)
-		_, _ = a.db.Exec(`INSERT INTO worktic_contacts(tenant_id,channel_connection_id,chat_jid,channel,phone,name,unread,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(chat_jid) DO UPDATE SET tenant_id=excluded.tenant_id,channel_connection_id=excluded.channel_connection_id,channel=excluded.channel,phone=excluded.phone,unread=worktic_contacts.unread+1,updated_at=excluded.updated_at`, c.TenantID, c.ID, chat, "messenger", event.SenderID, "Usuario Messenger", now)
-		_ = a.syncCRMContactAt(c.TenantID, "Usuario Messenger", "", "", "messenger", "conversation", chat, now)
-		_ = a.syncOpportunityFromConversation(c.TenantID, chat, "messenger", event.Text, now)
-		_, _ = a.db.Exec(`UPDATE channel_connections SET last_message_at=?,last_error='',updated_at=? WHERE id=?`, now, now, c.ID)
+		now := time.Now().UTC().Format(time.RFC3339Nano)
+		a.recordMessengerChannelEvent(c, "messenger_message_received", "received", map[string]any{"shape": shape, "sender_id": event.SenderID, "recipient_id": event.RecipientID, "message_id": messageID, "message_type": event.MessageType})
+
+		if _, err := a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "messenger", messageID, chat, event.SenderID, "in", event.MessageType, event.Text, "received", now); err != nil {
+			a.recordMessengerChannelEvent(c, "messenger_processing_error", "message_insert", map[string]any{"error": err.Error(), "message_id": messageID})
+			log.Printf("[messenger webhook] message insert failed connection=%d sender=%s error=%v", c.ID, event.SenderID, err)
+			continue
+		}
+		if _, err := a.db.Exec(`INSERT INTO worktic_contacts(tenant_id,channel_connection_id,chat_jid,channel,phone,name,unread,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(chat_jid) DO UPDATE SET tenant_id=excluded.tenant_id,channel_connection_id=excluded.channel_connection_id,channel=excluded.channel,phone=excluded.phone,unread=worktic_contacts.unread+1,updated_at=excluded.updated_at`, c.TenantID, c.ID, chat, "messenger", event.SenderID, "Usuario Messenger", now); err != nil {
+			a.recordMessengerChannelEvent(c, "messenger_processing_error", "contact_upsert", map[string]any{"error": err.Error(), "message_id": messageID})
+			log.Printf("[messenger webhook] contact upsert failed connection=%d sender=%s error=%v", c.ID, event.SenderID, err)
+		}
+		if err := a.syncCRMContactAt(c.TenantID, "Usuario Messenger", "", "", "messenger", "conversation", chat, now); err != nil {
+			a.recordMessengerChannelEvent(c, "messenger_processing_error", "crm_sync", map[string]any{"error": err.Error(), "message_id": messageID})
+		}
+		if err := a.syncOpportunityFromConversation(c.TenantID, chat, "messenger", event.Text, now); err != nil {
+			a.recordMessengerChannelEvent(c, "messenger_processing_error", "opportunity_sync", map[string]any{"error": err.Error(), "message_id": messageID})
+		}
+		if _, err := a.db.Exec(`UPDATE channel_connections SET last_message_at=?,last_error='',updated_at=? WHERE id=? AND tenant_id=?`, now, now, c.ID, c.TenantID); err != nil {
+			a.recordMessengerChannelEvent(c, "messenger_processing_error", "connection_update", map[string]any{"error": err.Error(), "message_id": messageID})
+		}
 		log.Printf("[messenger webhook] inbound message stored connection=%d sender=%s type=%s", c.ID, event.SenderID, event.MessageType)
 		go a.maybeMessengerAIReply(c, event.SenderID, chat, event.Text)
 	}
