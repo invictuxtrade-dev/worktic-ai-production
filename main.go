@@ -961,7 +961,18 @@ func (a *App) sendHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("destinatario y mensaje son obligatorios"), 400)
 		return
 	}
-	resp, err := a.sendText(r.Context(), target, req.Text, "manual")
+	var resp string
+	var err error
+	if strings.HasPrefix(target, "messenger:") {
+		tenantID, _, tenantErr := a.tenantForRequest(r)
+		if tenantErr != nil {
+			writeError(w, tenantErr, 409)
+			return
+		}
+		resp, err = a.sendTenantMessengerText(r.Context(), tenantID, target, req.Text)
+	} else {
+		resp, err = a.sendText(r.Context(), target, req.Text, "manual")
+	}
 	if err != nil {
 		writeError(w, err, 502)
 		return

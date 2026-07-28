@@ -584,6 +584,7 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 		Token      string `json:"token"`
 		ExternalID string `json:"external_id"`
 		AgentID    int64  `json:"agent_id"`
+		AppID      string `json:"app_id"`
 		AppSecret  string `json:"app_secret"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&q)
@@ -619,6 +620,7 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 		if c.Type == "messenger" {
 			pageToken := strings.TrimSpace(q.Token)
 			pageID := strings.TrimSpace(q.ExternalID)
+			appID := strings.TrimSpace(q.AppID)
 			appSecret := strings.TrimSpace(q.AppSecret)
 			if pageToken == "" {
 				previous, previousErr := a.messengerCredentialsFor(c)
@@ -634,8 +636,9 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 			if pageID == "" {
 				pageID = c.ExternalAccountID
 			}
-			result, cfgErr := a.configureMessenger(r, c, pageToken, pageID, appSecret)
+			result, cfgErr := a.configureMessenger(r, c, pageToken, pageID, appID, appSecret)
 			if cfgErr != nil {
+				_, _ = a.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=? AND tenant_id=?`, cfgErr.Error(), now, q.ID, tid)
 				writeError(w, cfgErr, 502)
 				return
 			}
@@ -676,6 +679,11 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 			if testErr != nil {
 				writeError(w, testErr, 502)
 				return
+			}
+			if ok, _ := result["ok"].(bool); ok {
+				_, _ = a.db.Exec(`UPDATE channel_connections SET status='connected',last_error='',updated_at=? WHERE id=? AND tenant_id=?`, now, q.ID, tid)
+			} else if tokenErr, _ := result["token_error"].(string); tokenErr != "" {
+				_, _ = a.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=? AND tenant_id=?`, tokenErr, now, q.ID, tid)
 			}
 			writeJSON(w, result)
 			return
