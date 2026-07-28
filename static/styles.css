@@ -811,3 +811,122 @@ dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step .gr
     grid-template-columns:1fr !important;
   }
 }
+
+/* LANDING BUILDER DESKTOP FINAL FIX — isolated, no impact on other modules */
+@media (min-width: 761px){
+  dialog#modal:has(.landing-editor-shell){
+    width:min(1180px,calc(100vw - 32px)) !important;
+    max-width:calc(100vw - 32px) !important;
+    height:min(860px,calc(100dvh - 24px)) !important;
+    max-height:calc(100dvh - 24px) !important;
+    padding:0 !important;
+    overflow:hidden !important;
+  }
+  dialog#modal:has(.landing-editor-shell) #modalContent,
+  dialog#modal:has(.landing-editor-shell) .modal-scroll{
+    width:100% !important;
+    height:100% !important;
+    max-height:none !important;
+    min-height:0 !important;
+    overflow:hidden !important;
+    padding:0 !important;
+  }
+  dialog#modal:has(.landing-editor-shell) .landing-editor-shell{
+    width:100% !important;
+    height:100% !important;
+    max-height:none !important;
+    min-height:0 !important;
+    overflow:hidden !important;
+  }
+  dialog#modal:has(.landing-editor-shell) .landing-editor-header{
+    flex:0 0 auto;
+    padding:22px 28px 19px;
+  }
+  dialog#modal:has(.landing-editor-shell) .landing-builder-layout{
+    width:100% !important;
+    min-width:0 !important;
+    min-height:0 !important;
+    height:100% !important;
+    flex:1 1 auto !important;
+    grid-template-columns:230px minmax(0,1fr) !important;
+    overflow:hidden !important;
+  }
+  dialog#modal:has(.landing-editor-shell) .landing-editor-nav{
+    min-height:0 !important;
+    overflow-y:auto !important;
+  }
+  dialog#modal:has(.landing-editor-shell) .landing-editor-main{
+    width:100% !important;
+    min-width:0 !important;
+    min-height:0 !important;
+    height:100% !important;
+    max-width:none !important;
+    overflow:hidden !important;
+    display:flex !important;
+    flex-direction:column !important;
+  }
+  dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step{
+    flex:1 1 auto !important;
+    width:100% !important;
+    min-width:0 !important;
+    min-height:0 !important;
+    max-width:none !important;
+    height:auto !important;
+    overflow-y:auto !important;
+    overflow-x:hidden !important;
+    padding:26px 34px 30px !important;
+    scrollbar-gutter:stable;
+  }
+  dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step .form-section{
+    width:100% !important;
+    max-width:900px !important;
+    margin:0 auto 20px !important;
+    padding:24px !important;
+  }
+  dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step .grid2{
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    gap:18px 22px !important;
+  }
+  dialog#modal:has(.landing-editor-shell) .sticky-modal-actions{
+    flex:0 0 auto !important;
+    width:100% !important;
+    margin:0 !important;
+    padding:15px 34px 17px !important;
+    position:relative !important;
+    bottom:auto !important;
+    background:#fff !important;
+    border-top:1px solid #e7e2ed !important;
+    box-shadow:0 -10px 28px rgba(30,18,50,.05);
+  }
+}
+
+@media (max-width: 760px){
+  dialog#modal:has(.landing-editor-shell){
+    width:calc(100vw - 12px) !important;
+    max-width:calc(100vw - 12px) !important;
+    height:calc(100dvh - 12px) !important;
+    max-height:calc(100dvh - 12px) !important;
+    padding:0 !important;
+    overflow:hidden !important;
+  }
+  dialog#modal:has(.landing-editor-shell) #modalContent,
+  dialog#modal:has(.landing-editor-shell) .modal-scroll,
+  dialog#modal:has(.landing-editor-shell) .landing-editor-shell{
+    width:100% !important;
+    height:100% !important;
+    max-height:none !important;
+    min-height:0 !important;
+    overflow:hidden !important;
+  }
+  dialog#modal:has(.landing-editor-shell) .landing-builder-layout,
+  dialog#modal:has(.landing-editor-shell) .landing-editor-main{
+    min-height:0 !important;
+    height:100% !important;
+    overflow:hidden !important;
+  }
+  dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step{
+    min-height:0 !important;
+    overflow-y:auto !important;
+    padding-bottom:28px !important;
+  }
+}
