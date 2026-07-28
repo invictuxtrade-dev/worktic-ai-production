@@ -247,39 +247,59 @@ func (a *App) validateMessengerPageToken(pageToken, pageID, appID, appSecret str
 		}
 	}
 
-	// Este endpoint pertenece a Messenger Platform y solo necesita un Page Access
-	// Token válido para la página con pages_messaging. No exige pages_read_engagement.
-	var profile map[string]any
-	profileErr := a.messengerGraph(http.MethodGet, "/"+url.PathEscape(pageID)+"/messenger_profile", pageToken, url.Values{"fields": {"get_started"}}, &profile)
-	if profileErr == nil {
+	// Sin App Secret no usamos messenger_profile, conversations ni metadatos
+	// públicos como prueba de validez: esos endpoints cambian entre versiones y
+	// pueden exigir permisos que no son necesarios para recibir/responder mensajes.
+	// Primero intentamos resolver únicamente el ID del objeto representado por el
+	// token. Esta consulta no solicita nombre, contenido ni engagement.
+	var identity struct {
+		ID string `json:"id"`
+	}
+	identityErr := a.messengerGraph(http.MethodGet, "/me", pageToken, url.Values{"fields": {"id"}}, &identity)
+	if identityErr == nil {
+		detectedPageID := strings.TrimSpace(identity.ID)
+		if detectedPageID != "" && detectedPageID != pageID {
+			return messengerTokenValidation{}, fmt.Errorf("el token pertenece a la página %s y no a la página %s", detectedPageID, pageID)
+		}
+		warning := strings.TrimSpace(debugWarning)
+		if appSecret == "" {
+			warning = strings.TrimSpace(strings.Join([]string{warning, "Identidad de página validada. Para verificar permisos y aplicación de forma estricta, configura META_APP_SECRET o el App Secret de esta conexión."}, " "))
+		}
 		return messengerTokenValidation{
 			Valid:     true,
-			Method:    "messenger_profile",
-			PageID:    pageID,
+			Method:    "page_identity",
+			PageID:    firstNonEmpty(detectedPageID, pageID),
 			AppID:     appID,
 			TokenType: "PAGE",
 			Scopes:    []string{"pages_messaging"},
-			Warning:   debugWarning,
+			Warning:   warning,
 		}, nil
 	}
 
-	// Segundo endpoint de Messenger como respaldo. También funciona con
-	// pages_messaging y evita consultar metadatos públicos de la página.
-	var conversations map[string]any
-	conversationsErr := a.messengerGraph(http.MethodGet, "/"+url.PathEscape(pageID)+"/conversations", pageToken, url.Values{"fields": {"id"}, "limit": {"1"}}, &conversations)
-	if conversationsErr == nil {
-		return messengerTokenValidation{
-			Valid:     true,
-			Method:    "conversations",
-			PageID:    pageID,
-			AppID:     appID,
-			TokenType: "PAGE",
-			Scopes:    []string{"pages_messaging"},
-			Warning:   debugWarning,
-		}, nil
+	// Los tokens inválidos suelen responder OAuth code 190/102 o HTTP 401. Esos
+	// casos sí deben bloquearse. Errores de permisos, campos no disponibles o
+	// cambios de versión no invalidan por sí solos un Page Access Token que el
+	// usuario ya generó desde la sección oficial de Messenger de Meta.
+	var graphErr *metaGraphAPIError
+	if errors.As(identityErr, &graphErr) {
+		if graphErr.Code == 190 || graphErr.Code == 102 || graphErr.Status == http.StatusUnauthorized {
+			return messengerTokenValidation{}, fmt.Errorf("Page Access Token inválido o vencido: %v", identityErr)
+		}
 	}
 
-	return messengerTokenValidation{}, fmt.Errorf("Meta no aceptó el token para Messenger: %v", profileErr)
+	warning := "Meta no permitió una validación adicional sin App Secret. El token fue aceptado para configurar el webhook y será comprobado funcionalmente al recibir o enviar el primer mensaje."
+	if strings.TrimSpace(debugWarning) != "" {
+		warning = strings.TrimSpace(debugWarning + " " + warning)
+	}
+	return messengerTokenValidation{
+		Valid:     true,
+		Method:    "provisional_page_token",
+		PageID:    pageID,
+		AppID:     appID,
+		TokenType: "PAGE",
+		Scopes:    []string{"pages_messaging"},
+		Warning:   warning,
+	}, nil
 }
 
 func (a *App) ensureMessengerConnectionSetup(r *http.Request, c ChannelConnection) map[string]any {

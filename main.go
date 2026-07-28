@@ -2352,27 +2352,27 @@ func (a *App) messengerHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, errors.New("Page Access Token y Page ID son obligatorios"), 400)
 			return
 		}
-		req, _ := http.NewRequest(http.MethodGet, "https://graph.facebook.com/"+a.cfg.MetaGraphVersion+"/"+strings.TrimSpace(q.PageID)+"?fields=id,name&access_token="+strings.TrimSpace(q.PageToken), nil)
-		resp, err := (&http.Client{Timeout: 20 * time.Second}).Do(req)
+		pageToken := strings.TrimSpace(q.PageToken)
+		pageID := strings.TrimSpace(q.PageID)
+		validation, err := a.validateMessengerPageToken(pageToken, pageID, a.cfg.MetaAppID, a.cfg.MetaAppSecret)
 		if err != nil {
 			writeError(w, err, 400)
 			return
 		}
-		defer resp.Body.Close()
-		b, _ := io.ReadAll(resp.Body)
-		if resp.StatusCode >= 300 {
-			writeError(w, fmt.Errorf("Meta: %s", strings.TrimSpace(string(b))), 400)
-			return
+		pageName := strings.TrimSpace(q.PageName)
+		if pageName == "" {
+			pageName = "Página " + pageID
 		}
-		var page struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		}
-		_ = json.Unmarshal(b, &page)
-		a.setSetting("messenger_page_token", strings.TrimSpace(q.PageToken))
-		a.setSetting("messenger_page_id", page.ID)
-		a.setSetting("messenger_page_name", page.Name)
-		writeJSON(w, map[string]any{"ok": true, "page_id": page.ID, "page_name": page.Name})
+		a.setSetting("messenger_page_token", pageToken)
+		a.setSetting("messenger_page_id", pageID)
+		a.setSetting("messenger_page_name", pageName)
+		writeJSON(w, map[string]any{
+			"ok":                true,
+			"page_id":           pageID,
+			"page_name":         pageName,
+			"validation_method": validation.Method,
+			"warning":           validation.Warning,
+		})
 	case http.MethodDelete:
 		a.setSetting("messenger_page_token", "")
 		a.setSetting("messenger_page_id", "")
