@@ -475,6 +475,7 @@ func (a *App) messengerConnectionDetails(r *http.Request, c ChannelConnection) m
 	lastProcessedAt, lastProcessedStatus, lastProcessedDetail := a.latestMessengerChannelEvent(c, "messenger_webhook_processed")
 	lastRealAt, lastRealStatus, lastRealDetail := a.latestMessengerChannelEvent(c, "messenger_message_received")
 	lastRejectedAt, lastRejectedStatus, lastRejectedDetail := a.latestMessengerChannelEvent(c, "messenger_webhook_rejected")
+	lastSyncAt, lastSyncStatus, lastSyncDetail := a.latestMessengerChannelEvent(c, "messenger_conversation_sync")
 
 	lastWebhookAt := lastHTTPAt
 	if lastWebhookAt == "" {
@@ -507,6 +508,32 @@ func (a *App) messengerConnectionDetails(r *http.Request, c ChannelConnection) m
 		lastWebhookError, _ = cfg["last_webhook_error"].(string)
 	}
 
+	lastSyncConversations := any(0)
+	lastSyncImported := any(0)
+	lastSyncMessagesSeen := any(0)
+	lastSyncDuplicates := any(0)
+	lastSyncError := ""
+	lastSyncMethod := ""
+	if strings.TrimSpace(lastSyncDetail) != "" {
+		var syncInfo map[string]any
+		if json.Unmarshal([]byte(lastSyncDetail), &syncInfo) == nil {
+			if value, ok := syncInfo["conversations"]; ok {
+				lastSyncConversations = value
+			}
+			if value, ok := syncInfo["imported"]; ok {
+				lastSyncImported = value
+			}
+			if value, ok := syncInfo["messages_seen"]; ok {
+				lastSyncMessagesSeen = value
+			}
+			if value, ok := syncInfo["duplicates"]; ok {
+				lastSyncDuplicates = value
+			}
+			lastSyncError, _ = syncInfo["error"].(string)
+			lastSyncMethod, _ = syncInfo["method"].(string)
+		}
+	}
+
 	return map[string]any{
 		"ok":                       c.Status == "connected" && hook != "" && verify != "",
 		"platform":                 "messenger",
@@ -534,6 +561,16 @@ func (a *App) messengerConnectionDetails(r *http.Request, c ChannelConnection) m
 		"last_rejected_at":         lastRejectedAt,
 		"last_rejected_status":     lastRejectedStatus,
 		"last_rejected_detail":     lastRejectedDetail,
+		"sync_fallback_enabled":    true,
+		"last_sync_at":             lastSyncAt,
+		"last_sync_status":         lastSyncStatus,
+		"last_sync_detail":         lastSyncDetail,
+		"last_sync_method":         lastSyncMethod,
+		"last_sync_conversations":  lastSyncConversations,
+		"last_sync_messages_seen":  lastSyncMessagesSeen,
+		"last_sync_imported":       lastSyncImported,
+		"last_sync_duplicates":     lastSyncDuplicates,
+		"last_sync_error":          lastSyncError,
 		"last_error":               c.LastError,
 		"metadata_warning":         metadataWarning,
 		"validation_warning":       validationWarning,

@@ -309,6 +309,7 @@ func main() {
 	go app.runSocialPublisher()
 	app.channelManager = NewChannelManager(app)
 	go app.channelManager.restoreActive()
+	go app.runMessengerConversationSync()
 	client.AddEventHandler(app.handleWAEvent)
 	if cfg.TelegramBotToken != "" {
 		go app.telegramLoop(cfg.TelegramBotToken)

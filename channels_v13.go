@@ -690,6 +690,18 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, map[string]any{"ok": c.Status == "connected", "platform": c.Type, "status": c.Status})
 		return
+	case "sync":
+		if c.Type != "messenger" {
+			writeError(w, errors.New("la sincronización manual solo aplica a Messenger"), 400)
+			return
+		}
+		result, syncErr := a.syncMessengerConnectionFromAPI(c, "manual")
+		if syncErr != nil {
+			writeError(w, syncErr, 502)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "sync": result})
+		return
 	case "disconnect":
 		if c.Type == "telegram" {
 			a.deleteTelegramWebhook(q.ID)
