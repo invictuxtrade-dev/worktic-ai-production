@@ -784,136 +784,30 @@ dialog#modal:has(.landing-editor-shell){width:min(1060px,calc(100vw - 32px));max
 @media(max-width:760px){.inbox-toolbar{align-items:flex-start;flex-direction:column}.conversation-filter-panel{grid-template-columns:1fr 1fr;padding:14px}.conv-search-field{grid-column:1/-1}.inbox-view .inbox{height:auto;min-height:620px;grid-template-columns:1fr}.conversation-list{min-height:320px}.chat{min-height:420px}.landing-builder-layout{grid-template-columns:1fr}.landing-editor-nav{display:grid;grid-template-columns:repeat(3,1fr);border-right:0;border-bottom:1px solid #e5e0ea;padding:10px}.landing-editor-nav>button{display:block;text-align:center;padding:9px 5px}.landing-editor-nav>button>span{margin:0 auto 5px}.landing-editor-nav>button small,.landing-nav-help{display:none}.landing-editor-header{padding:20px 17px}.landing-editor-header p{display:none}.landing-step{padding:17px 15px 6px!important}.sticky-modal-actions{padding:13px 15px 16px!important}.sticky-modal-actions button{min-width:0;flex:1}}
 @media(max-width:480px){.conversation-filter-panel{grid-template-columns:1fr}.conv-search-field{grid-column:auto}.landing-editor-status{display:none}.landing-editor-nav>button b{font-size:11px}}
 
-/* V14.2 LANDING BUILDER PREMIUM — reconstrucción visual definitiva */
-dialog#modal:has(.landing-editor-shell){
-  width:min(1120px,calc(100vw - 36px));
-  height:min(820px,calc(100dvh - 36px));
-  max-width:none;
-  max-height:none;
-  padding:0;
-  overflow:hidden;
-  border-radius:24px;
-}
-dialog#modal:has(.landing-editor-shell) #modalContent,
-dialog#modal:has(.landing-editor-shell) .modal-scroll{
-  width:100%;height:100%;min-height:0;padding:0!important;overflow:hidden!important;
-}
-.landing-editor-shell{height:100%;max-height:none!important;background:#fff}
-.landing-editor-header{flex:0 0 auto;padding:24px 30px 21px}
-.landing-editor-header>div{min-width:0}
-.landing-editor-header .eyebrow{display:block;font-size:11px;letter-spacing:.13em;font-weight:900;color:var(--accent,#7c3aed)}
-.landing-editor-header h2{margin:7px 0 4px!important;font-size:25px!important;line-height:1.15}
-.landing-builder-layout{grid-template-columns:236px minmax(0,1fr);min-height:0;overflow:hidden}
-.landing-editor-nav{min-width:0;overflow:auto;padding:18px 15px;background:#f8f6fb}
-.landing-editor-main{min-width:0;min-height:0;overflow:hidden}
-
-/* La corrección clave: cada paso es un bloque vertical, nunca una fila flex. */
-.landing-editor-main .landing-step{
-  display:block!important;
+/* HOTFIX LANDING BUILDER — scoped only to the landing editor.
+   Keeps Catalog and Conversations untouched. */
+dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step{
+  display:block !important;
+  width:100%;
   min-width:0;
-  min-height:0;
-  height:100%;
-  overflow-y:auto!important;
-  overflow-x:hidden!important;
-  padding:26px 30px 32px!important;
-  margin:0!important;
-  border-radius:0!important;
-  background:#faf9fc!important;
-  font-size:inherit!important;
-  font-weight:inherit!important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
 }
-.landing-editor-main .landing-step[hidden]{display:none!important}
-.landing-editor-main .landing-step>.form-section{
-  display:block!important;
+dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step[hidden]{
+  display:none !important;
+}
+dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step .form-section{
   width:100%;
   max-width:820px;
-  margin:0 auto 20px!important;
-  padding:24px!important;
-  border:1px solid #e7e1ed!important;
-  border-radius:18px!important;
-  background:#fff!important;
-  box-shadow:0 10px 30px rgba(42,25,69,.045)!important;
+  box-sizing:border-box;
+  margin:0 auto 18px;
 }
-.landing-editor-main .landing-step>.form-section:last-child{margin-bottom:0!important}
-.landing-editor-main .form-section-title{
-  display:block!important;
-  margin:0 0 20px!important;
-  padding:0 0 14px!important;
-  border-bottom:1px solid #eee9f2!important;
-  font-size:17px!important;
-  line-height:1.25!important;
-  color:#20172a;
+dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step .grid2{
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
 }
-.landing-editor-main .form-section-title::before{display:none!important}
-.landing-editor-main label{display:grid!important;gap:8px!important;margin:0 0 17px!important;font-size:13px;font-weight:750;color:#2f2638}
-.landing-editor-main label:last-child{margin-bottom:0!important}
-.landing-editor-main .grid2{
-  display:grid!important;
-  grid-template-columns:repeat(2,minmax(0,1fr))!important;
-  gap:0 18px!important;
-  width:100%;
-  min-width:0;
-}
-.landing-editor-main input,
-.landing-editor-main select,
-.landing-editor-main textarea{
-  width:100%!important;
-  min-width:0!important;
-  box-sizing:border-box!important;
-  border:1px solid #dcd4e5!important;
-  border-radius:12px!important;
-  background:#fff!important;
-  padding:12px 13px!important;
-  font-size:14px!important;
-  line-height:1.45!important;
-  color:#241b2d!important;
-  box-shadow:none!important;
-}
-.landing-editor-main input,.landing-editor-main select{height:46px!important}
-.landing-editor-main textarea{display:block!important;resize:vertical!important;min-height:104px!important;max-height:320px!important}
-.landing-editor-main input:focus,.landing-editor-main select:focus,.landing-editor-main textarea:focus{
-  outline:0!important;border-color:var(--accent,#7c3aed)!important;box-shadow:0 0 0 4px rgba(124,58,237,.09)!important
-}
-.landing-editor-main .field-help{margin:-6px 0 12px!important;color:#81788b!important;font-size:12.5px!important;line-height:1.5!important}
-.landing-editor-main #lpBenefits,.landing-editor-main #lpTestimonials{min-height:145px!important}
-.landing-editor-main #lpFeatures,.landing-editor-main #lpFAQ{min-height:190px!important}
-.landing-editor-main #generateLandingAI{width:100%;min-height:46px;margin-top:2px;border-radius:12px}
-.landing-editor-main .notice{width:100%;box-sizing:border-box;margin:14px 0 0!important}
-.sticky-modal-actions{
-  flex:0 0 auto!important;
-  position:static!important;
-  display:flex!important;
-  align-items:center!important;
-  justify-content:flex-end!important;
-  gap:10px!important;
-  margin:0!important;
-  padding:15px 30px 17px!important;
-  border-top:1px solid #e8e2ed!important;
-  background:#fff!important;
-  box-shadow:0 -8px 22px rgba(35,20,55,.035)!important;
-}
-.sticky-modal-actions button{min-width:145px!important;min-height:44px}
-
-@media(max-width:820px){
-  dialog#modal:has(.landing-editor-shell){width:calc(100vw - 18px);height:calc(100dvh - 18px);border-radius:18px}
-  .landing-editor-header{padding:20px 20px 17px}.landing-editor-header h2{font-size:22px!important}
-  .landing-builder-layout{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
-  .landing-editor-nav{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:10px;border-right:0;border-bottom:1px solid #e5e0ea;overflow:visible}
-  .landing-editor-nav>button{display:grid!important;grid-template-columns:28px minmax(0,1fr)!important;padding:8px!important;gap:7px!important;text-align:left!important}
-  .landing-editor-nav>button>span{width:28px!important;height:28px!important;margin:0!important}
-  .landing-editor-nav>button small,.landing-nav-help{display:none!important}
-  .landing-editor-main .landing-step{padding:18px 16px 24px!important}
-  .landing-editor-main .landing-step>.form-section{padding:19px!important;border-radius:15px!important}
-  .landing-editor-main .grid2{grid-template-columns:1fr!important;gap:0!important}
-  .sticky-modal-actions{padding:12px 16px 14px!important}
-  .sticky-modal-actions button{min-width:0!important;flex:1}
-}
-@media(max-width:520px){
-  .landing-editor-header p,.landing-editor-status{display:none!important}
-  .landing-editor-nav>button{display:block!important;text-align:center!important}
-  .landing-editor-nav>button>span{margin:0 auto 4px!important}
-  .landing-editor-nav>button b{font-size:11px}
-  .landing-editor-main .landing-step{padding:14px 11px 20px!important}
-  .landing-editor-main .landing-step>.form-section{padding:16px!important}
-  .sticky-modal-actions{flex-wrap:wrap}.sticky-modal-actions button{flex:1 1 45%}
+@media(max-width:760px){
+  dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step .grid2{
+    grid-template-columns:1fr !important;
+  }
 }
