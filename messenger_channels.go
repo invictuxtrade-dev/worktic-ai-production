@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -468,22 +469,26 @@ func (a *App) messengerConnectionDetails(r *http.Request, c ChannelConnection) m
 		}
 	}
 	return map[string]any{
-		"ok":                    c.Status == "connected" && hook != "" && verify != "",
-		"platform":              "messenger",
-		"page_id":               pageID,
-		"page_name":             pageName,
-		"app_id":                appID,
-		"has_page_token":        hasPageToken,
-		"app_secret_configured": appSecretConfigured,
-		"webhook_url":           hook,
-		"verify_token":          verify,
-		"assigned_agent_id":     c.AssignedAgentID,
-		"status":                c.Status,
-		"last_message_at":       c.LastMessageAt,
-		"last_error":            c.LastError,
-		"metadata_warning":      metadataWarning,
-		"validation_warning":    validationWarning,
-		"configuration_ready":   hook != "" && verify != "",
+		"ok":                       c.Status == "connected" && hook != "" && verify != "",
+		"platform":                 "messenger",
+		"page_id":                  pageID,
+		"page_name":                pageName,
+		"app_id":                   appID,
+		"has_page_token":           hasPageToken,
+		"app_secret_configured":    appSecretConfigured,
+		"webhook_url":              hook,
+		"verify_token":             verify,
+		"assigned_agent_id":        c.AssignedAgentID,
+		"status":                   c.Status,
+		"last_message_at":          c.LastMessageAt,
+		"last_webhook_at":          cfg["last_webhook_at"],
+		"last_webhook_shape":       cfg["last_webhook_shape"],
+		"last_webhook_event_count": cfg["last_webhook_event_count"],
+		"last_webhook_error":       cfg["last_webhook_error"],
+		"last_error":               c.LastError,
+		"metadata_warning":         metadataWarning,
+		"validation_warning":       validationWarning,
+		"configuration_ready":      hook != "" && verify != "",
 	}
 }
 
@@ -524,6 +529,143 @@ func (a *App) testMessengerConnection(r *http.Request, c ChannelConnection) (map
 	ready, _ := result["configuration_ready"].(bool)
 	result["ok"] = ready && validation.Valid && result["pages_messaging"].(bool) && result["page_id_match"].(bool)
 	return result, nil
+}
+
+type messengerInboundEvent struct {
+	SenderID    string
+	RecipientID string
+	MessageID   string
+	Text        string
+	MessageType string
+	IsEcho      bool
+	Timestamp   int64
+	IsSample    bool
+}
+
+func decodeMessengerWebhookPayload(body []byte) (string, []messengerInboundEvent, string, error) {
+	var payload struct {
+		Object string `json:"object"`
+		Entry  []struct {
+			Messaging []struct {
+				Sender struct {
+					ID string `json:"id"`
+				} `json:"sender"`
+				Recipient struct {
+					ID string `json:"id"`
+				} `json:"recipient"`
+				Message struct {
+					MID        string `json:"mid"`
+					Text       string `json:"text"`
+					IsEcho     bool   `json:"is_echo"`
+					QuickReply struct {
+						Payload string `json:"payload"`
+					} `json:"quick_reply"`
+				} `json:"message"`
+				Postback struct {
+					Title   string `json:"title"`
+					Payload string `json:"payload"`
+				} `json:"postback"`
+				Timestamp int64 `json:"timestamp"`
+			} `json:"messaging"`
+			Changes []struct {
+				Field string `json:"field"`
+				Value struct {
+					Sender struct {
+						ID string `json:"id"`
+					} `json:"sender"`
+					Recipient struct {
+						ID string `json:"id"`
+					} `json:"recipient"`
+					Message struct {
+						MID        string `json:"mid"`
+						Text       string `json:"text"`
+						IsEcho     bool   `json:"is_echo"`
+						QuickReply struct {
+							Payload string `json:"payload"`
+						} `json:"quick_reply"`
+					} `json:"message"`
+					Postback struct {
+						Title   string `json:"title"`
+						Payload string `json:"payload"`
+					} `json:"postback"`
+					Timestamp int64 `json:"timestamp"`
+				} `json:"value"`
+			} `json:"changes"`
+		} `json:"entry"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", nil, "invalid_json", err
+	}
+	events := make([]messengerInboundEvent, 0)
+	shape := "unknown"
+	appendEvent := func(senderID, recipientID, mid, text, quickReply, postbackTitle, postbackPayload string, isEcho bool, timestamp int64) {
+		messageType := "text"
+		messageText := strings.TrimSpace(text)
+		if messageText == "" {
+			messageText = strings.TrimSpace(quickReply)
+			if messageText != "" {
+				messageType = "quick_reply"
+			}
+		}
+		if messageText == "" {
+			messageText = strings.TrimSpace(firstNonEmpty(postbackTitle, postbackPayload))
+			if messageText != "" {
+				messageType = "postback"
+			}
+		}
+		mid = strings.TrimSpace(mid)
+		isSample := strings.EqualFold(mid, "test_message_id") || strings.EqualFold(messageText, "test_message") || strings.HasPrefix(strings.ToLower(mid), "test_")
+		events = append(events, messengerInboundEvent{
+			SenderID:    strings.TrimSpace(senderID),
+			RecipientID: strings.TrimSpace(recipientID),
+			MessageID:   mid,
+			Text:        messageText,
+			MessageType: messageType,
+			IsEcho:      isEcho,
+			Timestamp:   timestamp,
+			IsSample:    isSample,
+		})
+	}
+	for _, entry := range payload.Entry {
+		if len(entry.Messaging) > 0 {
+			shape = "entry.messaging"
+		}
+		for _, m := range entry.Messaging {
+			appendEvent(m.Sender.ID, m.Recipient.ID, m.Message.MID, m.Message.Text, m.Message.QuickReply.Payload, m.Postback.Title, m.Postback.Payload, m.Message.IsEcho, m.Timestamp)
+		}
+		for _, change := range entry.Changes {
+			if !strings.EqualFold(strings.TrimSpace(change.Field), "messages") {
+				continue
+			}
+			if shape == "unknown" {
+				shape = "entry.changes.messages"
+			} else if shape != "entry.changes.messages" {
+				shape = "mixed"
+			}
+			v := change.Value
+			appendEvent(v.Sender.ID, v.Recipient.ID, v.Message.MID, v.Message.Text, v.Message.QuickReply.Payload, v.Postback.Title, v.Postback.Payload, v.Message.IsEcho, v.Timestamp)
+		}
+	}
+	return payload.Object, events, shape, nil
+}
+
+func (a *App) recordMessengerWebhookReceipt(c ChannelConnection, shape string, eventCount int, parseErr error) {
+	cfg := map[string]any{}
+	_ = json.Unmarshal([]byte(c.ConfigJSON), &cfg)
+	if cfg == nil {
+		cfg = map[string]any{}
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	cfg["last_webhook_at"] = now
+	cfg["last_webhook_shape"] = shape
+	cfg["last_webhook_event_count"] = eventCount
+	if parseErr != nil {
+		cfg["last_webhook_error"] = parseErr.Error()
+	} else {
+		delete(cfg, "last_webhook_error")
+	}
+	raw, _ := json.Marshal(cfg)
+	_, _ = a.db.Exec(`UPDATE channel_connections SET config_json=?,updated_at=? WHERE id=? AND tenant_id=?`, string(raw), now, c.ID, c.TenantID)
 }
 
 func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Request) {
@@ -576,70 +718,39 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 			return
 		}
 	}
+
+	objectType, events, shape, parseErr := decodeMessengerWebhookPayload(body)
+	a.recordMessengerWebhookReceipt(c, shape, len(events), parseErr)
+	log.Printf("[messenger webhook] connection=%d tenant=%d public_id=%s object=%s shape=%s events=%d parse_error=%v", c.ID, c.TenantID, c.PublicID, objectType, shape, len(events), parseErr)
+
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("EVENT_RECEIVED"))
-	var payload struct {
-		Object string `json:"object"`
-		Entry  []struct {
-			Messaging []struct {
-				Sender struct {
-					ID string `json:"id"`
-				} `json:"sender"`
-				Message struct {
-					MID        string `json:"mid"`
-					Text       string `json:"text"`
-					IsEcho     bool   `json:"is_echo"`
-					QuickReply struct {
-						Payload string `json:"payload"`
-					} `json:"quick_reply"`
-				} `json:"message"`
-				Postback struct {
-					Title   string `json:"title"`
-					Payload string `json:"payload"`
-				} `json:"postback"`
-				Timestamp int64 `json:"timestamp"`
-			} `json:"messaging"`
-		} `json:"entry"`
-	}
-	if json.Unmarshal(body, &payload) != nil {
+	if parseErr != nil {
 		return
 	}
-	for _, e := range payload.Entry {
-		for _, m := range e.Messaging {
-			if m.Message.IsEcho || m.Sender.ID == "" {
-				continue
-			}
-			messageText := strings.TrimSpace(m.Message.Text)
-			messageType := "text"
-			if messageText == "" {
-				messageText = strings.TrimSpace(m.Message.QuickReply.Payload)
-				if messageText != "" {
-					messageType = "quick_reply"
-				}
-			}
-			if messageText == "" {
-				messageText = strings.TrimSpace(firstNonEmpty(m.Postback.Title, m.Postback.Payload))
-				if messageText != "" {
-					messageType = "postback"
-				}
-			}
-			if messageText == "" {
-				continue
-			}
-			messageID := strings.TrimSpace(m.Message.MID)
-			if messageID == "" {
-				messageID = "messenger-event-" + randomToken(10)
-			}
-			chat := "messenger:" + m.Sender.ID
-			now := time.Now().UTC().Format(time.RFC3339)
-			_, _ = a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "messenger", messageID, chat, m.Sender.ID, "in", messageType, messageText, "received", now)
-			_, _ = a.db.Exec(`INSERT INTO worktic_contacts(tenant_id,channel_connection_id,chat_jid,channel,phone,name,unread,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(chat_jid) DO UPDATE SET tenant_id=excluded.tenant_id,channel_connection_id=excluded.channel_connection_id,channel=excluded.channel,phone=excluded.phone,unread=worktic_contacts.unread+1,updated_at=excluded.updated_at`, c.TenantID, c.ID, chat, "messenger", m.Sender.ID, "Usuario Messenger", now)
-			_ = a.syncCRMContactAt(c.TenantID, "Usuario Messenger", "", "", "messenger", "conversation", chat, now)
-			_ = a.syncOpportunityFromConversation(c.TenantID, chat, "messenger", messageText, now)
-			_, _ = a.db.Exec(`UPDATE channel_connections SET last_message_at=?,last_error='',updated_at=? WHERE id=?`, now, now, c.ID)
-			go a.maybeMessengerAIReply(c, m.Sender.ID, chat, messageText)
+	for _, event := range events {
+		if event.IsEcho || event.SenderID == "" || event.Text == "" {
+			continue
 		}
+		if event.IsSample {
+			log.Printf("[messenger webhook] sample event accepted connection=%d shape=%s", c.ID, shape)
+			continue
+		}
+		messageID := event.MessageID
+		if messageID == "" {
+			messageID = "messenger-event-" + randomToken(10)
+		}
+		chat := "messenger:" + event.SenderID
+		now := time.Now().UTC().Format(time.RFC3339)
+		_, _ = a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "messenger", messageID, chat, event.SenderID, "in", event.MessageType, event.Text, "received", now)
+		_, _ = a.db.Exec(`INSERT INTO worktic_contacts(tenant_id,channel_connection_id,chat_jid,channel,phone,name,unread,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(chat_jid) DO UPDATE SET tenant_id=excluded.tenant_id,channel_connection_id=excluded.channel_connection_id,channel=excluded.channel,phone=excluded.phone,unread=worktic_contacts.unread+1,updated_at=excluded.updated_at`, c.TenantID, c.ID, chat, "messenger", event.SenderID, "Usuario Messenger", now)
+		_ = a.syncCRMContactAt(c.TenantID, "Usuario Messenger", "", "", "messenger", "conversation", chat, now)
+		_ = a.syncOpportunityFromConversation(c.TenantID, chat, "messenger", event.Text, now)
+		_, _ = a.db.Exec(`UPDATE channel_connections SET last_message_at=?,last_error='',updated_at=? WHERE id=?`, now, now, c.ID)
+		log.Printf("[messenger webhook] inbound message stored connection=%d sender=%s type=%s", c.ID, event.SenderID, event.MessageType)
+		go a.maybeMessengerAIReply(c, event.SenderID, chat, event.Text)
 	}
+
 }
 
 func (a *App) sendTenantMessengerText(ctx context.Context, tenantID int64, chat, text string) (string, error) {
