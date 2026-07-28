@@ -414,6 +414,7 @@ func (a *App) telegramWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	messageID := "tg-" + strconv.FormatInt(update.Message.MessageID, 10)
 	_, _ = a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "telegram", messageID, storedChat, chatID, "in", "text", text, "received", now)
 	_, _ = a.db.Exec(`INSERT INTO worktic_contacts(tenant_id,channel_connection_id,chat_jid,channel,phone,name,unread,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(chat_jid) DO UPDATE SET unread=worktic_contacts.unread+1,name=CASE WHEN excluded.name<>'' THEN excluded.name ELSE worktic_contacts.name END,updated_at=excluded.updated_at`, c.TenantID, c.ID, storedChat, "telegram", chatID, name, now)
+	_ = a.syncCRMContactAt(c.TenantID, name, "", "", "telegram", "conversation", storedChat, now)
 	_, _ = a.db.Exec(`UPDATE channel_connections SET last_message_at=?,last_error='',updated_at=? WHERE id=?`, now, now, c.ID)
 	log.Printf("[TG-WEBHOOK] recibido tenant=%d conexion=%d chat=%s update=%d", c.TenantID, c.ID, chatID, update.UpdateID)
 	go a.maybeTenantTelegramAIReply(c, creds.Token, chatID, storedChat, text)

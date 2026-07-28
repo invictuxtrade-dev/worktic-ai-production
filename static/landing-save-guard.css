@@ -1,0 +1,5 @@
+/* Estado del guardado seguro, limitado al constructor de landings */
+dialog#modal:has(.landing-editor-shell) .landing-editor-header{position:relative}
+dialog#modal:has(.landing-editor-shell) .landing-local-draft-status{display:inline-flex;align-items:center;gap:6px;margin-left:auto;padding:7px 10px;border-radius:999px;background:#eefbf3;color:#18733d;border:1px solid #ccefd9;font-size:10.5px;font-weight:800;white-space:nowrap}
+dialog#modal:has(.landing-editor-shell) .landing-local-draft-status::before{content:'●';font-size:8px;color:#22c55e}
+@media(max-width:760px){dialog#modal:has(.landing-editor-shell) .landing-local-draft-status{margin-left:0}}

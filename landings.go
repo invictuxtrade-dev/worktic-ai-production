@@ -65,70 +65,218 @@ func landingLimitFor(plan string) int {
 	}
 }
 
+func validateLandingJSON(label, raw string) error {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var value []any
+	if err := json.Unmarshal([]byte(raw), &value); err != nil {
+		return fmt.Errorf("%s contiene datos inválidos", label)
+	}
+	return nil
+}
+
+func (a *App) validateLandingRelations(tenant int64, x *LandingPage) error {
+	if x.FormID > 0 {
+		var n int
+		if err := a.db.QueryRow(`SELECT COUNT(*) FROM marketing_forms WHERE id=? AND tenant_id=?`, x.FormID, tenant).Scan(&n); err != nil || n == 0 {
+			return fmt.Errorf("el formulario relacionado no existe o no pertenece a este espacio")
+		}
+	}
+	if x.CampaignID > 0 {
+		var n int
+		if err := a.db.QueryRow(`SELECT COUNT(*) FROM marketing_campaigns WHERE id=? AND tenant_id=?`, x.CampaignID, tenant).Scan(&n); err != nil || n == 0 {
+			return fmt.Errorf("la campaña relacionada no existe o no pertenece a este espacio")
+		}
+	}
+	return nil
+}
+
+func prepareLandingForSave(x *LandingPage) error {
+	x.Name = strings.TrimSpace(x.Name)
+	x.Headline = strings.TrimSpace(x.Headline)
+	x.Subheadline = strings.TrimSpace(x.Subheadline)
+	x.Badge = strings.TrimSpace(x.Badge)
+	x.PrimaryCTA = strings.TrimSpace(x.PrimaryCTA)
+	x.PrimaryURL = strings.TrimSpace(x.PrimaryURL)
+	x.SecondaryCTA = strings.TrimSpace(x.SecondaryCTA)
+	x.SecondaryURL = strings.TrimSpace(x.SecondaryURL)
+	x.HeroImage = strings.TrimSpace(x.HeroImage)
+	x.Template = strings.TrimSpace(x.Template)
+	x.Accent = strings.TrimSpace(x.Accent)
+	if x.Name == "" {
+		return fmt.Errorf("el nombre interno es obligatorio")
+	}
+	if x.Headline == "" {
+		return fmt.Errorf("el título principal es obligatorio")
+	}
+	if err := validateLandingJSON("beneficios", x.BenefitsJSON); err != nil {
+		return err
+	}
+	if err := validateLandingJSON("características", x.FeaturesJSON); err != nil {
+		return err
+	}
+	if err := validateLandingJSON("testimonios", x.TestimonialsJSON); err != nil {
+		return err
+	}
+	if err := validateLandingJSON("preguntas frecuentes", x.FAQJSON); err != nil {
+		return err
+	}
+	normalizeLanding(x)
+	if x.Slug == "" {
+		return fmt.Errorf("no fue posible generar la URL pública; escribe un nombre o slug válido")
+	}
+	return nil
+}
+
+func landingDBError(err error) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	if strings.Contains(strings.ToLower(msg), "unique") {
+		return fmt.Errorf("ya existe una landing con ese slug; cambia la URL pública")
+	}
+	return fmt.Errorf("no fue posible guardar la landing: %s", msg)
+}
+
 func (a *App) landingsHandler(w http.ResponseWriter, r *http.Request) {
-	t, _, e := a.tenantFor(r)
-	if e != nil {
-		http.Error(w, e.Error(), 401)
+	tenant, user, err := a.tenantFor(r)
+	if err != nil {
+		writeError(w, err, http.StatusUnauthorized)
 		return
 	}
+
 	switch r.Method {
-	case "GET":
-		rows, e := a.db.Query(`SELECT id,tenant_id,name,slug,template,headline,subheadline,badge,primary_cta,primary_url,secondary_cta,secondary_url,hero_image,benefits_json,features_json,testimonials_json,faq_json,form_id,campaign_id,accent,published,created_at,updated_at FROM marketing_landings WHERE tenant_id=? ORDER BY id DESC`, t)
-		if e != nil {
-			http.Error(w, e.Error(), 500)
+	case http.MethodGet:
+		rows, err := a.db.Query(`SELECT id,tenant_id,name,slug,template,headline,subheadline,badge,primary_cta,primary_url,secondary_cta,secondary_url,hero_image,benefits_json,features_json,testimonials_json,faq_json,form_id,campaign_id,accent,published,created_at,updated_at FROM marketing_landings WHERE tenant_id=? ORDER BY id DESC`, tenant)
+		if err != nil {
+			writeError(w, err, http.StatusInternalServerError)
 			return
 		}
 		defer rows.Close()
 		out := []LandingPage{}
 		for rows.Next() {
 			var x LandingPage
-			var pub int
-			_ = rows.Scan(&x.ID, &x.TenantID, &x.Name, &x.Slug, &x.Template, &x.Headline, &x.Subheadline, &x.Badge, &x.PrimaryCTA, &x.PrimaryURL, &x.SecondaryCTA, &x.SecondaryURL, &x.HeroImage, &x.BenefitsJSON, &x.FeaturesJSON, &x.TestimonialsJSON, &x.FAQJSON, &x.FormID, &x.CampaignID, &x.Accent, &pub, &x.CreatedAt, &x.UpdatedAt)
-			x.Published = pub == 1
+			var published int
+			if err := rows.Scan(&x.ID, &x.TenantID, &x.Name, &x.Slug, &x.Template, &x.Headline, &x.Subheadline, &x.Badge, &x.PrimaryCTA, &x.PrimaryURL, &x.SecondaryCTA, &x.SecondaryURL, &x.HeroImage, &x.BenefitsJSON, &x.FeaturesJSON, &x.TestimonialsJSON, &x.FAQJSON, &x.FormID, &x.CampaignID, &x.Accent, &published, &x.CreatedAt, &x.UpdatedAt); err != nil {
+				writeError(w, err, http.StatusInternalServerError)
+				return
+			}
+			x.Published = published == 1
 			out = append(out, x)
 		}
+		if err := rows.Err(); err != nil {
+			writeError(w, err, http.StatusInternalServerError)
+			return
+		}
 		writeJSON(w, out)
-	case "POST":
+
+	case http.MethodPost:
 		var x LandingPage
-		if json.NewDecoder(r.Body).Decode(&x) != nil || strings.TrimSpace(x.Name) == "" {
-			http.Error(w, "nombre obligatorio", 400)
+		if err := json.NewDecoder(r.Body).Decode(&x); err != nil {
+			writeError(w, fmt.Errorf("datos de landing inválidos"), http.StatusBadRequest)
 			return
 		}
-		p, _, _ := a.activePlan(t)
-		var n int
-		_ = a.db.QueryRow(`SELECT COUNT(*) FROM marketing_landings WHERE tenant_id=?`, t).Scan(&n)
-		if n >= landingLimitFor(p.Code) {
-			http.Error(w, "límite de landing pages alcanzado para tu plan", 403)
+		if err := prepareLandingForSave(&x); err != nil {
+			writeError(w, err, http.StatusBadRequest)
 			return
 		}
-		normalizeLanding(&x)
+		if err := a.validateLandingRelations(tenant, &x); err != nil {
+			writeError(w, err, http.StatusBadRequest)
+			return
+		}
+
+		billingUserID := a.billingAccountUserID(user)
+		plan, _, err := a.activePlan(billingUserID)
+		if err != nil {
+			writeError(w, fmt.Errorf("no fue posible validar el plan: %w", err), http.StatusInternalServerError)
+			return
+		}
+		var used int
+		if err := a.db.QueryRow(`SELECT COUNT(*) FROM marketing_landings WHERE tenant_id=?`, tenant).Scan(&used); err != nil {
+			writeError(w, err, http.StatusInternalServerError)
+			return
+		}
+		limit := landingLimitFor(plan.Code)
+		if limit >= 0 && used >= limit {
+			writeError(w, fmt.Errorf("alcanzaste el límite de %d landing page(s) de tu plan %s; tus datos siguen guardados como borrador local", limit, plan.Name), http.StatusForbidden)
+			return
+		}
+
 		now := time.Now().UTC().Format(time.RFC3339)
-		res, e := a.db.Exec(`INSERT INTO marketing_landings(tenant_id,name,slug,template,headline,subheadline,badge,primary_cta,primary_url,secondary_cta,secondary_url,hero_image,benefits_json,features_json,testimonials_json,faq_json,form_id,campaign_id,accent,published,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, t, x.Name, x.Slug, x.Template, x.Headline, x.Subheadline, x.Badge, x.PrimaryCTA, x.PrimaryURL, x.SecondaryCTA, x.SecondaryURL, x.HeroImage, x.BenefitsJSON, x.FeaturesJSON, x.TestimonialsJSON, x.FAQJSON, x.FormID, x.CampaignID, x.Accent, boolInt(x.Published), now, now)
-		if e != nil {
-			http.Error(w, e.Error(), 400)
+		tx, err := a.db.Begin()
+		if err != nil {
+			writeError(w, err, http.StatusInternalServerError)
 			return
 		}
-		id, _ := res.LastInsertId()
-		writeJSON(w, map[string]any{"id": id, "public_url": fmt.Sprintf("/l/%d/%s", t, x.Slug)})
-	case "PUT":
+		defer tx.Rollback()
+		res, err := tx.Exec(`INSERT INTO marketing_landings(tenant_id,name,slug,template,headline,subheadline,badge,primary_cta,primary_url,secondary_cta,secondary_url,hero_image,benefits_json,features_json,testimonials_json,faq_json,form_id,campaign_id,accent,published,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, tenant, x.Name, x.Slug, x.Template, x.Headline, x.Subheadline, x.Badge, x.PrimaryCTA, x.PrimaryURL, x.SecondaryCTA, x.SecondaryURL, x.HeroImage, x.BenefitsJSON, x.FeaturesJSON, x.TestimonialsJSON, x.FAQJSON, x.FormID, x.CampaignID, x.Accent, boolInt(x.Published), now, now)
+		if err != nil {
+			writeError(w, landingDBError(err), http.StatusBadRequest)
+			return
+		}
+		x.ID, err = res.LastInsertId()
+		if err != nil || x.ID <= 0 {
+			writeError(w, fmt.Errorf("el servidor no pudo confirmar el identificador de la landing"), http.StatusInternalServerError)
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			writeError(w, fmt.Errorf("no fue posible confirmar el guardado: %w", err), http.StatusInternalServerError)
+			return
+		}
+		x.TenantID = tenant
+		x.CreatedAt = now
+		x.UpdatedAt = now
+		writeJSON(w, map[string]any{"ok": true, "id": x.ID, "public_url": fmt.Sprintf("/l/%d/%s", tenant, x.Slug), "landing": x})
+
+	case http.MethodPut:
 		var x LandingPage
-		if json.NewDecoder(r.Body).Decode(&x) != nil || x.ID == 0 {
-			http.Error(w, "datos inválidos", 400)
+		if err := json.NewDecoder(r.Body).Decode(&x); err != nil || x.ID <= 0 {
+			writeError(w, fmt.Errorf("landing inválida"), http.StatusBadRequest)
 			return
 		}
-		normalizeLanding(&x)
-		_, e := a.db.Exec(`UPDATE marketing_landings SET name=?,slug=?,template=?,headline=?,subheadline=?,badge=?,primary_cta=?,primary_url=?,secondary_cta=?,secondary_url=?,hero_image=?,benefits_json=?,features_json=?,testimonials_json=?,faq_json=?,form_id=?,campaign_id=?,accent=?,published=?,updated_at=? WHERE id=? AND tenant_id=?`, x.Name, x.Slug, x.Template, x.Headline, x.Subheadline, x.Badge, x.PrimaryCTA, x.PrimaryURL, x.SecondaryCTA, x.SecondaryURL, x.HeroImage, x.BenefitsJSON, x.FeaturesJSON, x.TestimonialsJSON, x.FAQJSON, x.FormID, x.CampaignID, x.Accent, boolInt(x.Published), time.Now().UTC().Format(time.RFC3339), x.ID, t)
-		if e != nil {
-			http.Error(w, e.Error(), 400)
+		if err := prepareLandingForSave(&x); err != nil {
+			writeError(w, err, http.StatusBadRequest)
 			return
 		}
-		writeJSON(w, map[string]bool{"ok": true})
-	case "DELETE":
+		if err := a.validateLandingRelations(tenant, &x); err != nil {
+			writeError(w, err, http.StatusBadRequest)
+			return
+		}
+		now := time.Now().UTC().Format(time.RFC3339)
+		res, err := a.db.Exec(`UPDATE marketing_landings SET name=?,slug=?,template=?,headline=?,subheadline=?,badge=?,primary_cta=?,primary_url=?,secondary_cta=?,secondary_url=?,hero_image=?,benefits_json=?,features_json=?,testimonials_json=?,faq_json=?,form_id=?,campaign_id=?,accent=?,published=?,updated_at=? WHERE id=? AND tenant_id=?`, x.Name, x.Slug, x.Template, x.Headline, x.Subheadline, x.Badge, x.PrimaryCTA, x.PrimaryURL, x.SecondaryCTA, x.SecondaryURL, x.HeroImage, x.BenefitsJSON, x.FeaturesJSON, x.TestimonialsJSON, x.FAQJSON, x.FormID, x.CampaignID, x.Accent, boolInt(x.Published), now, x.ID, tenant)
+		if err != nil {
+			writeError(w, landingDBError(err), http.StatusBadRequest)
+			return
+		}
+		affected, _ := res.RowsAffected()
+		if affected == 0 {
+			writeError(w, fmt.Errorf("landing no encontrada o sin acceso"), http.StatusNotFound)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "id": x.ID, "public_url": fmt.Sprintf("/l/%d/%s", tenant, x.Slug)})
+
+	case http.MethodDelete:
 		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
-		_, _ = a.db.Exec(`DELETE FROM marketing_landings WHERE id=? AND tenant_id=?`, id, t)
-		writeJSON(w, map[string]bool{"ok": true})
+		if id <= 0 {
+			writeError(w, fmt.Errorf("landing inválida"), http.StatusBadRequest)
+			return
+		}
+		res, err := a.db.Exec(`DELETE FROM marketing_landings WHERE id=? AND tenant_id=?`, id, tenant)
+		if err != nil {
+			writeError(w, err, http.StatusInternalServerError)
+			return
+		}
+		affected, _ := res.RowsAffected()
+		if affected == 0 {
+			writeError(w, fmt.Errorf("landing no encontrada"), http.StatusNotFound)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+
 	default:
-		w.WriteHeader(405)
+		writeError(w, fmt.Errorf("método no permitido"), http.StatusMethodNotAllowed)
 	}
 }
 

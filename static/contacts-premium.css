@@ -1,0 +1,55 @@
+/* Contactos CRM Premium — completamente limitado a #contacts */
+#contacts .crm-contact-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:18px}
+#contacts .crm-contact-heading h2{margin:4px 0 4px;font-size:28px}
+#contacts .crm-contact-heading p{margin:0;color:#7d748e}
+#contacts .crm-contact-heading-actions{display:flex;gap:10px;flex-wrap:wrap}
+#contacts .crm-contact-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+#contacts .crm-contact-stat{background:#fff;border:1px solid #e7e2f2;border-radius:16px;padding:17px 18px;box-shadow:0 8px 24px rgba(48,33,78,.04)}
+#contacts .crm-contact-stat b{display:block;font-size:24px;line-height:1;color:#1d142e}
+#contacts .crm-contact-stat small{display:block;margin-top:7px;color:#80768f}
+#contacts .crm-contact-filters{display:grid;grid-template-columns:minmax(260px,1.5fr) repeat(6,minmax(125px,.72fr)) auto;gap:10px;align-items:end;background:#fff;border:1px solid #e7e2f2;border-radius:17px;padding:15px;margin-bottom:10px}
+#contacts .crm-contact-filters label{display:grid;gap:6px;min-width:0}
+#contacts .crm-contact-filters label>span{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#7e748e}
+#contacts .crm-contact-filters input,#contacts .crm-contact-filters select{width:100%;height:42px;border:1px solid #dcd5ea;border-radius:11px;padding:0 11px;background:#fff;color:#1d142e;font:inherit;min-width:0}
+#contacts .crm-contact-filters input:focus,#contacts .crm-contact-filters select:focus{outline:0;border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.12)}
+#contacts .crm-contact-summary{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 3px 12px;color:#7e748e;font-size:13px}
+#contacts .crm-contact-summary b{color:#322744}
+#contacts .crm-contact-summary span::before{content:'●';color:#22c55e;margin-right:6px}
+#contacts .crm-contact-table-wrap{overflow:auto;background:#fff;border:1px solid #e7e2f2;border-radius:17px;box-shadow:0 10px 30px rgba(47,30,82,.04)}
+#contacts .crm-contact-table{width:100%;border-collapse:collapse;min-width:1050px}
+#contacts .crm-contact-table th{padding:13px 15px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#827891;background:#faf9fd;border-bottom:1px solid #e9e4f1;white-space:nowrap}
+#contacts .crm-contact-table td{padding:14px 15px;border-bottom:1px solid #f0edf5;vertical-align:middle}
+#contacts .crm-contact-table tr:last-child td{border-bottom:0}
+#contacts .crm-contact-table tbody tr:hover{background:#fcfbff}
+#contacts .crm-contact-person{display:flex;gap:11px;align-items:flex-start;min-width:250px}
+#contacts .crm-contact-avatar{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;flex:0 0 auto;background:linear-gradient(145deg,#eee8ff,#f8f5ff);color:#6d28d9;font-weight:900;border:1px solid #e1d8fb}
+#contacts .crm-contact-person b{display:block;color:#211631}
+#contacts .crm-contact-person small,#contacts .crm-contact-person em{display:block;margin-top:3px;color:#81768f;font-size:11.5px;font-style:normal;max-width:285px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#contacts .crm-contact-person em{color:#9b91a7}
+#contacts .crm-contact-origin{display:grid;gap:5px}
+#contacts .crm-contact-origin small{color:#8a8097}
+#contacts .crm-channel{display:inline-flex;width:max-content;align-items:center;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800;background:#f1eef6;color:#554a64}
+#contacts .crm-channel-whatsapp{background:#e9fbf1;color:#087a43}
+#contacts .crm-channel-telegram{background:#eaf7ff;color:#0874a8}
+#contacts .crm-channel-messenger{background:#f0edff;color:#5938c7}
+#contacts .crm-channel-landing,#contacts .crm-channel-form{background:#fff2df;color:#9a5700}
+#contacts .crm-stage{display:inline-flex;padding:5px 9px;border-radius:999px;background:#f2eff7;color:#4c4359;font-size:11px;font-weight:800}
+#contacts .crm-stage-ganado{background:#e9faef;color:#14733b}
+#contacts .crm-stage-perdido{background:#fff0f0;color:#a92d2d}
+#contacts .crm-stage-calificado,#contacts .crm-stage-negociacion{background:#eee9ff;color:#5930bf}
+#contacts .crm-contact-tags{display:block;margin-top:5px;color:#8a8097;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#contacts .crm-contact-date{display:block;font-size:12px;color:#34283f;white-space:nowrap}
+#contacts td>small{display:block;margin-top:4px;color:#92889e;font-size:10.5px}
+#contacts .crm-contact-relations{display:flex;gap:6px;flex-wrap:wrap;min-width:130px}
+#contacts .crm-contact-relations span{padding:5px 8px;border:1px solid #e7e2ef;border-radius:9px;background:#fbfafe;font-size:11px;color:#655b70;white-space:nowrap}
+#contacts .crm-contact-actions{display:flex;gap:6px;flex-wrap:wrap;min-width:280px}
+#contacts .crm-contact-actions button{padding:8px 10px;font-size:11px;white-space:nowrap}
+#contacts .crm-contact-empty{padding:55px 20px;text-align:center;background:#fff;border:1px dashed #dcd4e9;border-radius:17px;color:#7e748e}
+#contacts .crm-contact-empty>div{font-size:36px;color:#8b5cf6}
+#contacts .crm-contact-empty h3{margin:10px 0 5px;color:#30233f}
+#contacts .crm-contact-empty p{max-width:620px;margin:0 auto;line-height:1.55}
+#contacts .crm-contact-empty.error{border-color:#f2caca;background:#fffafa}
+#modal .crm-contact-form textarea{min-height:130px}
+@media(max-width:1250px){#contacts .crm-contact-filters{grid-template-columns:repeat(4,minmax(150px,1fr))}#contacts .crm-contact-search{grid-column:span 2}}
+@media(max-width:850px){#contacts .crm-contact-heading{align-items:flex-start;flex-direction:column}#contacts .crm-contact-stats{grid-template-columns:1fr 1fr}#contacts .crm-contact-filters{grid-template-columns:1fr 1fr}#contacts .crm-contact-search{grid-column:1/-1}}
+@media(max-width:560px){#contacts .crm-contact-stats,#contacts .crm-contact-filters{grid-template-columns:1fr}#contacts .crm-contact-search{grid-column:auto}#contacts .crm-contact-heading-actions{width:100%}#contacts .crm-contact-heading-actions button{flex:1}#contacts .crm-contact-summary{align-items:flex-start;flex-direction:column}}

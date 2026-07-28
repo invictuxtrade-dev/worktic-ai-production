@@ -466,7 +466,14 @@ func (a *App) publicLeadFormHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		_ = r.ParseForm()
 		consent := r.FormValue("consent") == "on"
-		_, e := a.db.Exec(`INSERT INTO marketing_leads(tenant_id,form_id,source,name,phone,email,city,interest,score,status,utm_source,utm_campaign,consent,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, tenant, f.ID, "worktic_form", r.FormValue("name"), r.FormValue("phone"), r.FormValue("email"), r.FormValue("city"), r.FormValue("interest"), 60, "new", r.FormValue("utm_source"), r.FormValue("utm_campaign"), boolInt(consent), time.Now().UTC().Format(time.RFC3339))
+		leadName := strings.TrimSpace(r.FormValue("name"))
+		leadPhone := strings.TrimSpace(r.FormValue("phone"))
+		leadEmail := strings.TrimSpace(r.FormValue("email"))
+		createdAt := time.Now().UTC().Format(time.RFC3339)
+		_, e := a.db.Exec(`INSERT INTO marketing_leads(tenant_id,form_id,source,name,phone,email,city,interest,score,status,utm_source,utm_campaign,consent,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, tenant, f.ID, "worktic_form", leadName, leadPhone, leadEmail, r.FormValue("city"), r.FormValue("interest"), 60, "new", r.FormValue("utm_source"), r.FormValue("utm_campaign"), boolInt(consent), createdAt)
+		if e == nil {
+			_ = a.syncCRMContactAt(tenant, leadName, leadPhone, leadEmail, "landing", "form", "", createdAt)
+		}
 		if e != nil {
 			http.Error(w, "No fue posible registrar", 500)
 			return

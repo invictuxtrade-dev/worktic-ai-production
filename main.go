@@ -279,6 +279,9 @@ func main() {
 	if err = initChannelTenantSchema(db); err != nil {
 		log.Fatal(err)
 	}
+	if err = initCRMContactsPremiumSchema(db); err != nil {
+		log.Fatalf("crm contacts schema: %v", err)
+	}
 	if err = initAgendaPremiumSchema(db); err != nil {
 		log.Fatal(err)
 	}
@@ -361,7 +364,7 @@ func main() {
 	mux.HandleFunc("/api/agents/routes", app.agentRoutesHandler)
 	mux.HandleFunc("/api/agents/metrics", app.agentMetricsHandler)
 	mux.HandleFunc("/api/agents/permissions", app.agentPermissionsHandler)
-	mux.HandleFunc("/api/crm/contacts", app.crmContactsHandler)
+	mux.HandleFunc("/api/crm/contacts", app.crmContactsPremiumHandler)
 	mux.HandleFunc("/api/crm/opportunities", app.opportunitiesHandler)
 	mux.HandleFunc("/api/dashboard", app.dashboardHandler)
 	mux.HandleFunc("/api/plans", app.plansHandler)
@@ -1099,8 +1102,26 @@ func (a *App) upsertContact(chat, phone, name string, unreadAdd int) error {
 	if strings.HasPrefix(chat, "messenger:") {
 		channel = "messenger"
 	}
-	_, err := a.db.Exec(`INSERT INTO worktic_contacts(chat_jid,channel,phone,name,unread,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(chat_jid) DO UPDATE SET channel=excluded.channel,phone=excluded.phone,name=CASE WHEN excluded.name<>'' THEN excluded.name ELSE worktic_contacts.name END,unread=worktic_contacts.unread+?,updated_at=excluded.updated_at`, chat, channel, phone, name, unreadAdd, time.Now().UTC().Format(time.RFC3339), unreadAdd)
-	return err
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := a.db.Exec(`INSERT INTO worktic_contacts(chat_jid,channel,phone,name,unread,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(chat_jid) DO UPDATE SET channel=excluded.channel,phone=excluded.phone,name=CASE WHEN excluded.name<>'' THEN excluded.name ELSE worktic_contacts.name END,unread=worktic_contacts.unread+?,updated_at=excluded.updated_at`, chat, channel, phone, name, unreadAdd, now, unreadAdd)
+	if err != nil {
+		return err
+	}
+	// Compatibilidad con la arquitectura legacy: solo adjudicamos el contacto
+	// automáticamente cuando la instalación tiene un único tenant.
+	var tenantCount int
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM tenants`).Scan(&tenantCount)
+	if tenantCount == 1 {
+		var tenantID int64
+		if a.db.QueryRow(`SELECT id FROM tenants LIMIT 1`).Scan(&tenantID) == nil && tenantID > 0 {
+			crmPhone := phone
+			if channel != "whatsapp" {
+				crmPhone = ""
+			}
+			return a.syncCRMContactAt(tenantID, name, crmPhone, "", channel, "conversation", chat, now)
+		}
+	}
+	return nil
 }
 func (a *App) setError(err error) {
 	a.mu.Lock()

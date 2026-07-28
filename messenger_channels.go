@@ -254,6 +254,7 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 			now := time.Now().UTC().Format(time.RFC3339)
 			_, _ = a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "messenger", m.Message.MID, chat, m.Sender.ID, "in", "text", m.Message.Text, "received", now)
 			_, _ = a.db.Exec(`INSERT INTO worktic_contacts(tenant_id,channel_connection_id,chat_jid,channel,phone,name,unread,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(chat_jid) DO UPDATE SET unread=worktic_contacts.unread+1,updated_at=excluded.updated_at`, c.TenantID, c.ID, chat, "messenger", m.Sender.ID, "Usuario Messenger", now)
+			_ = a.syncCRMContactAt(c.TenantID, "Usuario Messenger", "", "", "messenger", "conversation", chat, now)
 			_, _ = a.db.Exec(`UPDATE channel_connections SET last_message_at=?,last_error='',updated_at=? WHERE id=?`, now, now, c.ID)
 			go a.maybeMessengerAIReply(c, m.Sender.ID, chat, m.Message.Text)
 		}
