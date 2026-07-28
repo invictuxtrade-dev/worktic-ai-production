@@ -812,121 +812,28 @@ dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step .gr
   }
 }
 
-/* LANDING BUILDER DESKTOP FINAL FIX — isolated, no impact on other modules */
-@media (min-width: 761px){
-  dialog#modal:has(.landing-editor-shell){
-    width:min(1180px,calc(100vw - 32px)) !important;
-    max-width:calc(100vw - 32px) !important;
-    height:min(860px,calc(100dvh - 24px)) !important;
-    max-height:calc(100dvh - 24px) !important;
-    padding:0 !important;
-    overflow:hidden !important;
-  }
-  dialog#modal:has(.landing-editor-shell) #modalContent,
-  dialog#modal:has(.landing-editor-shell) .modal-scroll{
-    width:100% !important;
-    height:100% !important;
-    max-height:none !important;
-    min-height:0 !important;
-    overflow:hidden !important;
-    padding:0 !important;
-  }
-  dialog#modal:has(.landing-editor-shell) .landing-editor-shell{
-    width:100% !important;
-    height:100% !important;
-    max-height:none !important;
-    min-height:0 !important;
-    overflow:hidden !important;
-  }
-  dialog#modal:has(.landing-editor-shell) .landing-editor-header{
-    flex:0 0 auto;
-    padding:22px 28px 19px;
-  }
-  dialog#modal:has(.landing-editor-shell) .landing-builder-layout{
-    width:100% !important;
-    min-width:0 !important;
-    min-height:0 !important;
-    height:100% !important;
-    flex:1 1 auto !important;
-    grid-template-columns:230px minmax(0,1fr) !important;
-    overflow:hidden !important;
-  }
-  dialog#modal:has(.landing-editor-shell) .landing-editor-nav{
-    min-height:0 !important;
-    overflow-y:auto !important;
-  }
-  dialog#modal:has(.landing-editor-shell) .landing-editor-main{
-    width:100% !important;
-    min-width:0 !important;
-    min-height:0 !important;
-    height:100% !important;
-    max-width:none !important;
-    overflow:hidden !important;
-    display:flex !important;
-    flex-direction:column !important;
-  }
-  dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step{
-    flex:1 1 auto !important;
-    width:100% !important;
-    min-width:0 !important;
-    min-height:0 !important;
-    max-width:none !important;
-    height:auto !important;
-    overflow-y:auto !important;
-    overflow-x:hidden !important;
-    padding:26px 34px 30px !important;
-    scrollbar-gutter:stable;
-  }
-  dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step .form-section{
-    width:100% !important;
-    max-width:900px !important;
-    margin:0 auto 20px !important;
-    padding:24px !important;
-  }
-  dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step .grid2{
-    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
-    gap:18px 22px !important;
-  }
-  dialog#modal:has(.landing-editor-shell) .sticky-modal-actions{
-    flex:0 0 auto !important;
-    width:100% !important;
-    margin:0 !important;
-    padding:15px 34px 17px !important;
-    position:relative !important;
-    bottom:auto !important;
-    background:#fff !important;
-    border-top:1px solid #e7e2ed !important;
-    box-shadow:0 -10px 28px rgba(30,18,50,.05);
-  }
+/* =====================================================================
+   LANDING BUILDER PREMIUM V15 — isolated component, no global overrides
+   ===================================================================== */
+dialog#modal.wt-lpb-dialog{
+  width:min(1180px,calc(100vw - 40px));
+  max-width:min(1180px,calc(100vw - 40px));
+  height:min(900px,calc(100dvh - 34px));
+  max-height:calc(100dvh - 34px);
+  border-radius:24px;
 }
-
-@media (max-width: 760px){
-  dialog#modal:has(.landing-editor-shell){
-    width:calc(100vw - 12px) !important;
-    max-width:calc(100vw - 12px) !important;
-    height:calc(100dvh - 12px) !important;
-    max-height:calc(100dvh - 12px) !important;
-    padding:0 !important;
-    overflow:hidden !important;
-  }
-  dialog#modal:has(.landing-editor-shell) #modalContent,
-  dialog#modal:has(.landing-editor-shell) .modal-scroll,
-  dialog#modal:has(.landing-editor-shell) .landing-editor-shell{
-    width:100% !important;
-    height:100% !important;
-    max-height:none !important;
-    min-height:0 !important;
-    overflow:hidden !important;
-  }
-  dialog#modal:has(.landing-editor-shell) .landing-builder-layout,
-  dialog#modal:has(.landing-editor-shell) .landing-editor-main{
-    min-height:0 !important;
-    height:100% !important;
-    overflow:hidden !important;
-  }
-  dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step{
-    min-height:0 !important;
-    overflow-y:auto !important;
-    padding-bottom:28px !important;
-  }
-}
+dialog#modal.wt-lpb-dialog #modalContent{height:100%;max-height:none}
+dialog#modal.wt-lpb-dialog .modal-scroll{height:100%;padding:0;overflow:hidden;background:#f7f6fa}
+dialog#modal.wt-lpb-dialog .modal-close{top:16px;right:18px}
+.wt-lpb{height:100%;min-height:0;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;background:#f7f6fa;color:var(--text)}
+.wt-lpb__header{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:28px 72px 22px 30px;background:#fff;border-bottom:1px solid #e8e4ec}
+.wt-lpb__header h2{font-size:25px;line-height:1.15;margin:7px 0 6px;letter-spacing:-.03em}.wt-lpb__header p{margin:0;color:var(--text-soft);font-size:13px}.wt-lpb__status{padding:8px 13px;border-radius:999px;background:#f0e9ff;color:#6d28d9;font-size:12px;font-weight:800;white-space:nowrap}
+.wt-lpb__steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 30px;background:#fff;border-bottom:1px solid #e8e4ec}
+.wt-lpb__steps button{min-width:0;display:grid;grid-template-columns:38px minmax(0,1fr);align-items:center;gap:11px;text-align:left;padding:11px 14px;border:1px solid #e5e0ea;border-radius:14px;background:#fff;color:#4d4655;box-shadow:none}.wt-lpb__steps button span{width:36px;height:36px;display:grid;place-items:center;border-radius:11px;background:#f0edf4;font-weight:850}.wt-lpb__steps button b,.wt-lpb__steps button small{display:block}.wt-lpb__steps button b{font-size:13px}.wt-lpb__steps button small{font-size:11px;color:#81798b;margin-top:2px}.wt-lpb__steps button.active{border-color:#bca6f7;background:#faf8ff;box-shadow:0 8px 24px rgba(87,50,160,.08)}.wt-lpb__steps button.active span{background:#7c3aed;color:#fff}
+.wt-lpb__body{min-height:0;overflow-y:auto;overflow-x:hidden;padding:24px 30px 32px;scrollbar-gutter:stable}.wt-lpb__panel{width:min(940px,100%);margin:0 auto;display:block}.wt-lpb__panel[hidden]{display:none!important}
+.wt-lpb__section{display:grid;gap:17px;padding:24px;margin-bottom:20px;background:#fff;border:1px solid #e5e0ea;border-radius:18px;box-shadow:0 10px 32px rgba(31,22,45,.045)}
+.wt-lpb__section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding-bottom:15px;border-bottom:1px solid #eeeaf2}.wt-lpb__section-head>div{display:flex;align-items:center;gap:10px}.wt-lpb__section-head span{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:#f0e9ff;color:#6d28d9;font-size:11px;font-weight:850}.wt-lpb__section-head h3{margin:0;font-size:16px}.wt-lpb__section-head p{max-width:390px;margin:3px 0 0;text-align:right;color:var(--text-soft);font-size:12px;line-height:1.45}
+.wt-lpb__grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 18px}.wt-lpb label{display:grid;gap:8px;margin:0!important;font-size:12.5px;font-weight:750}.wt-lpb input,.wt-lpb select,.wt-lpb textarea{width:100%;min-width:0;margin:0!important}.wt-lpb textarea{min-height:110px;resize:vertical}.wt-lpb__panel#lstep-sections textarea{min-height:190px}.wt-lpb__ai{justify-self:start;min-width:230px}
+.wt-lpb__publish{grid-template-columns:minmax(0,1fr) auto;align-items:center}.wt-lpb__publish h3{margin:0 0 4px}.wt-lpb__publish p{margin:0;color:var(--text-soft);font-size:12px}.wt-lpb__switch{display:flex!important;align-items:center;gap:10px!important;padding:12px 14px!important;border:1px solid #ddd6e8;border-radius:13px;background:#faf9fd;cursor:pointer}.wt-lpb__switch input{position:absolute;opacity:0;pointer-events:none}.wt-lpb__switch span{width:44px;height:24px;border-radius:999px;background:#d7d1df;position:relative;transition:.2s}.wt-lpb__switch span:after{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.18);transition:.2s}.wt-lpb__switch input:checked+span{background:#7c3aed}.wt-lpb__switch input:checked+span:after{transform:translateX(20px)}
+.wt-lpb__footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 30px 18px;background:#fff;border-top:1px solid #e5e0ea;box-shadow:0 -8px 24px rgba(30,20,45,.04)}.wt-lpb__footer button{min-width:155px;min-height:44px}
+@media(max-width:800px){dialog#modal.wt-lpb-dialog{width:calc(100vw - 12px);max-width:calc(100vw - 12px);height:calc(100dvh - 12px);max-height:calc(100dvh - 12px);border-radius:18px}.wt-lpb__header{padding:21px 56px 17px 18px}.wt-lpb__header h2{font-size:21px}.wt-lpb__header p,.wt-lpb__status{display:none}.wt-lpb__steps{gap:6px;padding:10px}.wt-lpb__steps button{display:block;text-align:center;padding:9px 5px}.wt-lpb__steps button span{margin:0 auto 5px;width:30px;height:30px}.wt-lpb__steps button small{display:none}.wt-lpb__body{padding:15px 12px 24px}.wt-lpb__section{padding:17px;border-radius:15px}.wt-lpb__section-head{display:block}.wt-lpb__section-head p{text-align:left;margin-top:8px}.wt-lpb__grid{grid-template-columns:1fr}.wt-lpb__publish{grid-template-columns:1fr}.wt-lpb__footer{padding:12px;flex-direction:column-reverse}.wt-lpb__footer button{width:100%;min-width:0}.wt-lpb__ai{width:100%;min-width:0}}
