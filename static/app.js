@@ -260,84 +260,17 @@ function openLandingEditor(x={}){
  const parse=(v,fallback=[])=>{try{return JSON.parse(v||'[]')}catch{return fallback}},benefits=parse(x.benefits_json),features=parse(x.features_json),testimonials=parse(x.testimonials_json),faqs=parse(x.faq_json);
  const formOptions=`<option value="0">${T('js.no_form_option','Sin formulario')}</option>`+allLandingForms.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('');
  const campOptions=`<option value="0">${T('js.no_campaign_option','Sin campaña')}</option>`+allLandingCampaigns.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
- modal(`<div class="wt-lpb">
-  <header class="wt-lpb__header">
-   <div><span class="eyebrow">LANDING BUILDER</span><h2>${x.id?'Editar':'Crear'} landing page</h2><p>Completa la información por etapas. Los cambios se guardan únicamente al pulsar “Guardar landing”.</p></div>
-   <span class="wt-lpb__status">${x.published?'Publicada':'Borrador'}</span>
-  </header>
-  <nav class="wt-lpb__steps" aria-label="Pasos del constructor">
-   <button type="button" class="active" data-lstep="content"><span>1</span><div><b>Contenido</b><small>Oferta y encabezado</small></div></button>
-   <button type="button" data-lstep="sections"><span>2</span><div><b>Secciones</b><small>Beneficios y confianza</small></div></button>
-   <button type="button" data-lstep="settings"><span>3</span><div><b>Publicación</b><small>Diseño, URL y estado</small></div></button>
-  </nav>
-  <div class="wt-lpb__body">
-   <section id="lstep-content" class="wt-lpb__panel">
-    <div class="wt-lpb__section">
-     <div class="wt-lpb__section-head"><div><span>01</span><h3>Información principal</h3></div><p>Datos internos para identificar la oferta y orientar a la IA.</p></div>
-     <div class="wt-lpb__grid">
-      <label>Nombre interno<input id="lpName" value="${esc(x.name||'')}" placeholder="Ej. Plan empresarial julio"></label>
-      <label>Producto o servicio<input id="lpProduct" placeholder="Ej. Asesoría comercial"></label>
-      <label>Público ideal<input id="lpAudience" placeholder="Ej. pequeñas empresas en Colombia"></label>
-      <label>Objetivo<input id="lpObjective" value="Capturar leads" placeholder="Ej. Conseguir solicitudes"></label>
-     </div>
-     <button type="button" id="generateLandingAI" class="secondary wt-lpb__ai">✨ Generar contenido con IA</button>
-    </div>
-    <div class="wt-lpb__section">
-     <div class="wt-lpb__section-head"><div><span>02</span><h3>Encabezado principal</h3></div><p>Es la primera sección que verá el visitante.</p></div>
-     <label>Etiqueta superior<input id="lpBadge" value="${esc(x.badge||'Solución profesional')}" placeholder="Ej. Automatización comercial"></label>
-     <label>Título principal<textarea id="lpHeadline" rows="3" placeholder="Escribe una promesa clara y directa">${esc(x.headline||'')}</textarea></label>
-     <label>Subtítulo<textarea id="lpSubheadline" rows="3" placeholder="Explica brevemente el beneficio principal">${esc(x.subheadline||'')}</textarea></label>
-     <div class="wt-lpb__grid">
-      <label>Texto del botón<input id="lpCTA" value="${esc(x.primary_cta||'Solicitar información')}" placeholder="Ej. Empezar ahora"></label>
-      <label>Destino del botón<input id="lpCTAURL" value="${esc(x.primary_url||'#form')}" placeholder="#form o https://..."></label>
-     </div>
-     <label>Imagen principal (URL)<input id="lpHero" value="${esc(x.hero_image||'')}" placeholder="https://..."></label>
-    </div>
-   </section>
-   <section id="lstep-sections" class="wt-lpb__panel" hidden>
-    <div class="wt-lpb__section">
-     <div class="wt-lpb__section-head"><div><span>01</span><h3>Beneficios</h3></div><p>Escribe un beneficio por línea.</p></div>
-     <textarea id="lpBenefits" rows="7" placeholder="Respuesta inmediata&#10;Atención personalizada&#10;Proceso simple">${esc(benefits.join('\n'))}</textarea>
-    </div>
-    <div class="wt-lpb__section">
-     <div class="wt-lpb__section-head"><div><span>02</span><h3>Características</h3></div><p>Usa el formato: Título | Descripción</p></div>
-     <textarea id="lpFeatures" rows="9" placeholder="CRM inteligente | Organiza cada prospecto automáticamente">${esc(features.map(v=>`${v.title||''} | ${v.text||''}`).join('\n'))}</textarea>
-    </div>
-    <div class="wt-lpb__section">
-     <div class="wt-lpb__section-head"><div><span>03</span><h3>Testimonios</h3></div><p>Usa el formato: Testimonio | Autor</p></div>
-     <textarea id="lpTestimonials" rows="7" placeholder="Aumentamos nuestras ventas | Empresa Ejemplo">${esc(testimonials.map(v=>`${v.quote||''} | ${v.author||''}`).join('\n'))}</textarea>
-    </div>
-    <div class="wt-lpb__section">
-     <div class="wt-lpb__section-head"><div><span>04</span><h3>Preguntas frecuentes</h3></div><p>Usa el formato: Pregunta | Respuesta</p></div>
-     <textarea id="lpFAQ" rows="9" placeholder="¿Cómo funciona? | Nuestro equipo te acompaña paso a paso">${esc(faqs.map(v=>`${v.question||''} | ${v.answer||''}`).join('\n'))}</textarea>
-    </div>
-   </section>
-   <section id="lstep-settings" class="wt-lpb__panel" hidden>
-    <div class="wt-lpb__section">
-     <div class="wt-lpb__section-head"><div><span>01</span><h3>Diseño y dirección pública</h3></div><p>Configura la apariencia y el enlace de la landing.</p></div>
-     <div class="wt-lpb__grid">
-      <label>Slug público<input id="lpSlug" value="${esc(x.slug||'')}" placeholder="mi-oferta"></label>
-      <label>Plantilla<select id="lpTemplate"><option value="aurora">Aurora premium</option><option value="minimal">Minimal profesional</option><option value="bold">Comercial bold</option></select></label>
-      <label>Color principal<input id="lpAccent" type="color" value="${esc(x.accent||'#7c3aed')}"></label>
-      <label>Formulario relacionado<select id="lpForm">${formOptions}</select></label>
-     </div>
-     <label>Campaña relacionada<select id="lpCampaign">${campOptions}</select></label>
-    </div>
-    <div class="wt-lpb__section wt-lpb__publish">
-     <div><h3>Publicación</h3><p>Activa esta opción cuando la página esté lista para recibir visitantes.</p></div>
-     <label class="wt-lpb__switch"><input id="lpPublished" type="checkbox" ${x.published?'checked':''}><span></span><b>Publicar landing</b></label>
-    </div>
-   </section>
-  </div>
-  <footer class="wt-lpb__footer"><button value="cancel" class="secondary">Cancelar</button><button type="button" id="saveLanding">Guardar landing</button></footer>
- </div>`);
- const dialog=$('#modal');dialog.classList.add('wt-lpb-dialog');dialog.addEventListener('close',()=>dialog.classList.remove('wt-lpb-dialog'),{once:true});
+ modal(`<div class="landing-editor-shell"><div class="landing-editor-header"><div><span class="eyebrow">LANDING BUILDER</span><h2>${x.id?'Editar':'Crear'} landing page</h2><p>Construye una página comercial clara, atractiva y preparada para captar clientes.</p></div><span class="landing-editor-status">${x.published?'Publicada':'Borrador'}</span></div><div class="landing-builder-layout"><aside class="landing-editor-nav"><button type="button" class="active" data-lstep="content"><span>1</span><div><b>Contenido</b><small>Oferta y encabezado</small></div></button><button type="button" data-lstep="sections"><span>2</span><div><b>Secciones</b><small>Beneficios y confianza</small></div></button><button type="button" data-lstep="settings"><span>3</span><div><b>Publicación</b><small>Diseño, URL y estado</small></div></button><div class="landing-nav-help"><b>Consejo</b><p>Completa primero el contenido y revisa la publicación antes de compartir el enlace.</p></div></aside><main class="landing-editor-main">
+ <div id="lstep-content" class="landing-step"><div class="form-section"><h3 class="form-section-title">Información principal</h3><div class="grid2"><label>Nombre interno<input id="lpName" value="${esc(x.name||'')}"></label><label>Producto o servicio<input id="lpProduct" placeholder="Ej. Plan empresarial, asesoría, curso..."></label></div><div class="grid2"><label>Público ideal<input id="lpAudience" placeholder="Ej. pequeñas empresas"></label><label>Objetivo<input id="lpObjective" value="Capturar leads"></label></div><button type="button" id="generateLandingAI" class="secondary">✨ Generar contenido con IA</button></div><div class="form-section"><h3 class="form-section-title">Hero de la página</h3><label>Etiqueta superior<input id="lpBadge" value="${esc(x.badge||'Solución profesional')}"></label><label>Título principal<textarea id="lpHeadline" rows="3">${esc(x.headline||'')}</textarea></label><label>Subtítulo<textarea id="lpSubheadline" rows="3">${esc(x.subheadline||'')}</textarea></label><div class="grid2"><label>Texto del botón<input id="lpCTA" value="${esc(x.primary_cta||'Solicitar información')}"></label><label>Destino del botón<input id="lpCTAURL" value="${esc(x.primary_url||'#form')}"></label></div><label>Imagen principal (URL)<input id="lpHero" value="${esc(x.hero_image||'')}" placeholder="https://..."></label></div></div>
+ <div id="lstep-sections" class="landing-step" hidden><div class="form-section"><h3 class="form-section-title">Beneficios</h3><p class="field-help">Escribe un beneficio por línea.</p><textarea id="lpBenefits" rows="5">${esc(benefits.join('\n'))}</textarea></div><div class="form-section"><h3 class="form-section-title">Características</h3><p class="field-help">Una por línea usando: Título | Descripción</p><textarea id="lpFeatures" rows="7">${esc(features.map(v=>`${v.title||''} | ${v.text||''}`).join('\n'))}</textarea></div><div class="form-section"><h3 class="form-section-title">Testimonios</h3><p class="field-help">Uno por línea usando: Testimonio | Autor</p><textarea id="lpTestimonials" rows="5">${esc(testimonials.map(v=>`${v.quote||''} | ${v.author||''}`).join('\n'))}</textarea></div><div class="form-section"><h3 class="form-section-title">Preguntas frecuentes</h3><p class="field-help">Una por línea usando: Pregunta | Respuesta</p><textarea id="lpFAQ" rows="7">${esc(faqs.map(v=>`${v.question||''} | ${v.answer||''}`).join('\n'))}</textarea></div></div>
+ <div id="lstep-settings" class="landing-step" hidden><div class="form-section"><h3 class="form-section-title">Diseño y URL</h3><div class="grid2"><label>Slug público<input id="lpSlug" value="${esc(x.slug||'')}" placeholder="mi-oferta"></label><label>Plantilla<select id="lpTemplate"><option value="aurora">Aurora premium</option><option value="minimal">Minimal profesional</option><option value="bold">Comercial bold</option></select></label></div><div class="grid2"><label>Color principal<input id="lpAccent" type="color" value="${esc(x.accent||'#7c3aed')}"></label><label>Formulario relacionado<select id="lpForm">${formOptions}</select></label></div><label>Campaña relacionada<select id="lpCampaign">${campOptions}</select></label></div><div class="form-section"><label class="switch-row"><span><b>Publicar landing</b><small>Cuando esté activa, cualquier persona con el enlace podrá verla.</small></span><input id="lpPublished" type="checkbox" ${x.published?'checked':''}></label><div class="notice">Puedes guardarla como borrador, editarla después y eliminarla desde el listado.</div></div></div><div class="actions sticky-modal-actions"><button value="cancel" class="secondary">Cancelar</button><button type="button" id="saveLanding">Guardar landing</button></div></main></div></div>`);
  $('#lpTemplate').value=x.template||'aurora';$('#lpForm').value=String(x.form_id||0);$('#lpCampaign').value=String(x.campaign_id||0);
- $$('[data-lstep]').forEach(b=>b.onclick=()=>{$$('[data-lstep]').forEach(a=>a.classList.remove('active'));b.classList.add('active');$$('.wt-lpb__panel').forEach(a=>a.hidden=true);$('#lstep-'+b.dataset.lstep).hidden=false;$('.wt-lpb__body').scrollTop=0});
+ $$('[data-lstep]').forEach(b=>b.onclick=()=>{$$('[data-lstep]').forEach(a=>a.classList.remove('active'));b.classList.add('active');$$('.landing-step').forEach(a=>a.hidden=true);$('#lstep-'+b.dataset.lstep).hidden=false});
  const lines=id=>$('#'+id).value.split('\n').map(v=>v.trim()).filter(Boolean),pairs=(id,a,b)=>lines(id).map(v=>{const [first,...rest]=v.split('|');return {[a]:(first||'').trim(),[b]:rest.join('|').trim()}}).filter(v=>v[a]||v[b]);
  $('#generateLandingAI').onclick=async()=>{const b=$('#generateLandingAI');b.disabled=true;b.textContent='Generando…';try{const r=await api('/api/marketing/landings/generate',{method:'POST',body:JSON.stringify({name:$('#lpName').value,product:$('#lpProduct').value,audience:$('#lpAudience').value,objective:$('#lpObjective').value,tone:'Profesional y comercial'})});if(r.raw){$('#lpSubheadline').value=r.raw}else{$('#lpHeadline').value=r.headline||'';$('#lpSubheadline').value=r.subheadline||'';$('#lpBadge').value=r.badge||'';$('#lpCTA').value=r.primary_cta||'Solicitar información';$('#lpBenefits').value=(r.benefits||[]).join('\n');$('#lpFeatures').value=(r.features||[]).map(v=>`${v.title||''} | ${v.text||''}`).join('\n');$('#lpTestimonials').value=(r.testimonials||[]).map(v=>`${v.quote||''} | ${v.author||''}`).join('\n');$('#lpFAQ').value=(r.faq||[]).map(v=>`${v.question||''} | ${v.answer||''}`).join('\n')}toast('Contenido generado. Revísalo antes de publicar.')}catch(e){toast(e.message)}finally{b.disabled=false;b.textContent='✨ Generar contenido con IA'}};
  $('#saveLanding').onclick=async()=>{const d={id:x.id||0,name:$('#lpName').value.trim(),slug:$('#lpSlug').value.trim(),template:$('#lpTemplate').value,headline:$('#lpHeadline').value.trim(),subheadline:$('#lpSubheadline').value.trim(),badge:$('#lpBadge').value.trim(),primary_cta:$('#lpCTA').value.trim(),primary_url:$('#lpCTAURL').value.trim(),hero_image:$('#lpHero').value.trim(),benefits_json:JSON.stringify(lines('lpBenefits')),features_json:JSON.stringify(pairs('lpFeatures','title','text')),testimonials_json:JSON.stringify(pairs('lpTestimonials','quote','author')),faq_json:JSON.stringify(pairs('lpFAQ','question','answer')),form_id:Number($('#lpForm').value),campaign_id:Number($('#lpCampaign').value),accent:$('#lpAccent').value,published:$('#lpPublished').checked};if(!d.name)return formError('Escribe el nombre interno de la landing.');if(!d.headline)return formError('Escribe el título principal.');try{await api('/api/marketing/landings',{method:x.id?'PUT':'POST',body:JSON.stringify(d)});$('#modal').close();toast('Landing guardada');loadLandings()}catch(e){formError(e.message)}};
 }
+
 
 // V11 · navegación móvil premium
 (()=>{
