@@ -279,6 +279,9 @@ func main() {
 	if err = initChannelTenantSchema(db); err != nil {
 		log.Fatal(err)
 	}
+	if err = initMessengerProductionSchema(db); err != nil {
+		log.Fatalf("messenger production schema: %v", err)
+	}
 	if err = initCRMContactsPremiumSchema(db); err != nil {
 		log.Fatalf("crm contacts schema: %v", err)
 	}
@@ -310,6 +313,8 @@ func main() {
 	app.channelManager = NewChannelManager(app)
 	go app.channelManager.restoreActive()
 	go app.runMessengerConversationSync()
+	go app.runMessengerOutboxWorker()
+	go app.runMessengerTokenMonitor()
 	client.AddEventHandler(app.handleWAEvent)
 	if cfg.TelegramBotToken != "" {
 		go app.telegramLoop(cfg.TelegramBotToken)
@@ -487,7 +492,7 @@ func loadConfig() Config {
 		OpenAIAPIKey:             env("OPENAI_API_KEY", ""),
 		OpenAIModel:              env("OPENAI_MODEL", "gpt-5-mini"),
 		MessengerVerifyToken:     env("MESSENGER_VERIFY_TOKEN", "worktic_messenger_verify"),
-		MetaGraphVersion:         env("META_GRAPH_VERSION", "v24.0"),
+		MetaGraphVersion:         env("META_GRAPH_VERSION", "v25.0"),
 		USDTBEP20Address:         env("USDT_BEP20_ADDRESS", ""),
 		USDTTRC20Address:         env("USDT_TRC20_ADDRESS", ""),
 		PaymentConfirmations:     envInt("PAYMENT_CONFIRMATIONS", 12),

@@ -127,8 +127,12 @@ func (a *App) storeMessengerSyncedMessage(c ChannelConnection, messageID, psid, 
 	chat := "messenger:" + psid
 	timestamp := createdAt.UTC().Format(time.RFC3339Nano)
 
-	if _, err := a.db.Exec(`INSERT INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "messenger", messageID, chat, psid, "in", messageType, text, "received", timestamp); err != nil {
+	insertResult, err := a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "messenger", messageID, chat, psid, "in", messageType, text, "received", timestamp)
+	if err != nil {
 		return false, err
+	}
+	if affected, _ := insertResult.RowsAffected(); affected == 0 {
+		return false, nil
 	}
 	_, _ = a.db.Exec(`INSERT INTO worktic_contacts(tenant_id,channel_connection_id,chat_jid,channel,phone,name,unread,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(chat_jid) DO UPDATE SET tenant_id=excluded.tenant_id,channel_connection_id=excluded.channel_connection_id,channel=excluded.channel,phone=excluded.phone,name=CASE WHEN worktic_contacts.name='' OR worktic_contacts.name='Usuario Messenger' THEN excluded.name ELSE worktic_contacts.name END,unread=worktic_contacts.unread+1,updated_at=excluded.updated_at`, c.TenantID, c.ID, chat, "messenger", psid, contactName, timestamp)
 	_ = a.syncCRMContactAt(c.TenantID, contactName, "", "", "messenger", "conversation", chat, timestamp)
@@ -278,7 +282,43 @@ func (a *App) syncMessengerConnectionFromAPI(c ChannelConnection, reason string)
 	return detail, nil
 }
 
-func (a *App) syncAllMessengerConnections() {
+func (a *App) messengerSyncDue(c ChannelConnection, now time.Time) bool {
+	activeSeconds := envInt("MESSENGER_SYNC_ACTIVE_SECONDS", 10)
+	idleSeconds := envInt("MESSENGER_SYNC_IDLE_SECONDS", 60)
+	if activeSeconds < 5 {
+		activeSeconds = 5
+	}
+	if activeSeconds > 60 {
+		activeSeconds = 60
+	}
+	if idleSeconds < activeSeconds {
+		idleSeconds = activeSeconds
+	}
+	if idleSeconds > 300 {
+		idleSeconds = 300
+	}
+	lastSyncAt, lastSyncStatus, _ := a.latestMessengerChannelEvent(c, "messenger_conversation_sync")
+	lastSync := parseMessengerGraphTime(lastSyncAt)
+	if lastSync.IsZero() {
+		return true
+	}
+	interval := time.Duration(idleSeconds) * time.Second
+	lastActivity := parseMessengerGraphTime(c.LastMessageAt)
+	lastWebhookAt, _, _ := a.latestMessengerChannelEvent(c, "messenger_webhook_http")
+	webhookActivity := parseMessengerGraphTime(lastWebhookAt)
+	if webhookActivity.After(lastActivity) {
+		lastActivity = webhookActivity
+	}
+	if lastActivity.IsZero() {
+		lastActivity = parseMessengerGraphTime(c.LastConnectedAt)
+	}
+	if (!lastActivity.IsZero() && now.Sub(lastActivity) <= 15*time.Minute) || lastSyncStatus == "error" {
+		interval = time.Duration(activeSeconds) * time.Second
+	}
+	return now.Sub(lastSync) >= interval
+}
+
+func (a *App) syncAllMessengerConnections(force bool) {
 	rows, err := a.db.Query(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,encrypted_credentials,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE type='messenger' AND status='connected' ORDER BY id`)
 	if err != nil {
 		log.Printf("[messenger sync] list connections error=%v", err)
@@ -292,7 +332,11 @@ func (a *App) syncAllMessengerConnections() {
 			connections = append(connections, c)
 		}
 	}
+	now := time.Now().UTC()
 	for _, c := range connections {
+		if !force && !a.messengerSyncDue(c, now) {
+			continue
+		}
 		if _, err := a.syncMessengerConnectionFromAPI(c, "background"); err != nil {
 			log.Printf("[messenger sync] connection=%d tenant=%d error=%v", c.ID, c.TenantID, err)
 		}
@@ -300,20 +344,13 @@ func (a *App) syncAllMessengerConnections() {
 }
 
 func (a *App) runMessengerConversationSync() {
-	seconds := envInt("MESSENGER_SYNC_INTERVAL_SECONDS", 30)
-	if seconds < 15 {
-		seconds = 15
-	}
-	if seconds > 300 {
-		seconds = 300
-	}
-	// Give the application and schema initialization time to settle after a
-	// deploy, then keep a lightweight safety-net synchronization running.
+	// A five-second scheduler lets active conversations synchronize every ten
+	// seconds while idle pages back off to one minute by default.
 	time.Sleep(8 * time.Second)
-	a.syncAllMessengerConnections()
-	ticker := time.NewTicker(time.Duration(seconds) * time.Second)
+	a.syncAllMessengerConnections(true)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		a.syncAllMessengerConnections()
+		a.syncAllMessengerConnections(false)
 	}
 }

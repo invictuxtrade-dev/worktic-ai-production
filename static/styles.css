@@ -811,3 +811,14 @@ dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step .gr
     grid-template-columns:1fr !important;
   }
 }
+
+/* Messenger production hardening */
+.messenger-token-stable{margin-top:16px;border:1px solid #e5dcff;border-radius:16px;background:#fbf9ff;overflow:hidden}
+.messenger-token-stable summary{cursor:pointer;font-weight:800;padding:15px 16px;color:#3b146b;list-style:none}
+.messenger-token-stable summary::-webkit-details-marker{display:none}
+.messenger-token-stable summary::after{content:'+';float:right;font-size:20px;line-height:1}
+.messenger-token-stable[open] summary::after{content:'−'}
+.messenger-token-stable[open]{padding-bottom:16px}
+.messenger-token-stable[open] summary{border-bottom:1px solid #eee7ff;margin-bottom:14px}
+.messenger-token-stable>label,.messenger-token-stable>.notice,.messenger-token-stable>button{margin-left:16px;margin-right:16px}
+.messenger-token-stable>button{width:calc(100% - 32px)}

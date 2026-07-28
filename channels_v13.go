@@ -595,6 +595,49 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	switch q.Action {
+	case "stabilize_token":
+		if c.Type != "messenger" {
+			writeError(w, errors.New("esta acción solo aplica a Messenger"), 400)
+			return
+		}
+		pageID := strings.TrimSpace(firstNonEmpty(q.ExternalID, c.ExternalAccountID))
+		result, tokenErr := a.persistMessengerLongToken(r, c, strings.TrimSpace(q.Token), pageID, strings.TrimSpace(q.AppID), strings.TrimSpace(q.AppSecret))
+		if tokenErr != nil {
+			_, _ = a.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=? AND tenant_id=?`, tokenErr.Error(), now, q.ID, tid)
+			writeError(w, tokenErr, 502)
+			return
+		}
+		_, _ = a.db.Exec(`UPDATE channel_connections SET assigned_agent_id=? WHERE id=? AND tenant_id=?`, q.AgentID, q.ID, tid)
+		_, _ = a.db.Exec(`INSERT INTO channel_audit(tenant_id,connection_id,user_id,action,detail,created_at) VALUES(?,?,?,?,?,?)`, tid, q.ID, u.ID, "stabilize_token", "messenger", now)
+		writeJSON(w, result)
+		return
+	case "refresh_token":
+		if c.Type != "messenger" {
+			writeError(w, errors.New("esta acción solo aplica a Messenger"), 400)
+			return
+		}
+		refreshed, refreshErr := a.refreshMessengerPageTokenFromStoredUser(c, "manual")
+		if refreshErr != nil || !refreshed {
+			if refreshErr == nil {
+				refreshErr = errors.New("no fue posible renovar el Page Access Token")
+			}
+			writeError(w, refreshErr, 502)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+		return
+	case "retry_outbox":
+		if c.Type != "messenger" {
+			writeError(w, errors.New("esta acción solo aplica a Messenger"), 400)
+			return
+		}
+		count, retryErr := a.retryMessengerOutbox(c)
+		if retryErr != nil {
+			writeError(w, retryErr, 500)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "queued": count})
+		return
 	case "connect":
 		if c.Type == "whatsapp_qr" {
 			if err := a.channelManager.startWhatsApp(c, true); err != nil {

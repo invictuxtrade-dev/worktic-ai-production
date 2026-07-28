@@ -18,10 +18,14 @@ import (
 )
 
 type messengerCredentials struct {
-	PageToken   string `json:"page_token"`
-	AppID       string `json:"app_id"`
-	AppSecret   string `json:"app_secret"`
-	VerifyToken string `json:"verify_token"`
+	PageToken          string `json:"page_token"`
+	AppID              string `json:"app_id"`
+	AppSecret          string `json:"app_secret"`
+	VerifyToken        string `json:"verify_token"`
+	LongUserToken      string `json:"long_user_token,omitempty"`
+	LongUserExpiresAt  int64  `json:"long_user_expires_at,omitempty"`
+	PageTokenExpiresAt int64  `json:"page_token_expires_at,omitempty"`
+	DataAccessExpires  int64  `json:"data_access_expires_at,omitempty"`
 }
 
 type messengerTokenValidation struct {
@@ -406,7 +410,16 @@ func (a *App) configureMessenger(r *http.Request, c ChannelConnection, pageToken
 		pageName = "Página " + pageID
 	}
 
-	cr := messengerCredentials{PageToken: pageToken, AppID: appID, AppSecret: appSecret, VerifyToken: verify}
+	cr := messengerCredentials{
+		PageToken:          pageToken,
+		AppID:              appID,
+		AppSecret:          appSecret,
+		VerifyToken:        verify,
+		LongUserToken:      previous.LongUserToken,
+		LongUserExpiresAt:  previous.LongUserExpiresAt,
+		PageTokenExpiresAt: validation.ExpiresAt,
+		DataAccessExpires:  validation.DataAccessExpiresAt,
+	}
 	rawCredentials, _ := json.Marshal(cr)
 	enc := encryptLocal(string(rawCredentials), a.cfg.ChannelEncryptionKey)
 
@@ -414,7 +427,7 @@ func (a *App) configureMessenger(r *http.Request, c ChannelConnection, pageToken
 	cfg["page_name"] = pageName
 	cfg["webhook_url"] = hook
 	cfg["verify_token"] = verify
-	cfg["subscribed_fields"] = []string{"messages", "messaging_postbacks", "message_reads", "message_deliveries"}
+	cfg["subscribed_fields"] = []string{"messages", "messaging_postbacks", "message_reads", "message_deliveries", "messaging_referrals", "standby", "messaging_handovers"}
 	cfg["token_valid"] = true
 	cfg["token_validation_method"] = validation.Method
 	cfg["token_scopes"] = validation.Scopes
@@ -456,6 +469,10 @@ func (a *App) messengerConnectionDetails(r *http.Request, c ChannelConnection) m
 	appID, _ := cfg["token_app_id"].(string)
 	metadataWarning, _ := cfg["metadata_warning"].(string)
 	validationWarning, _ := cfg["validation_warning"].(string)
+	tokenSource := messengerAnyString(cfg["token_source"])
+	tokenExpiresAt := messengerAnyInt64(cfg["token_expires_at"])
+	longUserTokenExpiresAt := messengerAnyInt64(cfg["long_user_token_expires_at"])
+	dataAccessExpiresAt := messengerAnyInt64(cfg["data_access_expires_at"])
 	if pageID == "" {
 		pageID = c.ExternalAccountID
 	}
@@ -467,6 +484,18 @@ func (a *App) messengerConnectionDetails(r *http.Request, c ChannelConnection) m
 		if appID == "" {
 			appID = cr.AppID
 		}
+		if tokenExpiresAt == 0 {
+			tokenExpiresAt = cr.PageTokenExpiresAt
+		}
+		if longUserTokenExpiresAt == 0 {
+			longUserTokenExpiresAt = cr.LongUserExpiresAt
+		}
+		if dataAccessExpiresAt == 0 {
+			dataAccessExpiresAt = cr.DataAccessExpires
+		}
+		if tokenSource == "" && strings.TrimSpace(cr.LongUserToken) != "" {
+			tokenSource = "long_lived_user_exchange"
+		}
 	}
 
 	// Durable webhook diagnostic. We prefer channel_events over config_json so
@@ -476,6 +505,9 @@ func (a *App) messengerConnectionDetails(r *http.Request, c ChannelConnection) m
 	lastRealAt, lastRealStatus, lastRealDetail := a.latestMessengerChannelEvent(c, "messenger_message_received")
 	lastRejectedAt, lastRejectedStatus, lastRejectedDetail := a.latestMessengerChannelEvent(c, "messenger_webhook_rejected")
 	lastSyncAt, lastSyncStatus, lastSyncDetail := a.latestMessengerChannelEvent(c, "messenger_conversation_sync")
+	lastOutboundAt, lastOutboundStatus, lastOutboundDetail := a.latestMessengerChannelEvent(c, "messenger_outbound")
+	lastTokenHealthAt, lastTokenHealthStatus, lastTokenHealthDetail := a.latestMessengerChannelEvent(c, "messenger_token_health")
+	outbox := a.messengerOutboxStats(c)
 
 	lastWebhookAt := lastHTTPAt
 	if lastWebhookAt == "" {
@@ -535,46 +567,68 @@ func (a *App) messengerConnectionDetails(r *http.Request, c ChannelConnection) m
 	}
 
 	return map[string]any{
-		"ok":                       c.Status == "connected" && hook != "" && verify != "",
-		"platform":                 "messenger",
-		"page_id":                  pageID,
-		"page_name":                pageName,
-		"app_id":                   appID,
-		"has_page_token":           hasPageToken,
-		"app_secret_configured":    appSecretConfigured,
-		"webhook_url":              hook,
-		"verify_token":             verify,
-		"assigned_agent_id":        c.AssignedAgentID,
-		"status":                   c.Status,
-		"last_message_at":          lastMessageAt,
-		"last_webhook_at":          lastWebhookAt,
-		"last_webhook_shape":       lastShape,
-		"last_webhook_event_count": lastEventCount,
-		"last_webhook_error":       lastWebhookError,
-		"last_webhook_http_status": lastHTTPStatus,
-		"last_webhook_http_detail": lastHTTPDetail,
-		"last_processed_at":        lastProcessedAt,
-		"last_processed_status":    lastProcessedStatus,
-		"last_processed_detail":    lastProcessedDetail,
-		"last_real_message_status": lastRealStatus,
-		"last_real_message_detail": lastRealDetail,
-		"last_rejected_at":         lastRejectedAt,
-		"last_rejected_status":     lastRejectedStatus,
-		"last_rejected_detail":     lastRejectedDetail,
-		"sync_fallback_enabled":    true,
-		"last_sync_at":             lastSyncAt,
-		"last_sync_status":         lastSyncStatus,
-		"last_sync_detail":         lastSyncDetail,
-		"last_sync_method":         lastSyncMethod,
-		"last_sync_conversations":  lastSyncConversations,
-		"last_sync_messages_seen":  lastSyncMessagesSeen,
-		"last_sync_imported":       lastSyncImported,
-		"last_sync_duplicates":     lastSyncDuplicates,
-		"last_sync_error":          lastSyncError,
-		"last_error":               c.LastError,
-		"metadata_warning":         metadataWarning,
-		"validation_warning":       validationWarning,
-		"configuration_ready":      hook != "" && verify != "",
+		"ok":                                c.Status == "connected" && hook != "" && verify != "",
+		"platform":                          "messenger",
+		"page_id":                           pageID,
+		"page_name":                         pageName,
+		"app_id":                            appID,
+		"has_page_token":                    hasPageToken,
+		"app_secret_configured":             appSecretConfigured,
+		"webhook_url":                       hook,
+		"verify_token":                      verify,
+		"assigned_agent_id":                 c.AssignedAgentID,
+		"status":                            c.Status,
+		"last_message_at":                   lastMessageAt,
+		"last_webhook_at":                   lastWebhookAt,
+		"last_webhook_shape":                lastShape,
+		"last_webhook_event_count":          lastEventCount,
+		"last_webhook_error":                lastWebhookError,
+		"last_webhook_http_status":          lastHTTPStatus,
+		"last_webhook_http_detail":          lastHTTPDetail,
+		"last_processed_at":                 lastProcessedAt,
+		"last_processed_status":             lastProcessedStatus,
+		"last_processed_detail":             lastProcessedDetail,
+		"last_real_message_status":          lastRealStatus,
+		"last_real_message_detail":          lastRealDetail,
+		"last_rejected_at":                  lastRejectedAt,
+		"last_rejected_status":              lastRejectedStatus,
+		"last_rejected_detail":              lastRejectedDetail,
+		"sync_fallback_enabled":             true,
+		"last_sync_at":                      lastSyncAt,
+		"last_sync_status":                  lastSyncStatus,
+		"last_sync_detail":                  lastSyncDetail,
+		"last_sync_method":                  lastSyncMethod,
+		"last_sync_conversations":           lastSyncConversations,
+		"last_sync_messages_seen":           lastSyncMessagesSeen,
+		"last_sync_imported":                lastSyncImported,
+		"last_sync_duplicates":              lastSyncDuplicates,
+		"last_sync_error":                   lastSyncError,
+		"token_source":                      tokenSource,
+		"token_expires_at":                  tokenExpiresAt,
+		"token_expires_at_text":             messengerUnixTimeString(tokenExpiresAt),
+		"token_seconds_remaining":           messengerSecondsUntil(tokenExpiresAt),
+		"long_user_token_expires_at":        longUserTokenExpiresAt,
+		"long_user_token_expires_at_text":   messengerUnixTimeString(longUserTokenExpiresAt),
+		"long_user_token_seconds_remaining": messengerSecondsUntil(longUserTokenExpiresAt),
+		"data_access_expires_at":            dataAccessExpiresAt,
+		"data_access_expires_at_text":       messengerUnixTimeString(dataAccessExpiresAt),
+		"signature_verification_enabled":    appSecretConfigured,
+		"last_outbound_at":                  lastOutboundAt,
+		"last_outbound_status":              lastOutboundStatus,
+		"last_outbound_detail":              lastOutboundDetail,
+		"last_token_health_at":              lastTokenHealthAt,
+		"last_token_health_status":          lastTokenHealthStatus,
+		"last_token_health_detail":          lastTokenHealthDetail,
+		"outbox_pending":                    outbox["pending"],
+		"outbox_retrying":                   outbox["retrying"],
+		"outbox_processing":                 outbox["processing"],
+		"outbox_failed":                     outbox["failed"],
+		"outbox_last_error":                 outbox["last_error"],
+		"outbox_last_sent_at":               outbox["last_sent_at"],
+		"last_error":                        c.LastError,
+		"metadata_warning":                  metadataWarning,
+		"validation_warning":                validationWarning,
+		"configuration_ready":               hook != "" && verify != "",
 	}
 }
 
@@ -585,7 +639,7 @@ func (a *App) testMessengerConnection(r *http.Request, c ChannelConnection) (map
 	result["page_id_match"] = false
 	result["token_check_available"] = true
 	result["subscription_manual"] = true
-	result["recommended_fields"] = []string{"messages", "messaging_postbacks", "message_reads", "message_deliveries"}
+	result["recommended_fields"] = []string{"messages", "messaging_postbacks", "message_reads", "message_deliveries", "messaging_referrals", "standby", "messaging_handovers"}
 
 	cr, err := a.messengerCredentialsFor(c)
 	if err != nil {
@@ -1091,11 +1145,22 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 			"payload_sha256":  fmt.Sprintf("%x", sha256.Sum256(body)),
 			"payload_preview": messengerPayloadPreview(body),
 		})
+		// Meta can notify activity using an auxiliary payload while the actual
+		// message is only visible through Conversations API. Trigger the fallback
+		// immediately instead of waiting for the periodic scheduler.
+		go func(connection ChannelConnection) {
+			if _, syncErr := a.syncMessengerConnectionFromAPI(connection, "webhook_unclassified"); syncErr != nil {
+				log.Printf("[messenger webhook] immediate fallback failed connection=%d error=%v", connection.ID, syncErr)
+			}
+		}(c)
 	}
 	log.Printf("[messenger webhook] connection=%d tenant=%d public_id=%s object=%s shape=%s events=%d parse_error=%v", c.ID, c.TenantID, c.PublicID, objectType, shape, len(events), parseErr)
 
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("EVENT_RECEIVED"))
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
 	if parseErr != nil {
 		return
 	}
@@ -1130,9 +1195,14 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 		now := time.Now().UTC().Format(time.RFC3339Nano)
 		a.recordMessengerChannelEvent(c, "messenger_message_received", "received", map[string]any{"shape": shape, "sender_id": event.SenderID, "recipient_id": event.RecipientID, "message_id": messageID, "message_type": event.MessageType, "source_path": event.SourcePath, "standby": event.IsStandby})
 
-		if _, err := a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "messenger", messageID, chat, event.SenderID, "in", event.MessageType, event.Text, "received", now); err != nil {
-			a.recordMessengerChannelEvent(c, "messenger_processing_error", "message_insert", map[string]any{"error": err.Error(), "message_id": messageID})
-			log.Printf("[messenger webhook] message insert failed connection=%d sender=%s error=%v", c.ID, event.SenderID, err)
+		insertResult, insertErr := a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "messenger", messageID, chat, event.SenderID, "in", event.MessageType, event.Text, "received", now)
+		if insertErr != nil {
+			a.recordMessengerChannelEvent(c, "messenger_processing_error", "message_insert", map[string]any{"error": insertErr.Error(), "message_id": messageID})
+			log.Printf("[messenger webhook] message insert failed connection=%d sender=%s error=%v", c.ID, event.SenderID, insertErr)
+			continue
+		}
+		if affected, _ := insertResult.RowsAffected(); affected == 0 {
+			a.recordMessengerChannelEvent(c, "messenger_webhook_ignored", "duplicate_message", map[string]any{"message_id": messageID, "sender_id": event.SenderID, "source_path": event.SourcePath})
 			continue
 		}
 		if _, err := a.db.Exec(`INSERT INTO worktic_contacts(tenant_id,channel_connection_id,chat_jid,channel,phone,name,unread,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(chat_jid) DO UPDATE SET tenant_id=excluded.tenant_id,channel_connection_id=excluded.channel_connection_id,channel=excluded.channel,phone=excluded.phone,unread=worktic_contacts.unread+1,updated_at=excluded.updated_at`, c.TenantID, c.ID, chat, "messenger", event.SenderID, "Usuario Messenger", now); err != nil {
@@ -1220,58 +1290,13 @@ func (a *App) sendTenantMessengerText(ctx context.Context, tenantID int64, chat,
 	if err != nil {
 		return "", errors.New("la conexión de Messenger ya no está disponible")
 	}
-	cr, err := a.messengerCredentialsFor(c)
-	if err != nil || strings.TrimSpace(cr.PageToken) == "" {
-		return "", errors.New("Messenger no tiene un Page Access Token configurado")
-	}
-	payload, _ := json.Marshal(map[string]any{
-		"recipient":      map[string]string{"id": psid},
-		"messaging_type": "RESPONSE",
-		"message":        map[string]string{"text": text},
-	})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://graph.facebook.com/"+a.messengerGraphVersion()+"/me/messages?access_token="+url.QueryEscape(cr.PageToken), bytes.NewReader(payload))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		var metaErr struct {
-			Error struct {
-				Message string `json:"message"`
-				Code    int    `json:"code"`
-			} `json:"error"`
-		}
-		_ = json.Unmarshal(body, &metaErr)
-		detail := strings.TrimSpace(metaErr.Error.Message)
-		if detail == "" {
-			detail = strings.TrimSpace(string(body))
-		}
-		_, _ = a.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=? AND tenant_id=?`, detail, time.Now().UTC().Format(time.RFC3339), c.ID, tenantID)
-		return "", fmt.Errorf("Messenger: %s", detail)
-	}
-	var out struct {
-		MessageID string `json:"message_id"`
-	}
-	_ = json.Unmarshal(body, &out)
-	if strings.TrimSpace(out.MessageID) == "" {
-		out.MessageID = "messenger-" + randomToken(10)
-	}
-	now := time.Now().UTC().Format(time.RFC3339)
-	_, _ = a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, tenantID, c.ID, "messenger", out.MessageID, chat, c.ExternalAccountID, "out", "text", text, "sent", now)
-	_, _ = a.db.Exec(`UPDATE worktic_contacts SET updated_at=? WHERE tenant_id=? AND chat_jid=?`, now, tenantID, chat)
-	_, _ = a.db.Exec(`UPDATE channel_connections SET last_error='',updated_at=? WHERE id=? AND tenant_id=?`, now, c.ID, tenantID)
-	return out.MessageID, nil
+	return a.enqueueMessengerOutbound(c, chat, psid, text, "manual")
 }
 
 func (a *App) maybeMessengerAIReply(c ChannelConnection, psid, chat, text string) {
 	if a.openAIKey() == "" {
 		_, _ = a.db.Exec(`UPDATE channel_connections SET last_error='Falta configurar OPENAI_API_KEY' WHERE id=?`, c.ID)
+		a.recordMessengerChannelEvent(c, "messenger_ai_reply", "missing_openai_key", map[string]any{"psid": psid})
 		return
 	}
 	history := a.channelManager.tenantRecentHistory(c.TenantID, c.ID, chat, 10)
@@ -1288,34 +1313,24 @@ func (a *App) maybeMessengerAIReply(c ChannelConnection, psid, chat, text string
 	if system == "" {
 		ag := a.loadAgent()
 		if !ag.Enabled {
+			a.recordMessengerChannelEvent(c, "messenger_ai_reply", "agent_disabled", map[string]any{"psid": psid})
 			return
 		}
 		system = fmt.Sprintf("Eres %s, asistente principal de %s. Objetivo: %s. Tono: %s. Instrucciones: %s. Conocimiento: %s. Historial:\n%s", ag.Name, ag.Company, ag.Objective, ag.Tone, ag.Instructions, ag.Knowledge, history)
 	}
 	reply, err := a.callOpenAI(system, text)
 	if err != nil || strings.TrimSpace(reply) == "" {
+		detail := "respuesta vacía"
+		if err != nil {
+			detail = err.Error()
+		}
+		a.recordMessengerChannelEvent(c, "messenger_ai_reply", "generation_error", map[string]any{"psid": psid, "error": detail})
 		return
 	}
-	cr, err := a.messengerCredentialsFor(c)
-	if err != nil {
+	messageID, queueErr := a.enqueueMessengerOutbound(c, chat, psid, reply, "ai")
+	if queueErr != nil {
+		a.recordMessengerChannelEvent(c, "messenger_ai_reply", "queue_error", map[string]any{"psid": psid, "error": queueErr.Error()})
 		return
 	}
-	var out struct {
-		MessageID string `json:"message_id"`
-	}
-	payload, _ := json.Marshal(map[string]any{"recipient": map[string]string{"id": psid}, "messaging_type": "RESPONSE", "message": map[string]string{"text": reply}})
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://graph.facebook.com/"+a.messengerGraphVersion()+"/me/messages?access_token="+url.QueryEscape(cr.PageToken), bytes.NewReader(payload))
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return
-	}
-	_ = json.NewDecoder(resp.Body).Decode(&out)
-	now := time.Now().UTC().Format(time.RFC3339)
-	_, _ = a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "messenger", out.MessageID, chat, "ai", "out", "text", reply, "ai_sent", now)
-	_, _ = a.db.Exec(`UPDATE channel_connections SET last_error='',updated_at=? WHERE id=?`, now, c.ID)
+	a.recordMessengerChannelEvent(c, "messenger_ai_reply", "queued", map[string]any{"psid": psid, "message_id": messageID})
 }

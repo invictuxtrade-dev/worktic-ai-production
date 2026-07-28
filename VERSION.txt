@@ -1,4 +1,3 @@
-Worktic AI Social Hub Multitenant Analytics + Full ES/EN i18n
-2026-07-27
-
-Landing public i18n fix: 2026-07-27
+Worktic AI — Messenger Production Hardening
+Build: 2026-07-28
+Base: Messenger V7 Webhook + Conversations API
