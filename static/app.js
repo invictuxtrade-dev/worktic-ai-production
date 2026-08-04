@@ -390,6 +390,18 @@ window.switchSocialTab=switchSocialTab;$$('[data-social-tab]').forEach(b=>b.oncl
 const socialMediaRules={facebook:{image:true,video:true,required:false,note:'Imagen o video',detail:'Publicaciones, promociones y videos.'},instagram:{image:true,video:true,required:true,note:'Imagen o video',detail:'Feed, historias y reels con recurso visual.'},linkedin:{image:true,video:true,required:false,note:'Imagen o video',detail:'Contenido profesional y corporativo.'},telegram:{image:true,video:true,required:false,note:'Imagen o video',detail:'Publicaciones para canales y comunidades.'},tiktok:{image:false,video:true,required:true,note:'Solo video',detail:'Videos verticales y contenido dinámico.'},youtube:{image:false,video:true,required:true,note:'Solo video',detail:'Videos para el canal de YouTube.'}};
 function selectedSocialPlatforms(){return $$('.platform-option input:checked').map(x=>x.value)}
 function selectedMediaType(){return document.querySelector('input[name="spMediaType"]:checked')?.value||''}
+function localAdapt(platform,body,cta){
+ body=String(body||'').trim();cta=String(cta||'').trim();
+ switch(platform){
+  case 'linkedin':body='Una mirada empresarial:\n\n'+body;break;
+  case 'instagram':body=body+'\n\n#WorkticAI #Ventas #Automatización #InteligenciaArtificial';break;
+  case 'telegram':body='📣 '+body;break;
+  case 'tiktok':body='🎬 '+body+'\n\n#ParaTi #Negocios';break;
+  case 'youtube':body='▶️ '+body;break;
+ }
+ if(cta)body+=(body?'\n\n':'')+cta;
+ return body;
+}
 function updateSocialMediaCompatibility(){
  const platforms=selectedSocialPlatforms(),type=selectedMediaType();
  const typeInputs=$$('input[name="spMediaType"]');
