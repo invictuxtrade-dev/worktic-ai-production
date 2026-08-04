@@ -822,3 +822,6 @@ dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step .gr
 .messenger-token-stable[open] summary{border-bottom:1px solid #eee7ff;margin-bottom:14px}
 .messenger-token-stable>label,.messenger-token-stable>.notice,.messenger-token-stable>button{margin-left:16px;margin-right:16px}
 .messenger-token-stable>button{width:calc(100% - 32px)}
+
+/* Social Hub composer: manual/AI and media upload */
+.content-mode-switch,.media-source-tabs{display:flex;gap:7px;padding:5px;background:var(--paper-2);border:1px solid var(--line);border-radius:12px}.content-mode-switch button,.media-source-tabs button{flex:1;background:transparent;color:var(--text-soft);box-shadow:none;border:0}.content-mode-switch button.active,.media-source-tabs button.active{background:#fff;color:var(--ink);box-shadow:0 3px 12px rgba(20,18,40,.09)}.ai-generator-fields{padding:16px;border:1px solid #ddd4ff;border-radius:14px;background:linear-gradient(145deg,#f7f4ff,#fff)}.media-source-box{display:grid;gap:9px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--paper)}#spMediaFileWrap small{display:block;margin-top:7px;color:var(--text-mute)}#spUploadStatus{margin-top:7px}.success-text{color:#16834d}.mock-media video{width:100%;height:100%;max-height:330px;object-fit:cover;background:#111}
