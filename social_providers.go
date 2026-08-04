@@ -482,22 +482,115 @@ func (a *App) refreshSocialTokenIfNeeded(ctx context.Context, connectionID, tid 
 
 func (a *App) runSocialPublisher() {
 	ensureSocialProviderSchema(a.db)
-	ticker := time.NewTicker(20 * time.Second)
+	log.Printf("social publisher: worker iniciado")
+
+	// Ejecuta una pasada inmediata al arrancar. Antes el worker esperaba al
+	// primer tick y los errores de consulta quedaban completamente silenciosos.
+	a.processDueSocialPosts()
+
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		rows, err := a.db.Query(`SELECT id,tenant_id FROM social_posts WHERE status IN ('queued','scheduled','retrying') AND (scheduled_at='' OR scheduled_at<=?) ORDER BY id LIMIT 20`, time.Now().UTC().Format(time.RFC3339))
-		if err != nil {
+		a.processDueSocialPosts()
+	}
+}
+
+func parseSocialSchedule(raw string) (time.Time, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}, true
+	}
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05",
+	}
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, raw); err == nil {
+			return t.UTC(), true
+		}
+	}
+	return time.Time{}, false
+}
+
+func (a *App) processDueSocialPosts() {
+	now := time.Now().UTC()
+
+	// Recupera trabajos que pudieron quedar en publishing por un reinicio del
+	// servidor. Solo recuperamos los que llevan más de diez minutos estancados.
+	stale := now.Add(-10 * time.Minute).Format(time.RFC3339)
+	if _, err := a.db.Exec(`UPDATE social_posts SET status='retrying',error_message='Reintento automático después de una interrupción',updated_at=? WHERE status='publishing' AND updated_at<>'' AND updated_at<?`, now.Format(time.RFC3339), stale); err != nil {
+		log.Printf("social publisher: no se pudieron recuperar trabajos estancados: %v", err)
+	}
+
+	// No comparamos fechas RFC3339 como texto en SQL: una fecha con -05:00 y
+	// otra con Z pueden quedar en un orden lexicográfico distinto al cronológico.
+	rows, err := a.db.Query(`SELECT id,tenant_id,scheduled_at,status FROM social_posts WHERE status IN ('queued','scheduled','retrying') ORDER BY id LIMIT 100`)
+	if err != nil {
+		log.Printf("social publisher: error consultando cola: %v", err)
+		return
+	}
+	type job struct{ id, tid int64 }
+	jobs := make([]job, 0, 20)
+	for rows.Next() {
+		var id, tid int64
+		var scheduledAt, status string
+		if err := rows.Scan(&id, &tid, &scheduledAt, &status); err != nil {
+			log.Printf("social publisher: fila inválida: %v", err)
 			continue
 		}
-		var jobs [][2]int64
-		for rows.Next() {
-			var id, tid int64
-			_ = rows.Scan(&id, &tid)
-			jobs = append(jobs, [2]int64{id, tid})
+		when, ok := parseSocialSchedule(scheduledAt)
+		if !ok {
+			msg := "fecha de programación inválida: " + scheduledAt
+			_, _ = a.db.Exec(`UPDATE social_posts SET status='failed',error_message=?,updated_at=? WHERE id=? AND tenant_id=?`, msg, now.Format(time.RFC3339), id, tid)
+			log.Printf("social publisher: post %d rechazado: %s", id, msg)
+			continue
 		}
-		rows.Close()
-		for _, j := range jobs {
-			_, _ = a.publishSocialPost(context.Background(), j[1], j[0])
+		if !when.IsZero() && when.After(now) {
+			continue
+		}
+
+		// Reclamo atómico: evita que dos instancias de Render publiquen el mismo
+		// post si ambas ven la cola al mismo tiempo.
+		res, err := a.db.Exec(`UPDATE social_posts SET status='publishing',updated_at=? WHERE id=? AND tenant_id=? AND status IN ('queued','scheduled','retrying')`, now.Format(time.RFC3339), id, tid)
+		if err != nil {
+			log.Printf("social publisher: no se pudo reclamar post %d: %v", id, err)
+			continue
+		}
+		n, _ := res.RowsAffected()
+		if n == 1 {
+			jobs = append(jobs, job{id: id, tid: tid})
+		}
+	}
+	rows.Close()
+
+	for _, j := range jobs {
+		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		_, err := a.publishSocialPost(ctx, j.tid, j.id)
+		cancel()
+		if err != nil {
+			// Algunos errores ocurren antes de llamar al proveedor (por ejemplo,
+			// conexión ausente o credenciales inválidas). Antes esos trabajos se
+			// quedaban eternamente en publishing/queued sin explicación.
+			var current string
+			_ = a.db.QueryRow(`SELECT status FROM social_posts WHERE id=? AND tenant_id=?`, j.id, j.tid).Scan(&current)
+			if current == "publishing" {
+				attempt := 1
+				_ = a.db.QueryRow(`SELECT COUNT(*)+1 FROM social_publish_attempts WHERE tenant_id=? AND post_id=?`, j.tid, j.id).Scan(&attempt)
+				nextStatus := "failed"
+				nextAt := ""
+				if attempt < 4 {
+					nextStatus = "retrying"
+					nextAt = time.Now().UTC().Add(time.Duration(attempt*2) * time.Minute).Format(time.RFC3339)
+				}
+				nowText := time.Now().UTC().Format(time.RFC3339)
+				_, _ = a.db.Exec(`INSERT INTO social_publish_attempts(tenant_id,post_id,attempt_no,status,error_message,created_at) VALUES(?,?,?,?,?,?)`, j.tid, j.id, attempt, "failed", err.Error(), nowText)
+				_, _ = a.db.Exec(`UPDATE social_posts SET status=?,error_message=?,scheduled_at=?,updated_at=? WHERE id=? AND tenant_id=? AND status='publishing'`, nextStatus, err.Error(), nextAt, nowText, j.id, j.tid)
+			}
+			log.Printf("social publisher: post %d falló: %v", j.id, err)
+		} else {
+			log.Printf("social publisher: post %d publicado", j.id)
 		}
 	}
 }
