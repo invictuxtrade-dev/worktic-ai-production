@@ -380,6 +380,7 @@ func main() {
 	mux.HandleFunc("/api/billing/entitlements", app.entitlementsHandler)
 	mux.HandleFunc("/api/billing/config", app.billingConfigHandler)
 	mux.HandleFunc("/api/billing/checkout", app.checkoutHandler)
+	mux.HandleFunc("/api/billing/promo/validate", app.promoValidateHandler)
 	mux.HandleFunc("/api/billing/payments", app.paymentsHandler)
 	mux.HandleFunc("/api/admin/overview", app.adminOverviewHandler)
 	mux.HandleFunc("/api/admin/payments", app.adminPaymentsHandler)
@@ -390,6 +391,7 @@ func main() {
 	mux.HandleFunc("/api/admin/full/plans", app.adminFullPlansHandler)
 	mux.HandleFunc("/api/admin/full/payments", app.adminFullPaymentsHandler)
 	mux.HandleFunc("/api/admin/full/subscriptions", app.adminFullSubscriptionsHandler)
+	mux.HandleFunc("/api/admin/promo-codes", app.adminPromoCodesHandler)
 	mux.HandleFunc("/api/social/overview", app.socialOverviewHandler)
 	mux.HandleFunc("/api/social/analytics", app.socialAnalyticsHandler)
 	mux.HandleFunc("/api/social/metrics/ingest", app.socialMetricsIngestHandler)
@@ -550,6 +552,9 @@ CREATE TABLE IF NOT EXISTS billing_payments (
  wallet TEXT NOT NULL, amount_usdt REAL NOT NULL, tx_hash TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'pending',
  admin_note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, reviewed_at TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS billing_promo_codes (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL UNIQUE, discount_percent REAL NOT NULL, starts_at TEXT NOT NULL, expires_at TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, uses INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS usage_monthly (
  user_id INTEGER NOT NULL, period TEXT NOT NULL, ai_responses INTEGER NOT NULL DEFAULT 0,
  PRIMARY KEY(user_id,period)
@@ -569,6 +574,9 @@ CREATE INDEX IF NOT EXISTS idx_team_invites_tenant ON team_invitations(tenant_id
 	_, _ = db.Exec(`ALTER TABLE worktic_messages ADD COLUMN message_type TEXT NOT NULL DEFAULT 'text'`)
 	_, _ = db.Exec(`ALTER TABLE worktic_messages ADD COLUMN channel TEXT NOT NULL DEFAULT 'whatsapp'`)
 	_, _ = db.Exec(`ALTER TABLE worktic_contacts ADD COLUMN channel TEXT NOT NULL DEFAULT 'whatsapp'`)
+	_, _ = db.Exec(`ALTER TABLE billing_payments ADD COLUMN promo_code TEXT NOT NULL DEFAULT ''`)
+	_, _ = db.Exec(`ALTER TABLE billing_payments ADD COLUMN discount_percent REAL NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE billing_payments ADD COLUMN original_amount_usdt REAL NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`INSERT OR IGNORE INTO billing_plans(code,name,description,price_usdt,billing_days,max_users,max_channels,max_contacts,max_ai_responses,max_products,max_rules,active) VALUES
 	 ('free','Free','Para conocer la plataforma con funciones básicas',0,3650,1,1,100,50,5,1,1),
 	 ('personal','Personal','Para profesionales independientes',25,30,1,2,500,2000,100,10,1),
@@ -2608,14 +2616,16 @@ func (a *App) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var q struct {
-		PlanCode string `json:"plan_code"`
-		Network  string `json:"network"`
-		TxHash   string `json:"tx_hash"`
+		PlanCode  string `json:"plan_code"`
+		Network   string `json:"network"`
+		TxHash    string `json:"tx_hash"`
+		PromoCode string `json:"promo_code"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&q)
 	q.PlanCode = strings.ToLower(strings.TrimSpace(q.PlanCode))
 	q.Network = strings.ToUpper(strings.TrimSpace(q.Network))
 	q.TxHash = strings.TrimSpace(q.TxHash)
+	q.PromoCode = normalizePromoCode(q.PromoCode)
 	if q.PlanCode == "free" {
 		writeError(w, errors.New("el plan Free no requiere pago"), 400)
 		return
@@ -2643,13 +2653,24 @@ func (a *App) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("ingresa un hash de transacción válido"), 400)
 		return
 	}
-	res, err := a.db.Exec(`INSERT INTO billing_payments(user_id,plan_code,network,wallet,amount_usdt,tx_hash,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)`, a.billingAccountUserID(u), p.Code, q.Network, wallet, p.PriceUSDT, q.TxHash, time.Now().UTC().Format(time.RFC3339))
+	promo, finalAmount, promoErr := a.promoCodeForCheckout(q.PromoCode, p)
+	if promoErr != nil {
+		writeError(w, promoErr, 400)
+		return
+	}
+	promoCode := ""
+	discount := float64(0)
+	if promo != nil {
+		promoCode = promo.Code
+		discount = promo.DiscountPercent
+	}
+	res, err := a.db.Exec(`INSERT INTO billing_payments(user_id,plan_code,network,wallet,amount_usdt,tx_hash,status,created_at,promo_code,discount_percent,original_amount_usdt) VALUES(?,?,?,?,?,?,'pending',?,?,?,?)`, a.billingAccountUserID(u), p.Code, q.Network, wallet, finalAmount, q.TxHash, time.Now().UTC().Format(time.RFC3339), promoCode, discount, p.PriceUSDT)
 	if err != nil {
 		writeError(w, errors.New("esa transacción ya fue registrada"), 400)
 		return
 	}
 	id, _ := res.LastInsertId()
-	writeJSON(w, map[string]any{"ok": true, "payment_id": id, "status": "pending", "message": "Pago registrado. Worktic lo verificará antes de activar el plan."})
+	writeJSON(w, map[string]any{"ok": true, "payment_id": id, "status": "pending", "amount_usdt": finalAmount, "promo_code": promoCode, "discount_percent": discount, "message": "Pago registrado. Worktic lo verificará antes de activar el plan."})
 }
 
 func (a *App) paymentsHandler(w http.ResponseWriter, r *http.Request) {
