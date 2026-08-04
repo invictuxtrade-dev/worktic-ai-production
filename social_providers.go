@@ -631,7 +631,7 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	var arr []map[string]string
 	_ = json.Unmarshal([]byte(p.MediaJSON), &arr)
 	if len(arr) > 0 {
-		media = arr[0]["url"]
+		media = a.resolveSocialMediaURL(arr[0]["url"])
 	}
 	var result map[string]any
 	switch p.Platform {
@@ -667,6 +667,38 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	_, _ = a.db.Exec(`INSERT INTO social_publish_attempts(tenant_id,post_id,attempt_no,status,provider_response,created_at) VALUES(?,?,?,?,?,?)`, tid, id, attempt, "published", string(rb), now)
 	_, _ = a.db.Exec(`UPDATE social_posts SET status='published',published_at=?,external_post_id=?,published_url=?,error_message='',updated_at=? WHERE id=? AND tenant_id=?`, now, external, pu, now, id, tid)
 	return result, nil
+}
+
+// resolveSocialMediaURL convierte rutas de archivos subidos por Worktic en URLs
+// públicas absolutas. Las APIs sociales no pueden descargar rutas relativas como
+// /uploads/social/..., por lo que siempre deben recibir esquema y host.
+func (a *App) resolveSocialMediaURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if strings.HasPrefix(raw, "//") {
+		return "https:" + raw
+	}
+	if strings.HasPrefix(raw, "/") {
+		base := strings.TrimRight(strings.TrimSpace(a.cfg.BaseURL), "/")
+		if base == "" {
+			return ""
+		}
+		return base + raw
+	}
+	u, err := url.Parse(raw)
+	if err == nil && u.IsAbs() && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https") {
+		return raw
+	}
+	// Facilita URLs pegadas sin esquema, por ejemplo cdn.ejemplo.com/video.mp4.
+	if !strings.ContainsAny(raw, " \t\r\n") {
+		u, err = url.Parse("https://" + raw)
+		if err == nil && u.Host != "" {
+			return u.String()
+		}
+	}
+	return ""
 }
 
 func (a *App) publishFacebook(ctx context.Context, token, pageID, caption, link, media, format string) (map[string]any, error) {
@@ -776,10 +808,16 @@ func (a *App) publishTelegram(ctx context.Context, token, chatID, caption, media
 	if token == "" || chatID == "" {
 		return nil, errors.New("Telegram requiere token de bot y chat/canal")
 	}
+	caption = strings.TrimSpace(caption)
+	media = strings.TrimSpace(media)
 	method := "sendMessage"
-	vals := url.Values{"chat_id": {chatID}, "text": {caption}, "parse_mode": {"HTML"}}
+	vals := url.Values{"chat_id": {chatID}, "text": {caption}}
 	if media != "" {
-		isVideo := format == "video" || format == "reel" || strings.Contains(strings.ToLower(media), ".mp4") || strings.Contains(strings.ToLower(media), ".mov") || strings.Contains(strings.ToLower(media), ".webm")
+		u, parseErr := url.Parse(media)
+		if parseErr != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+			return nil, errors.New("Telegram requiere una URL pública válida para la imagen o el video")
+		}
+		isVideo := format == "video" || format == "reel" || strings.Contains(strings.ToLower(u.Path), ".mp4") || strings.Contains(strings.ToLower(u.Path), ".mov") || strings.Contains(strings.ToLower(u.Path), ".webm")
 		if isVideo {
 			method = "sendVideo"
 			vals = url.Values{"chat_id": {chatID}, "video": {media}, "caption": {caption}}
@@ -787,6 +825,8 @@ func (a *App) publishTelegram(ctx context.Context, token, chatID, caption, media
 			method = "sendPhoto"
 			vals = url.Values{"chat_id": {chatID}, "photo": {media}, "caption": {caption}}
 		}
+	} else if caption == "" {
+		return nil, errors.New("Telegram requiere texto o un recurso multimedia")
 	}
 	req, _ := http.NewRequestWithContext(ctx, "POST", "https://api.telegram.org/bot"+token+"/"+method, strings.NewReader(vals.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
