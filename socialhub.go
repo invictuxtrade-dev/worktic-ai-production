@@ -48,6 +48,9 @@ type SocialPost struct {
 	ErrorMessage   string `json:"error_message"`
 	CreatedAt      string `json:"created_at"`
 	UpdatedAt      string `json:"updated_at"`
+	GroupName      string `json:"group_name,omitempty"`
+	MasterContent  string `json:"master_content,omitempty"`
+	Objective      string `json:"objective,omitempty"`
 }
 
 func initSocialHubSchema(db *sql.DB) error {
@@ -197,13 +200,13 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		status := strings.TrimSpace(r.URL.Query().Get("status"))
-		q := `SELECT id,tenant_id,group_id,campaign_id,connection_id,platform,format,title,caption,cta,link_url,media_json,scheduled_at,published_at,status,external_post_id,published_url,error_message,created_at,updated_at FROM social_posts WHERE tenant_id=?`
+		q := `SELECT p.id,p.tenant_id,p.group_id,p.campaign_id,p.connection_id,p.platform,p.format,p.title,p.caption,p.cta,p.link_url,p.media_json,p.scheduled_at,p.published_at,p.status,p.external_post_id,p.published_url,p.error_message,p.created_at,p.updated_at,COALESCE(g.name,''),COALESCE(g.master_content,''),COALESCE(g.objective,'') FROM social_posts p LEFT JOIN social_post_groups g ON g.id=p.group_id AND g.tenant_id=p.tenant_id WHERE p.tenant_id=?`
 		args := []any{t}
 		if status != "" {
-			q += " AND status=?"
+			q += " AND p.status=?"
 			args = append(args, status)
 		}
-		q += " ORDER BY CASE WHEN scheduled_at='' THEN created_at ELSE scheduled_at END DESC LIMIT 500"
+		q += " ORDER BY CASE WHEN p.scheduled_at='' THEN p.created_at ELSE p.scheduled_at END DESC LIMIT 500"
 		rows, err := a.db.Query(q, args...)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
@@ -213,7 +216,7 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 		out := []SocialPost{}
 		for rows.Next() {
 			var x SocialPost
-			_ = rows.Scan(&x.ID, &x.TenantID, &x.GroupID, &x.CampaignID, &x.ConnectionID, &x.Platform, &x.Format, &x.Title, &x.Caption, &x.CTA, &x.LinkURL, &x.MediaJSON, &x.ScheduledAt, &x.PublishedAt, &x.Status, &x.ExternalPostID, &x.PublishedURL, &x.ErrorMessage, &x.CreatedAt, &x.UpdatedAt)
+			_ = rows.Scan(&x.ID, &x.TenantID, &x.GroupID, &x.CampaignID, &x.ConnectionID, &x.Platform, &x.Format, &x.Title, &x.Caption, &x.CTA, &x.LinkURL, &x.MediaJSON, &x.ScheduledAt, &x.PublishedAt, &x.Status, &x.ExternalPostID, &x.PublishedURL, &x.ErrorMessage, &x.CreatedAt, &x.UpdatedAt, &x.GroupName, &x.MasterContent, &x.Objective)
 			out = append(out, x)
 		}
 		writeJSON(w, out)
@@ -274,18 +277,101 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "No tienes permiso para editar contenido", 403)
 			return
 		}
-		var x SocialPost
-		if json.NewDecoder(r.Body).Decode(&x) != nil || x.ID == 0 {
-			http.Error(w, "id requerido", 400)
+		var req struct {
+			GroupID                                                                             int64 `json:"group_id"`
+			Name, Objective, MasterContent, Format, CTA, LinkURL, MediaURL, ScheduledAt, Action string
+			CampaignID                                                                          int64
+			Platforms                                                                           []string
+		}
+		if json.NewDecoder(r.Body).Decode(&req) != nil || req.GroupID == 0 || strings.TrimSpace(req.MasterContent) == "" || len(req.Platforms) == 0 {
+			http.Error(w, "grupo, contenido y redes son obligatorios", 400)
 			return
 		}
+		status := "draft"
+		if req.Action == "schedule" {
+			if !perms.Schedule {
+				http.Error(w, "Tu rol solo puede guardar borradores", 403)
+				return
+			}
+			if strings.TrimSpace(req.ScheduledAt) == "" {
+				http.Error(w, "fecha de programación requerida", 400)
+				return
+			}
+			status = "scheduled"
+		}
+		if req.Action == "publish" {
+			if !perms.Publish {
+				http.Error(w, "No tienes permiso para publicar", 403)
+				return
+			}
+			status = "queued"
+		}
 		now := time.Now().UTC().Format(time.RFC3339)
-		_, err := a.db.Exec(`UPDATE social_posts SET format=?,title=?,caption=?,cta=?,link_url=?,media_json=?,scheduled_at=?,status=?,updated_at=? WHERE id=? AND tenant_id=?`, x.Format, x.Title, x.Caption, x.CTA, x.LinkURL, x.MediaJSON, x.ScheduledAt, x.Status, now, x.ID, t)
+		tx, err := a.db.Begin()
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		writeJSON(w, map[string]any{"ok": true})
+		defer tx.Rollback()
+		res, err := tx.Exec(`UPDATE social_post_groups SET name=?,master_content=?,objective=?,status=?,updated_at=? WHERE id=? AND tenant_id=?`, req.Name, req.MasterContent, req.Objective, status, now, req.GroupID, t)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			http.Error(w, "publicación no encontrada", 404)
+			return
+		}
+		rows, err := tx.Query(`SELECT id,platform,status FROM social_posts WHERE tenant_id=? AND group_id=?`, t, req.GroupID)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		existing := map[string]int64{}
+		for rows.Next() {
+			var id int64
+			var p, st string
+			_ = rows.Scan(&id, &p, &st)
+			if st != "published" {
+				existing[p] = id
+			}
+		}
+		rows.Close()
+		wanted := map[string]bool{}
+		for _, p := range req.Platforms {
+			p = strings.ToLower(strings.TrimSpace(p))
+			if !validSocialPlatform(p) {
+				continue
+			}
+			wanted[p] = true
+			var cid int64
+			_ = tx.QueryRow(`SELECT id FROM social_connections WHERE tenant_id=? AND platform=? AND status='connected' ORDER BY id LIMIT 1`, t, p).Scan(&cid)
+			caption := adaptSocialCaption(p, req.MasterContent, req.CTA)
+			if id, ok := existing[p]; ok {
+				_, err = tx.Exec(`UPDATE social_posts SET campaign_id=?,connection_id=?,format=?,title=?,caption=?,cta=?,link_url=?,media_json=?,scheduled_at=?,status=?,error_message='',updated_at=? WHERE id=? AND tenant_id=?`, req.CampaignID, cid, req.Format, req.Name, caption, req.CTA, req.LinkURL, toMediaJSON(req.MediaURL), req.ScheduledAt, status, now, id, t)
+			} else {
+				_, err = tx.Exec(`INSERT INTO social_posts(tenant_id,group_id,campaign_id,connection_id,platform,format,title,caption,cta,link_url,media_json,scheduled_at,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, t, req.GroupID, req.CampaignID, cid, p, req.Format, req.Name, caption, req.CTA, req.LinkURL, toMediaJSON(req.MediaURL), req.ScheduledAt, status, now, now)
+			}
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+		}
+		for p, id := range existing {
+			if !wanted[p] {
+				_, err = tx.Exec(`DELETE FROM social_posts WHERE id=? AND tenant_id=? AND status<>'published'`, id, t)
+				if err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
+			}
+		}
+		if err = tx.Commit(); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "group_id": req.GroupID, "status": status})
 	case "DELETE":
 		if !perms.DeleteContent {
 			http.Error(w, "No tienes permiso para eliminar publicaciones", 403)

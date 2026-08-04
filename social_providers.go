@@ -211,6 +211,27 @@ func (a *App) exchangeSocialCode(ctx context.Context, p, code, redirect string) 
 	if t.AccessToken == "" {
 		return t, errors.New("proveedor no devolvió access token")
 	}
+	// Meta entrega inicialmente un token de usuario corto. Se intercambia por uno
+	// de larga duración antes de descubrir las páginas y sus tokens.
+	if p == "facebook" || p == "instagram" {
+		q := url.Values{
+			"grant_type":        {"fb_exchange_token"},
+			"client_id":         {a.cfg.MetaAppID},
+			"client_secret":     {a.cfg.MetaAppSecret},
+			"fb_exchange_token": {t.AccessToken},
+		}
+		req2, _ := http.NewRequestWithContext(ctx, "GET", "https://graph.facebook.com/"+a.cfg.MetaGraphVersion+"/oauth/access_token?"+q.Encode(), nil)
+		if resp2, e2 := http.DefaultClient.Do(req2); e2 == nil {
+			defer resp2.Body.Close()
+			b2, _ := io.ReadAll(io.LimitReader(resp2.Body, 2<<20))
+			if resp2.StatusCode/100 == 2 {
+				var lt socialToken
+				if json.Unmarshal(b2, &lt) == nil && lt.AccessToken != "" {
+					t = lt
+				}
+			}
+		}
+	}
 	return t, nil
 }
 
@@ -336,14 +357,127 @@ func (a *App) socialConnectionTestHandler(w http.ResponseWriter, r *http.Request
 	var q struct {
 		ID int64 `json:"id"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&q)
-	var p, status string
-	err = a.db.QueryRow(`SELECT platform,status FROM social_connections WHERE id=? AND tenant_id=?`, q.ID, tid).Scan(&p, &status)
+	if json.NewDecoder(r.Body).Decode(&q) != nil || q.ID == 0 {
+		http.Error(w, "id requerido", 400)
+		return
+	}
+	ensureSocialProviderSchema(a.db)
+	var p, mode, enc, cfgj string
+	err = a.db.QueryRow(`SELECT platform,provider_mode,encrypted_credentials,config_json FROM social_connections WHERE id=? AND tenant_id=?`, q.ID, tid).Scan(&p, &mode, &enc, &cfgj)
 	if err != nil {
 		http.Error(w, "conexión no encontrada", 404)
 		return
 	}
-	writeJSON(w, map[string]any{"ok": status == "connected", "platform": p, "status": status})
+	if mode == "sandbox" {
+		writeJSON(w, map[string]any{"ok": true, "platform": p, "status": "connected", "message": "Conexión sandbox activa"})
+		return
+	}
+	var tok socialToken
+	if json.Unmarshal([]byte(decryptLocal(enc, a.cfg.ChannelEncryptionKey)), &tok) != nil || tok.AccessToken == "" {
+		a.markSocialConnectionTest(q.ID, tid, false, "No fue posible descifrar las credenciales. Verifica CHANNEL_ENCRYPTION_KEY.")
+		http.Error(w, "credenciales inválidas", 409)
+		return
+	}
+	var cfg socialProviderConfig
+	_ = json.Unmarshal([]byte(cfgj), &cfg)
+	if p == "youtube" || p == "tiktok" {
+		tok, err = a.refreshSocialTokenIfNeeded(r.Context(), q.ID, tid, p, tok)
+		if err != nil {
+			a.markSocialConnectionTest(q.ID, tid, false, err.Error())
+			http.Error(w, err.Error(), 409)
+			return
+		}
+	}
+	var detail string
+	switch p {
+	case "facebook":
+		var out map[string]any
+		err = apiJSON(r.Context(), "GET", "https://graph.facebook.com/"+a.cfg.MetaGraphVersion+"/"+url.PathEscape(cfg.PageID)+"?fields=id,name&access_token="+url.QueryEscape(tok.AccessToken), "", nil, &out)
+		detail = fmt.Sprint(out["name"])
+	case "instagram":
+		var out map[string]any
+		err = apiJSON(r.Context(), "GET", "https://graph.facebook.com/"+a.cfg.MetaGraphVersion+"/"+url.PathEscape(cfg.InstagramID)+"?fields=id,username&access_token="+url.QueryEscape(tok.AccessToken), "", nil, &out)
+		detail = fmt.Sprint(out["username"])
+	case "linkedin":
+		var out map[string]any
+		err = apiJSON(r.Context(), "GET", "https://api.linkedin.com/v2/userinfo", tok.AccessToken, nil, &out)
+		detail = fmt.Sprint(out["name"])
+	case "telegram":
+		var out map[string]any
+		err = apiJSON(r.Context(), "GET", "https://api.telegram.org/bot"+tok.AccessToken+"/getChat?chat_id="+url.QueryEscape(cfg.ChatID), "", nil, &out)
+		detail = cfg.ChatID
+	case "tiktok":
+		var out map[string]any
+		err = apiJSON(r.Context(), "GET", "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name", tok.AccessToken, nil, &out)
+		detail = cfg.OpenID
+	case "youtube":
+		var out map[string]any
+		err = apiJSON(r.Context(), "GET", "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", tok.AccessToken, nil, &out)
+		detail = cfg.ChannelID
+	default:
+		err = errors.New("plataforma no soportada")
+	}
+	if err != nil {
+		a.markSocialConnectionTest(q.ID, tid, false, err.Error())
+		http.Error(w, err.Error(), 502)
+		return
+	}
+	a.markSocialConnectionTest(q.ID, tid, true, "")
+	writeJSON(w, map[string]any{"ok": true, "platform": p, "status": "connected", "detail": detail, "message": "Conexión oficial verificada correctamente"})
+}
+
+func (a *App) markSocialConnectionTest(id, tid int64, ok bool, msg string) {
+	now := time.Now().UTC().Format(time.RFC3339)
+	status := "connected"
+	if !ok {
+		status = "attention"
+	}
+	_, _ = a.db.Exec(`UPDATE social_connections SET status=?,last_error=?,last_sync_at=?,updated_at=? WHERE id=? AND tenant_id=?`, status, msg, now, now, id, tid)
+}
+
+func (a *App) refreshSocialTokenIfNeeded(ctx context.Context, connectionID, tid int64, p string, tok socialToken) (socialToken, error) {
+	if tok.RefreshToken == "" {
+		return tok, nil
+	}
+	var endpoint string
+	vals := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tok.RefreshToken}}
+	switch p {
+	case "youtube":
+		endpoint = "https://oauth2.googleapis.com/token"
+		vals.Set("client_id", a.cfg.GoogleClientID)
+		vals.Set("client_secret", a.cfg.GoogleClientSecret)
+	case "tiktok":
+		endpoint = "https://open.tiktokapis.com/v2/oauth/token/"
+		vals.Set("client_key", a.cfg.TikTokClientKey)
+		vals.Set("client_secret", a.cfg.TikTokClientSecret)
+	default:
+		return tok, nil
+	}
+	req, _ := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(vals.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return tok, err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if resp.StatusCode/100 != 2 {
+		return tok, fmt.Errorf("no fue posible renovar el token de %s: %s", p, string(b))
+	}
+	var nt socialToken
+	if json.Unmarshal(b, &nt) != nil || nt.AccessToken == "" {
+		return tok, errors.New("el proveedor no devolvió un token renovado")
+	}
+	if nt.RefreshToken == "" {
+		nt.RefreshToken = tok.RefreshToken
+	}
+	tb, _ := json.Marshal(nt)
+	exp := ""
+	if nt.ExpiresIn > 0 {
+		exp = time.Now().UTC().Add(time.Duration(nt.ExpiresIn) * time.Second).Format(time.RFC3339)
+	}
+	_, _ = a.db.Exec(`UPDATE social_connections SET encrypted_credentials=?,token_expires_at=?,refresh_status='ok',last_error='',updated_at=? WHERE id=? AND tenant_id=?`, encryptLocal(string(tb), a.cfg.ChannelEncryptionKey), exp, time.Now().UTC().Format(time.RFC3339), connectionID, tid)
+	return nt, nil
 }
 
 func (a *App) runSocialPublisher() {
@@ -393,6 +527,12 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	}
 	var cfg socialProviderConfig
 	_ = json.Unmarshal([]byte(cfgj), &cfg)
+	if p.Platform == "youtube" || p.Platform == "tiktok" {
+		tok, err = a.refreshSocialTokenIfNeeded(ctx, p.ConnectionID, tid, p.Platform, tok)
+		if err != nil {
+			return nil, err
+		}
+	}
 	media := ""
 	var arr []map[string]string
 	_ = json.Unmarshal([]byte(p.MediaJSON), &arr)
@@ -402,13 +542,13 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	var result map[string]any
 	switch p.Platform {
 	case "facebook":
-		result, err = a.publishFacebook(ctx, tok.AccessToken, cfg.PageID, p.Caption, p.LinkURL, media)
+		result, err = a.publishFacebook(ctx, tok.AccessToken, cfg.PageID, p.Caption, p.LinkURL, media, p.Format)
 	case "instagram":
 		result, err = a.publishInstagram(ctx, tok.AccessToken, cfg.InstagramID, p.Caption, media, p.Format)
 	case "linkedin":
 		result, err = a.publishLinkedIn(ctx, tok.AccessToken, cfg.AuthorURN, p.Caption, p.LinkURL)
 	case "telegram":
-		result, err = a.publishTelegram(ctx, tok.AccessToken, cfg.ChatID, p.Caption, media)
+		result, err = a.publishTelegram(ctx, tok.AccessToken, cfg.ChatID, p.Caption, media, p.Format)
 	case "tiktok":
 		result, err = a.publishTikTok(ctx, tok.AccessToken, p.Caption, media, p.Format)
 	case "youtube":
@@ -435,17 +575,25 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	return result, nil
 }
 
-func (a *App) publishFacebook(ctx context.Context, token, pageID, caption, link, media string) (map[string]any, error) {
+func (a *App) publishFacebook(ctx context.Context, token, pageID, caption, link, media, format string) (map[string]any, error) {
 	ep := "https://graph.facebook.com/" + a.cfg.MetaGraphVersion + "/" + pageID + "/feed"
 	vals := url.Values{"message": {caption}, "access_token": {token}}
 	if link != "" {
 		vals.Set("link", link)
 	}
 	if media != "" {
-		ep = "https://graph.facebook.com/" + a.cfg.MetaGraphVersion + "/" + pageID + "/photos"
-		vals.Set("url", media)
-		vals.Set("caption", caption)
-		vals.Del("message")
+		isVideo := format == "video" || format == "reel" || strings.Contains(strings.ToLower(media), ".mp4") || strings.Contains(strings.ToLower(media), ".mov") || strings.Contains(strings.ToLower(media), ".webm")
+		if isVideo {
+			ep = "https://graph.facebook.com/" + a.cfg.MetaGraphVersion + "/" + pageID + "/videos"
+			vals.Set("file_url", media)
+			vals.Set("description", caption)
+			vals.Del("message")
+		} else {
+			ep = "https://graph.facebook.com/" + a.cfg.MetaGraphVersion + "/" + pageID + "/photos"
+			vals.Set("url", media)
+			vals.Set("caption", caption)
+			vals.Del("message")
+		}
 	}
 	var out map[string]any
 	req, _ := http.NewRequestWithContext(ctx, "POST", ep, strings.NewReader(vals.Encode()))
@@ -530,15 +678,21 @@ func (a *App) publishLinkedIn(ctx context.Context, token, author, caption, link 
 	id := resp.Header.Get("x-restli-id")
 	return map[string]any{"id": id, "url": "https://www.linkedin.com/feed/update/" + id}, nil
 }
-func (a *App) publishTelegram(ctx context.Context, token, chatID, caption, media string) (map[string]any, error) {
+func (a *App) publishTelegram(ctx context.Context, token, chatID, caption, media, format string) (map[string]any, error) {
 	if token == "" || chatID == "" {
 		return nil, errors.New("Telegram requiere token de bot y chat/canal")
 	}
 	method := "sendMessage"
 	vals := url.Values{"chat_id": {chatID}, "text": {caption}, "parse_mode": {"HTML"}}
 	if media != "" {
-		method = "sendPhoto"
-		vals = url.Values{"chat_id": {chatID}, "photo": {media}, "caption": {caption}}
+		isVideo := format == "video" || format == "reel" || strings.Contains(strings.ToLower(media), ".mp4") || strings.Contains(strings.ToLower(media), ".mov") || strings.Contains(strings.ToLower(media), ".webm")
+		if isVideo {
+			method = "sendVideo"
+			vals = url.Values{"chat_id": {chatID}, "video": {media}, "caption": {caption}}
+		} else {
+			method = "sendPhoto"
+			vals = url.Values{"chat_id": {chatID}, "photo": {media}, "caption": {caption}}
+		}
 	}
 	req, _ := http.NewRequestWithContext(ctx, "POST", "https://api.telegram.org/bot"+token+"/"+method, strings.NewReader(vals.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

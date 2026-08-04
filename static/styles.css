@@ -881,3 +881,5 @@ dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step .gr
 .edit-post-network{display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--border,#e5e7eb);border-radius:12px}
 .edit-social-preview{border:1px solid var(--border,#e5e7eb);border-radius:14px;padding:12px;background:var(--surface-soft,#f8fafc)}
 .social-edit-form{max-height:min(74vh,760px);overflow:auto;padding-right:4px}
+/* Social Hub: edición multicanal y calendario agrupado */
+.social-group-badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.social-group-badges .social-badge{margin:0}.calendar-post{width:100%;border:0;text-align:left;font:inherit;cursor:pointer}.calendar-post span{white-space:nowrap}.calendar-post:hover{filter:brightness(.97)}
