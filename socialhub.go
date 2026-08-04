@@ -234,6 +234,20 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "contenido y redes son obligatorios", 400)
 			return
 		}
+		req.ScheduledAt = strings.TrimSpace(req.ScheduledAt)
+		if req.ScheduledAt != "" && req.Action != "publish" {
+			req.Action = "schedule"
+		}
+		if req.Action == "schedule" {
+			if req.ScheduledAt == "" {
+				http.Error(w, "fecha de programación requerida", 400)
+				return
+			}
+			if _, err := time.Parse(time.RFC3339, req.ScheduledAt); err != nil {
+				http.Error(w, "fecha de programación inválida", 400)
+				return
+			}
+		}
 		now := time.Now().UTC().Format(time.RFC3339)
 		res, err := a.db.Exec(`INSERT INTO social_post_groups(tenant_id,name,master_content,objective,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)`, t, req.Name, req.MasterContent, req.Objective, "draft", now, now)
 		if err != nil {
@@ -287,14 +301,22 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "grupo, contenido y redes son obligatorios", 400)
 			return
 		}
+		req.ScheduledAt = strings.TrimSpace(req.ScheduledAt)
+		if req.ScheduledAt != "" && req.Action != "publish" {
+			req.Action = "schedule"
+		}
 		status := "draft"
 		if req.Action == "schedule" {
 			if !perms.Schedule {
 				http.Error(w, "Tu rol solo puede guardar borradores", 403)
 				return
 			}
-			if strings.TrimSpace(req.ScheduledAt) == "" {
+			if req.ScheduledAt == "" {
 				http.Error(w, "fecha de programación requerida", 400)
+				return
+			}
+			if _, err := time.Parse(time.RFC3339, req.ScheduledAt); err != nil {
+				http.Error(w, "fecha de programación inválida", 400)
 				return
 			}
 			status = "scheduled"
