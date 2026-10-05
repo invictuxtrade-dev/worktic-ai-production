@@ -756,3 +756,18 @@ BOOTSTRAP_ADMIN_PASSWORD=
 ```
 
 Consultar `VARIABLES_FINALES_V26.md` y `DESPLIEGUE_FINAL_V26_RENDER.md` antes de tocar producción.
+
+---
+
+# V27 — Growth Command Center
+
+V27 añade WhatsApp Marketing, Worktic Copilot global y Dashboard Intelligence sobre la base de producción V26.
+
+- WhatsApp Marketing utiliza conexiones Cloud oficiales y plantillas aprobadas.
+- Solo incluye leads con consentimiento (`marketing_leads.consent=1`).
+- Opt-out persistente desde respuestas SALIR/STOP/CANCELAR.
+- Scheduling, rate limit, estados Meta y métricas persistentes.
+- Copilot usa `OPENAI_API_KEY` existente y diagnóstico por tenant.
+- Dashboard agrega revenue, ventas, leads, conversaciones, embudo, fuentes, operación e insights.
+- No añade variables de entorno obligatorias.
+- No requiere repetir la migración SQLite → PostgreSQL.

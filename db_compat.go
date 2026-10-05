@@ -49,7 +49,7 @@ var postgresSerialTables = map[string]bool{
 	"social_comments_v23": true, "social_connections": true, "social_governance_audit_v231": true, "social_media_assets": true,
 	"social_metrics": true, "social_oauth_states": true, "social_post_groups": true, "social_posts": true,
 	"social_publish_attempts": true, "social_repurpose_jobs_v23": true, "team_invitations": true, "tenants": true,
-	"whatsapp_business_events": true, "whatsapp_template_drafts": true, "worktic_auto_rules": true, "worktic_messages": true,
+	"whatsapp_business_events": true, "whatsapp_template_drafts": true, "whatsapp_marketing_campaigns_v27": true, "whatsapp_marketing_recipients_v27": true, "worktic_auto_rules": true, "worktic_messages": true,
 }
 
 var insertTableRx = regexp.MustCompile(`(?is)^\s*INSERT\s+INTO\s+([a-zA-Z0-9_]+)\b`)

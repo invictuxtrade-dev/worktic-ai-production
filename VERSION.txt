@@ -1,1 +1,8 @@
-WorkticAI V24 — Analytics & Attribution
+WorkticAI V27 — Growth Command Center
+Build: 2026-10-05
+
+- WhatsApp Marketing integrado con WhatsApp Cloud y plantillas Meta aprobadas.
+- Consentimiento, opt-out, scheduling, rate limit y métricas de entrega/lectura/respuesta.
+- Worktic Copilot flotante con diagnóstico contextual y OPENAI_API_KEY existente.
+- Dashboard Intelligence con revenue, ventas, leads, embudo, fuentes, operación e insights.
+- Base: V26 Production Enterprise con PostgreSQL + Redis + Go 1.26.

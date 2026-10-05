@@ -361,6 +361,9 @@ func main() {
 	if err = initProductionV26Schema(db); err != nil {
 		log.Fatalf("production v26 schema: %v", err)
 	}
+	if err = initWhatsAppMarketingV27Schema(db); err != nil {
+		log.Fatalf("whatsapp marketing v27 schema: %v", err)
+	}
 	if err = (&App{db: db}).ensureAdminFullSchema(); err != nil {
 		log.Fatalf("admin full schema: %v", err)
 	}
@@ -414,6 +417,7 @@ func main() {
 		go app.runMessengerConversationSync()
 		go app.runMessengerOutboxWorker()
 		go app.runMessengerTokenMonitor()
+		go app.runWhatsAppMarketingV27()
 	}
 	app.channelManager = NewChannelManager(app)
 	if cfg.ChannelRuntimesEnabled {
@@ -488,6 +492,13 @@ func main() {
 	mux.HandleFunc("/api/whatsapp/templates/send-test", app.whatsappTemplateSendTestHandler)
 	mux.HandleFunc("/api/whatsapp/templates/delete", app.whatsappTemplateDeleteMetaHandler)
 	mux.HandleFunc("/api/whatsapp/templates/preview", app.whatsappTemplatePreviewHandler)
+	mux.HandleFunc("/api/whatsapp-marketing/v27/overview", app.whatsappMarketingOverviewV27Handler)
+	mux.HandleFunc("/api/whatsapp-marketing/v27/campaigns", app.whatsappMarketingCampaignsV27Handler)
+	mux.HandleFunc("/api/whatsapp-marketing/v27/audience-preview", app.whatsappMarketingAudiencePreviewV27Handler)
+	mux.HandleFunc("/api/whatsapp-marketing/v27/action", app.whatsappMarketingActionV27Handler)
+	mux.HandleFunc("/api/whatsapp-marketing/v27/recipients", app.whatsappMarketingRecipientsV27Handler)
+	mux.HandleFunc("/api/dashboard/v27", app.dashboardV27Handler)
+	mux.HandleFunc("/api/copilot/v27", app.copilotV27Handler)
 	mux.HandleFunc("/webhooks/messenger/", app.messengerTenantWebhookHandler)
 	mux.HandleFunc("/api/agent", app.agentHandler)
 	mux.HandleFunc("/api/agent/test", app.agentTestHandler)

@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -298,9 +299,17 @@ func (a *App) whatsappCloudWebhookHandler(w http.ResponseWriter, r *http.Request
 				_ = a.syncOpportunityFromConversation(c.TenantID, chat, "whatsapp_cloud", txt, ts)
 				a.ensureInboxConversation(c.TenantID, chat)
 				a.emitInboxEvent(c.TenantID, "message.received", map[string]any{"chat": chat, "channel": "whatsapp_cloud", "text": txt, "connection_id": c.ID})
+				a.trackWhatsAppMarketingInboundV27(c.TenantID, c.ID, m.From, txt, ts)
 			}
 			for _, s := range change.Value.Statuses {
 				_, _ = a.db.Exec(`UPDATE worktic_messages SET status=? WHERE tenant_id=? AND channel_connection_id=? AND wa_id=?`, s.Status, c.TenantID, c.ID, s.ID)
+				statusAt := time.Now().UTC().Format(time.RFC3339)
+				if s.Timestamp != "" {
+					if sec, e := strconv.ParseInt(s.Timestamp, 10, 64); e == nil && sec > 0 {
+						statusAt = time.Unix(sec, 0).UTC().Format(time.RFC3339)
+					}
+				}
+				a.trackWhatsAppMarketingStatusV27(c.TenantID, c.ID, s.ID, s.Status, statusAt)
 			}
 		}
 	}
