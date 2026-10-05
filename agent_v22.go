@@ -66,13 +66,6 @@ CREATE TABLE IF NOT EXISTS ai_agent_tool_audit_v22 (
 	return err
 }
 
-func boolInt(v bool) int {
-	if v {
-		return 1
-	}
-	return 0
-}
-
 func (a *App) agentV22OverviewHandler(w http.ResponseWriter, r *http.Request) {
 	tenant, _, err := a.agentTenant(r)
 	if err != nil {
