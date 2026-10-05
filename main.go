@@ -2137,15 +2137,76 @@ func (a *App) billingAccountUserID(u *User) int64 {
 }
 
 func (a *App) accountProfileHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Método no permitido", 405)
-		return
-	}
 	u := a.currentUser(r)
 	if u == nil {
 		writeError(w, errors.New("sesión requerida"), 401)
 		return
 	}
+	if err := a.ensureProfileV273Schema(); err != nil {
+		writeError(w, err, 500)
+		return
+	}
+
+	if r.Method == http.MethodPut {
+		var q struct {
+			Name               string `json:"name"`
+			Company            string `json:"company"`
+			Language           string `json:"language"`
+			Timezone           string `json:"timezone"`
+			EmailNotifications bool   `json:"email_notifications"`
+			PushNotifications  bool   `json:"push_notifications"`
+			Theme              string `json:"theme"`
+		}
+		if json.NewDecoder(r.Body).Decode(&q) != nil {
+			writeError(w, errors.New("datos de perfil inválidos"), 400)
+			return
+		}
+		q.Name = strings.TrimSpace(q.Name)
+		q.Company = strings.TrimSpace(q.Company)
+		q.Language = strings.TrimSpace(q.Language)
+		q.Timezone = strings.TrimSpace(q.Timezone)
+		q.Theme = strings.ToLower(strings.TrimSpace(q.Theme))
+		if len(q.Name) < 2 {
+			writeError(w, errors.New("el nombre debe tener al menos 2 caracteres"), 400)
+			return
+		}
+		if q.Language == "" {
+			q.Language = "es-419"
+		}
+		if q.Timezone == "" {
+			q.Timezone = "America/Bogota"
+		}
+		if q.Theme != "light" && q.Theme != "dark" && q.Theme != "system" {
+			q.Theme = "light"
+		}
+		now := profileUpdatedAtV273()
+		if _, err := a.db.Exec(`UPDATE app_users SET name=?,company=?,updated_at=? WHERE id=?`, q.Name, q.Company, now, u.ID); err != nil {
+			writeError(w, err, 500)
+			return
+		}
+		if u.TenantID > 0 {
+			var ownerID int64
+			_ = a.db.QueryRow(`SELECT owner_user_id FROM tenants WHERE id=?`, u.TenantID).Scan(&ownerID)
+			if ownerID == u.ID && q.Company != "" {
+				_, _ = a.db.Exec(`UPDATE tenants SET name=?,updated_at=? WHERE id=?`, q.Company, now, u.TenantID)
+			}
+		}
+		_, err := a.db.Exec(`INSERT INTO user_profile_preferences_v273(user_id,language,timezone,email_notifications,push_notifications,theme,updated_at)
+			VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET language=excluded.language,timezone=excluded.timezone,email_notifications=excluded.email_notifications,push_notifications=excluded.push_notifications,theme=excluded.theme,updated_at=excluded.updated_at`,
+			u.ID, q.Language, q.Timezone, profileBoolInt(q.EmailNotifications), profileBoolInt(q.PushNotifications), q.Theme, now)
+		if err != nil {
+			writeError(w, err, 500)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+		return
+	}
+
+	if r.Method != http.MethodGet {
+		http.Error(w, "Método no permitido", 405)
+		return
+	}
+
 	billingID := a.billingAccountUserID(u)
 	p, sub, err := a.activePlan(billingID)
 	if err != nil {
@@ -2157,10 +2218,15 @@ func (a *App) accountProfileHandler(w http.ResponseWriter, r *http.Request) {
 	_ = a.db.QueryRow(`SELECT name,account_type,status,owner_user_id FROM tenants WHERE id=?`, u.TenantID).Scan(&tenantName, &accountType, &tenantStatus, &ownerID)
 	var pending int
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM billing_payments WHERE user_id=? AND status='pending'`, billingID).Scan(&pending)
-	var usersUsed, channelsUsed, agentsUsed int
+	var usersUsed, channelsUsed, agentsUsed, contactsUsed, productsUsed, automationsUsed, aiUsed int
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM app_users WHERE tenant_id=? AND active=1`, u.TenantID).Scan(&usersUsed)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE tenant_id=? AND status NOT IN ('revoked','deleted')`, u.TenantID).Scan(&channelsUsed)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM ai_agents WHERE tenant_id=?`, u.TenantID).Scan(&agentsUsed)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_contacts WHERE tenant_id=? AND COALESCE(deleted_at,'')=''`, u.TenantID).Scan(&contactsUsed)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_products WHERE tenant_id=? AND active=1`, u.TenantID).Scan(&productsUsed)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM automation_workflows WHERE tenant_id=? AND status<>'deleted'`, u.TenantID).Scan(&automationsUsed)
+	period := time.Now().UTC().Format("2006-01")
+	_ = a.db.QueryRow(`SELECT COALESCE(ai_responses,0) FROM usage_monthly WHERE user_id=? AND period=?`, billingID, period).Scan(&aiUsed)
 	daysRemaining := 0
 	if end, e := time.Parse(time.RFC3339, sub.EndsAt); e == nil {
 		daysRemaining = int(time.Until(end).Hours() / 24)
@@ -2168,11 +2234,17 @@ func (a *App) accountProfileHandler(w http.ResponseWriter, r *http.Request) {
 			daysRemaining = 0
 		}
 	}
+	prefs := map[string]any{"language": "es-419", "timezone": "America/Bogota", "email_notifications": true, "push_notifications": true, "theme": "light"}
+	var lang, timezone, theme string
+	var emailN, pushN int
+	if a.db.QueryRow(`SELECT language,timezone,email_notifications,push_notifications,theme FROM user_profile_preferences_v273 WHERE user_id=?`, u.ID).Scan(&lang, &timezone, &emailN, &pushN, &theme) == nil {
+		prefs = map[string]any{"language": lang, "timezone": timezone, "email_notifications": emailN == 1, "push_notifications": pushN == 1, "theme": theme}
+	}
 	writeJSON(w, map[string]any{
 		"user": u, "tenant_id": u.TenantID, "tenant_name": tenantName, "account_type": accountType,
 		"tenant_status": tenantStatus, "is_owner": u.ID == ownerID, "plan": p, "subscription": sub,
-		"days_remaining": daysRemaining, "pending_payments": pending,
-		"usage": map[string]any{"users": usersUsed, "channels": channelsUsed, "agents": agentsUsed},
+		"days_remaining": daysRemaining, "pending_payments": pending, "preferences": prefs,
+		"usage": map[string]any{"users": usersUsed, "channels": channelsUsed, "agents": agentsUsed, "contacts": contactsUsed, "products": productsUsed, "automations": automationsUsed, "ai_responses": aiUsed},
 	})
 }
 

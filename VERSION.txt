@@ -1,12 +1,9 @@
-WorkticAI V27.2 — Copilot UX & View Isolation Fix
+WorkticAI V27.3 — Premium Experience
 Build: 2026-10-05
 
-- WhatsApp Marketing aislado estrictamente a su propia vista.
-- Se corrige el conflicto CSS que hacía visibles campañas en otros módulos.
-- Worktic Copilot rediseñado para no desbordarse en desktop ni móvil.
-- Catálogo de soluciones disponible instantáneamente, sin esperar al diagnóstico del servidor.
-- Buscador de soluciones y categorías por área funcional.
-- Acceso directo al módulo seleccionado desde el Copilot.
-- Diagnóstico inicial cargado en segundo plano para mejorar percepción de velocidad.
-- Cache busting V27.2 para CSS y JavaScript.
-- Base: V27.1 + V26 Production Enterprise con PostgreSQL + Redis + Go 1.26.
+- Worktic Copilot rediseñado conversation-first con textarea amplio y legible.
+- Social Hub: corrección definitiva del estado socialOverview antes de inicialización.
+- Perfil de usuario CRM Premium con métricas, licencia, límites, seguridad, preferencias, canales, equipo y actividad.
+- Edición funcional de perfil y preferencias persistentes en PostgreSQL.
+- Cache busting V27.3 para app.js, Social Hub y Copilot.
+- Base: V27.2 + V26 Production Enterprise con PostgreSQL + Redis + Go 1.26.
