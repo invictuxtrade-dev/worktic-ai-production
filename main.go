@@ -365,6 +365,10 @@ func main() {
 		log.Fatalf("admin full schema: %v", err)
 	}
 
+	if err = (&App{db: db}).ensureBillingPlansSchema(); err != nil {
+		log.Fatalf("billing plans schema: %v", err)
+	}
+
 	ensureSocialProviderSchema(db)
 
 	if err = migrateAgentTenants(db); err != nil {
