@@ -1,8 +1,10 @@
-WorkticAI V27 — Growth Command Center
+WorkticAI V27.1 — Organized Growth Command Center
 Build: 2026-10-05
 
-- WhatsApp Marketing integrado con WhatsApp Cloud y plantillas Meta aprobadas.
-- Consentimiento, opt-out, scheduling, rate limit y métricas de entrega/lectura/respuesta.
-- Worktic Copilot flotante con diagnóstico contextual y OPENAI_API_KEY existente.
-- Dashboard Intelligence con revenue, ventas, leads, embudo, fuentes, operación e insights.
-- Base: V26 Production Enterprise con PostgreSQL + Redis + Go 1.26.
+- Dashboard reorganizado sin redundancias de WhatsApp Marketing.
+- Estado operativo responsive y sin desbordes.
+- Actividad reciente con buscador y paginación server-side.
+- WhatsApp Marketing con una sola acción principal dentro de su módulo.
+- Worktic Copilot Pro con modos de asistencia y catálogo amplio de soluciones.
+- Contexto de diagnóstico extendido a toda la plataforma.
+- Base: V27 + V26 Production Enterprise con PostgreSQL + Redis + Go 1.26.

@@ -56,3 +56,11 @@ Después, si se desea, ejecutar el build Linux indicado en `ACTUALIZACION_V26_A_
 - `static/v27-growth-command.css`
 - `WORKTICAI_V27_GROWTH_COMMAND_CENTER.md`
 - `ACTUALIZACION_V26_A_V27.md`
+
+## V27.1 — Validaciones adicionales
+
+- `static/v27-growth-command.js`: `node --check` OK.
+- `static/app.html`: sin IDs duplicados.
+- CSS V27.1: llaves balanceadas.
+- `growth_command_v27.go` y `main.go`: normalizados con `gofmt`.
+- La compilación integral debe ejecutarse con Go 1.26.x, igual que la V27 de producción.

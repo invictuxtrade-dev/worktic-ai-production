@@ -498,6 +498,7 @@ func main() {
 	mux.HandleFunc("/api/whatsapp-marketing/v27/action", app.whatsappMarketingActionV27Handler)
 	mux.HandleFunc("/api/whatsapp-marketing/v27/recipients", app.whatsappMarketingRecipientsV27Handler)
 	mux.HandleFunc("/api/dashboard/v27", app.dashboardV27Handler)
+	mux.HandleFunc("/api/dashboard/v27/activity", app.dashboardActivityV27Handler)
 	mux.HandleFunc("/api/copilot/v27", app.copilotV27Handler)
 	mux.HandleFunc("/webhooks/messenger/", app.messengerTenantWebhookHandler)
 	mux.HandleFunc("/api/agent", app.agentHandler)

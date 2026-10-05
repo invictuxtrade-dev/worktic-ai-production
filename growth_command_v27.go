@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -53,14 +54,13 @@ func (a *App) dashboardV27Handler(w http.ResponseWriter, r *http.Request) {
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_appointments WHERE tenant_id=? AND substr(created_at,1,10)>=? AND substr(created_at,1,10)<=?`, tid, prevFrom, prevTo).Scan(&prevAppointments)
 	_ = a.db.QueryRow(`SELECT COALESCE(SUM(value),0) FROM crm_opportunities WHERE tenant_id=? AND COALESCE(deleted_at,'')='' AND stage NOT IN ('Ganado','Perdido')`, tid).Scan(&pipeline)
 
-	var contacts, openOpps, unread, activeAgents, activeAutomations, connectedChannels, waCampaigns int
+	var contacts, openOpps, unread, activeAgents, activeAutomations, connectedChannels int
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_contacts WHERE tenant_id=? AND COALESCE(deleted_at,'')=''`, tid).Scan(&contacts)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_opportunities WHERE tenant_id=? AND COALESCE(deleted_at,'')='' AND stage NOT IN ('Ganado','Perdido')`, tid).Scan(&openOpps)
 	_ = a.db.QueryRow(`SELECT COALESCE(SUM(unread),0) FROM worktic_contacts WHERE tenant_id=?`, tid).Scan(&unread)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM ai_agents WHERE tenant_id=? AND status='active'`, tid).Scan(&activeAgents)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM automation_workflows WHERE tenant_id=? AND status='active'`, tid).Scan(&activeAutomations)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE tenant_id=? AND status='connected'`, tid).Scan(&connectedChannels)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM whatsapp_marketing_campaigns_v27 WHERE tenant_id=? AND status IN ('running','scheduled')`, tid).Scan(&waCampaigns)
 
 	seriesMap := map[string]*dashboardSeriesPointV27{}
 	for i := 13; i >= 0; i-- {
@@ -113,18 +113,6 @@ func (a *App) dashboardV27Handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	activity := []map[string]any{}
-	if rows, err := a.db.Query(`SELECT event_type,channel,source,value,occurred_at FROM analytics_attribution_events_v24 WHERE tenant_id=? ORDER BY occurred_at DESC,id DESC LIMIT 12`, tid); err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var eventType, channel, source, occurred string
-			var value float64
-			if rows.Scan(&eventType, &channel, &source, &value, &occurred) == nil {
-				activity = append(activity, map[string]any{"event_type": eventType, "channel": channel, "source": source, "value": value, "occurred_at": occurred})
-			}
-		}
-	}
-
 	insights := []map[string]string{}
 	if leads > 0 && sales == 0 {
 		insights = append(insights, map[string]string{"type": "warning", "title": "Leads sin cierres", "text": fmt.Sprintf("Tienes %d leads nuevos en 30 días y todavía no hay ventas ganadas registradas. Revisa seguimiento y pipeline.", leads)})
@@ -162,21 +150,101 @@ func (a *App) dashboardV27Handler(w http.ResponseWriter, r *http.Request) {
 				return float64(sales) * 100 / float64(leads)
 			}(),
 		},
-		"operations": map[string]any{"connected_channels": connectedChannels, "active_agents": activeAgents, "active_automations": activeAutomations, "active_whatsapp_campaigns": waCampaigns},
-		"series":     series, "sources": sources, "insights": insights, "activity": activity,
+		"operations": map[string]any{"connected_channels": connectedChannels, "active_agents": activeAgents, "active_automations": activeAutomations, "unread_messages": unread},
+		"series":     series, "sources": sources, "insights": insights,
+	})
+}
+
+func (a *App) dashboardActivityV27Handler(w http.ResponseWriter, r *http.Request) {
+	tid, _, err := a.tenantFor(r)
+	if err != nil {
+		writeError(w, err, 401)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
+		return
+	}
+
+	page, _ := strconv.Atoi(strings.TrimSpace(r.URL.Query().Get("page")))
+	perPage, _ := strconv.Atoi(strings.TrimSpace(r.URL.Query().Get("per_page")))
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 {
+		perPage = 5
+	}
+	if perPage > 20 {
+		perPage = 20
+	}
+	search := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("search")))
+	where := `tenant_id=?`
+	args := []any{tid}
+	if search != "" {
+		where += ` AND (lower(COALESCE(event_type,'')) LIKE ? OR lower(COALESCE(channel,'')) LIKE ? OR lower(COALESCE(source,'')) LIKE ?)`
+		like := "%" + search + "%"
+		args = append(args, like, like, like)
+	}
+
+	var total int
+	if err := a.db.QueryRow(`SELECT COUNT(*) FROM analytics_attribution_events_v24 WHERE `+where, args...).Scan(&total); err != nil {
+		writeError(w, err, 500)
+		return
+	}
+
+	offset := (page - 1) * perPage
+	queryArgs := append(append([]any{}, args...), perPage, offset)
+	rows, err := a.db.Query(`SELECT event_type,channel,source,value,occurred_at FROM analytics_attribution_events_v24 WHERE `+where+` ORDER BY occurred_at DESC,id DESC LIMIT ? OFFSET ?`, queryArgs...)
+	if err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	defer rows.Close()
+
+	items := []map[string]any{}
+	for rows.Next() {
+		var eventType, channel, source, occurred string
+		var value float64
+		if rows.Scan(&eventType, &channel, &source, &value, &occurred) == nil {
+			items = append(items, map[string]any{
+				"event_type":  eventType,
+				"channel":     channel,
+				"source":      source,
+				"value":       value,
+				"occurred_at": occurred,
+			})
+		}
+	}
+	pages := 0
+	if total > 0 {
+		pages = (total + perPage - 1) / perPage
+	}
+	writeJSON(w, map[string]any{
+		"items": items,
+		"pagination": map[string]any{
+			"page": page, "per_page": perPage, "total": total, "pages": pages,
+		},
 	})
 }
 
 func (a *App) copilotContextV27(tid int64) map[string]any {
 	ctx := map[string]any{}
-	var connected, agents, workflows, products, contacts, leads, openOpps, waMarketing, pendingPayments int
+	var connected, socialConnected, adsConnected, agents, workflows, products, contacts, leads, openOpps int
+	var forms, landings, growthCampaigns, appointments, unread, waMarketing, pendingPayments int
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE tenant_id=? AND status='connected'`, tid).Scan(&connected)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM social_connections WHERE tenant_id=? AND status='connected'`, tid).Scan(&socialConnected)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM ads_connections_v25 WHERE tenant_id=? AND status='connected'`, tid).Scan(&adsConnected)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM ai_agents WHERE tenant_id=? AND status='active'`, tid).Scan(&agents)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM automation_workflows WHERE tenant_id=? AND status='active'`, tid).Scan(&workflows)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_products WHERE tenant_id=? AND active=1`, tid).Scan(&products)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_contacts WHERE tenant_id=? AND COALESCE(deleted_at,'')=''`, tid).Scan(&contacts)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM marketing_leads WHERE tenant_id=?`, tid).Scan(&leads)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_opportunities WHERE tenant_id=? AND COALESCE(deleted_at,'')='' AND stage NOT IN ('Ganado','Perdido')`, tid).Scan(&openOpps)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM marketing_forms WHERE tenant_id=? AND active=1`, tid).Scan(&forms)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM marketing_landings WHERE tenant_id=? AND published=1`, tid).Scan(&landings)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM marketing_campaigns WHERE tenant_id=? AND status NOT IN ('archived','cancelled')`, tid).Scan(&growthCampaigns)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_appointments WHERE tenant_id=?`, tid).Scan(&appointments)
+	_ = a.db.QueryRow(`SELECT COALESCE(SUM(unread),0) FROM worktic_contacts WHERE tenant_id=?`, tid).Scan(&unread)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM whatsapp_marketing_campaigns_v27 WHERE tenant_id=? AND status IN ('running','scheduled')`, tid).Scan(&waMarketing)
 	var ownerID int64
 	_ = a.db.QueryRow(`SELECT owner_user_id FROM tenants WHERE id=?`, tid).Scan(&ownerID)
@@ -184,15 +252,46 @@ func (a *App) copilotContextV27(tid int64) map[string]any {
 		_ = a.db.QueryRow(`SELECT COUNT(*) FROM billing_payments WHERE user_id=? AND status='pending'`, ownerID).Scan(&pendingPayments)
 	}
 	ctx["connected_channels"] = connected
+	ctx["connected_social_accounts"] = socialConnected
+	ctx["connected_ads_accounts"] = adsConnected
 	ctx["active_agents"] = agents
 	ctx["active_workflows"] = workflows
 	ctx["products"] = products
 	ctx["contacts"] = contacts
 	ctx["leads"] = leads
 	ctx["open_opportunities"] = openOpps
+	ctx["active_forms"] = forms
+	ctx["published_landings"] = landings
+	ctx["growth_campaigns"] = growthCampaigns
+	ctx["appointments"] = appointments
+	ctx["unread_messages"] = unread
 	ctx["active_whatsapp_marketing"] = waMarketing
 	ctx["pending_payments"] = pendingPayments
 	return ctx
+}
+
+func copilotSolutionsV271() []map[string]string {
+	return []map[string]string{
+		{"id": "setup", "label": "Configuración inicial", "view": "dashboard", "prompt": "Haz un diagnóstico de mi configuración inicial y dime qué me falta para dejar WorkticAI listo para operar."},
+		{"id": "diagnostic", "label": "Diagnóstico general", "view": "dashboard", "prompt": "Revisa mi configuración actual y detecta bloqueos, módulos incompletos y próximos pasos prioritarios."},
+		{"id": "whatsapp", "label": "WhatsApp Business", "view": "whatsappbusiness", "prompt": "Guíame para configurar y diagnosticar WhatsApp Business Cloud, webhook, plantillas y conexión."},
+		{"id": "wamarketing", "label": "WhatsApp Marketing", "view": "whatsappmarketing", "prompt": "Ayúdame a crear una campaña de WhatsApp Marketing con audiencia, consentimiento, plantilla, programación y métricas."},
+		{"id": "inbox", "label": "Inbox omnicanal", "view": "inbox", "prompt": "Ayúdame a organizar y operar el Inbox omnicanal, asignaciones, prioridades y handoff entre IA y humano."},
+		{"id": "crm", "label": "CRM y oportunidades", "view": "contacts", "prompt": "Ayúdame a organizar contactos, oportunidades, pipeline, seguimiento y cierre comercial."},
+		{"id": "agents", "label": "Agentes IA", "view": "agents", "prompt": "Ayúdame a configurar, entrenar, enrutar y probar mis agentes IA según las funciones reales de WorkticAI."},
+		{"id": "automation", "label": "Automatizaciones", "view": "rules", "prompt": "Ayúdame a diseñar o diagnosticar automatizaciones de seguimiento, CRM, agenda, mensajes y ventas."},
+		{"id": "social", "label": "Social Hub", "view": "socialhub", "prompt": "Ayúdame a conectar y operar Social Hub, publicaciones, calendario, gobernanza y métricas."},
+		{"id": "growth", "label": "Growth y formularios", "view": "marketing", "prompt": "Ayúdame con campañas Growth, formularios, leads, scoring y seguimiento comercial."},
+		{"id": "landings", "label": "Landing Pages", "view": "landings", "prompt": "Ayúdame a crear, publicar y conectar Landing Pages con formularios, campañas y CRM."},
+		{"id": "ads", "label": "Ads Center", "view": "adscenter", "prompt": "Ayúdame a conectar, sincronizar y analizar Meta Ads, Google Ads o TikTok Ads dentro de Ads Center."},
+		{"id": "analytics", "label": "Analytics y atribución", "view": "analytics", "prompt": "Explícame y ayúdame a interpretar Analytics, atribución, revenue, CPL, CAC y ROAS con mis datos reales."},
+		{"id": "agenda", "label": "Agenda", "view": "appointments", "prompt": "Ayúdame a configurar agenda, servicios, profesionales, disponibilidad y citas."},
+		{"id": "catalog", "label": "Catálogo", "view": "products", "prompt": "Ayúdame a organizar productos y servicios para que agentes, campañas y CRM los utilicen correctamente."},
+		{"id": "team", "label": "Equipo y roles", "view": "users", "prompt": "Ayúdame a configurar usuarios, roles, permisos y operación del equipo."},
+		{"id": "billing", "label": "Plan y facturación", "view": "billing", "prompt": "Ayúdame a revisar plan, límites, pagos y facturación sin solicitar ni exponer datos sensibles."},
+		{"id": "integrations", "label": "Integraciones y webhooks", "view": "channels", "prompt": "Ayúdame a diagnosticar integraciones, canales, webhooks, callbacks y permisos externos."},
+		{"id": "troubleshoot", "label": "Resolver un error", "view": "setup", "prompt": "Tengo un problema técnico. Guíame para diagnosticarlo paso a paso usando la configuración y módulos reales de WorkticAI."},
+	}
 }
 
 func copilotDeepLinksV27(message string) []map[string]string {
@@ -205,23 +304,44 @@ func copilotDeepLinksV27(message string) []map[string]string {
 		add("whatsappbusiness", "Revisar WhatsApp Business")
 	case strings.Contains(t, "whatsapp"):
 		add("whatsappbusiness", "Abrir WhatsApp Business")
-		add("channels", "Revisar conexión")
-	case strings.Contains(t, "automat"):
+		add("channels", "Revisar canales")
+	case strings.Contains(t, "inbox") || strings.Contains(t, "convers") || strings.Contains(t, "mensaje"):
+		add("inbox", "Abrir Inbox")
+	case strings.Contains(t, "automat") || strings.Contains(t, "workflow") || strings.Contains(t, "flujo"):
 		add("rules", "Abrir Automatizaciones")
 	case strings.Contains(t, "agente") || strings.Contains(t, "ia"):
 		add("agents", "Abrir Agentes IA")
-	case strings.Contains(t, "lead") || strings.Contains(t, "contact") || strings.Contains(t, "crm"):
+	case strings.Contains(t, "lead") || strings.Contains(t, "contact") || strings.Contains(t, "crm") || strings.Contains(t, "oportun") || strings.Contains(t, "pipeline"):
 		add("contacts", "Abrir CRM")
 		add("pipeline", "Abrir oportunidades")
-	case strings.Contains(t, "anuncio") || strings.Contains(t, "ads") || strings.Contains(t, "roas"):
+	case strings.Contains(t, "anuncio") || strings.Contains(t, "ads") || strings.Contains(t, "roas") || strings.Contains(t, "google ads") || strings.Contains(t, "meta ads"):
 		add("adscenter", "Abrir Ads Center")
 		add("analytics", "Abrir Analytics")
-	case strings.Contains(t, "instagram") || strings.Contains(t, "facebook") || strings.Contains(t, "tiktok") || strings.Contains(t, "social"):
+	case strings.Contains(t, "instagram") || strings.Contains(t, "facebook") || strings.Contains(t, "tiktok") || strings.Contains(t, "linkedin") || strings.Contains(t, "youtube") || strings.Contains(t, "social"):
 		add("socialhub", "Abrir Social Hub")
-	case strings.Contains(t, "cita") || strings.Contains(t, "agenda"):
+	case strings.Contains(t, "landing"):
+		add("landings", "Abrir Landing Pages")
+		add("marketing", "Abrir Growth")
+	case strings.Contains(t, "formulario") || strings.Contains(t, "growth"):
+		add("marketing", "Abrir Growth & Campañas")
+	case strings.Contains(t, "cita") || strings.Contains(t, "agenda") || strings.Contains(t, "disponibilidad"):
 		add("appointments", "Abrir Agenda")
+	case strings.Contains(t, "producto") || strings.Contains(t, "catálogo") || strings.Contains(t, "catalogo") || strings.Contains(t, "servicio"):
+		add("products", "Abrir Catálogo")
+	case strings.Contains(t, "equipo") || strings.Contains(t, "usuario") || strings.Contains(t, "rol") || strings.Contains(t, "permiso"):
+		add("users", "Abrir Equipo")
+	case strings.Contains(t, "plan") || strings.Contains(t, "factur") || strings.Contains(t, "pago") || strings.Contains(t, "membres"):
+		add("billing", "Abrir Plan y membresía")
+	case strings.Contains(t, "webhook") || strings.Contains(t, "callback") || strings.Contains(t, "integración") || strings.Contains(t, "integracion") || strings.Contains(t, "api"):
+		add("channels", "Abrir Canales")
+		add("setup", "Abrir Guías")
+	case strings.Contains(t, "analytics") || strings.Contains(t, "atribuci") || strings.Contains(t, "métrica") || strings.Contains(t, "metrica"):
+		add("analytics", "Abrir Analytics")
+	case strings.Contains(t, "grupo") || strings.Contains(t, "comunidad"):
+		add("groups", "Abrir Grupos & Comunidades")
 	default:
 		add("dashboard", "Ir al resumen")
+		add("setup", "Abrir Guías")
 	}
 	return links
 }
@@ -273,7 +393,7 @@ func (a *App) copilotV27Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodGet {
-		writeJSON(w, map[string]any{"ok": true, "context": a.copilotContextV27(tid), "suggestions": []string{"Ayúdame a configurar WhatsApp", "¿Qué me falta para automatizar ventas?", "Revisa mi configuración", "¿Cómo creo una campaña?"}})
+		writeJSON(w, map[string]any{"ok": true, "context": a.copilotContextV27(tid), "suggestions": []string{"Revisa mi configuración", "¿Qué me falta para automatizar ventas?", "Ayúdame a resolver un error", "Optimiza mi operación"}, "solutions": copilotSolutionsV271()})
 		return
 	}
 	if r.Method != http.MethodPost {
@@ -306,9 +426,9 @@ func (a *App) copilotV27Handler(w http.ResponseWriter, r *http.Request) {
 	}
 	prompt := `Eres Worktic Copilot, el asistente interno experto de WorkticAI. Ayudas al usuario a configurar y operar la plataforma de manera práctica, segura y orientada a resultados comerciales.
 
-Conoces estos módulos reales de WorkticAI V27: Dashboard Intelligence, CRM Contactos, Oportunidades, Inbox Omnicanal, Catálogo, Agenda, Agentes IA, Canales, WhatsApp Business Cloud, WhatsApp Marketing, Automatizaciones visuales, Social Hub, Growth y formularios, Landing Pages, Analytics/Attribution, Ads Center, Equipos, Planes y Administración.
+Conoces en detalle estos módulos reales de WorkticAI V27.1: Dashboard Intelligence; Inbox Omnicanal; CRM Contactos y Oportunidades; Catálogo; Agenda; Agentes IA y enrutamiento; Canales; WhatsApp Business Cloud, Embedded Signup, plantillas y webhooks; WhatsApp Marketing con consentimiento; Automatizaciones visuales; Social Hub, calendario y gobernanza; Growth, campañas, formularios, leads y scoring; Landing Pages; Grupos y Comunidades; Analytics y Attribution; Ads Center para Meta/TikTok/Google; Equipo y roles; Perfil; Planes, membresías, pagos y Administración Worktic. También conoces los flujos de integración entre estos módulos.
 
-Reglas: no inventes que una integración está conectada si el contexto dice lo contrario; no inventes métricas; para WhatsApp Marketing exige consentimiento y plantillas aprobadas; para acciones externas sensibles indica el paso exacto y que el usuario confirme en la interfaz; nunca pidas ni muestres secretos, tokens o API keys. Da instrucciones breves, numeradas solo cuando realmente ayuden. Si detectas una configuración faltante, dilo claramente y nombra el módulo exacto donde se corrige.
+Tu función cubre onboarding, soporte, diagnóstico, explicación, configuración, optimización y guía paso a paso de toda la plataforma. Cuando el usuario pregunte algo ambiguo, relaciona la respuesta con el módulo correcto y termina con el siguiente paso concreto. Reglas: no inventes que una integración está conectada si el contexto dice lo contrario; no inventes métricas; para WhatsApp Marketing exige consentimiento y plantillas aprobadas; para acciones externas sensibles indica el paso exacto y que el usuario confirme en la interfaz; nunca pidas ni muestres secretos, tokens o API keys. Da instrucciones breves, numeradas solo cuando realmente ayuden. Si detectas una configuración faltante, dilo claramente y nombra el módulo exacto donde se corrige.
 
 Usuario: ` + u.Name + `
 Empresa: ` + u.Company + `
