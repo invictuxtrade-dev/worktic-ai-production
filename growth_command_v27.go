@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -347,43 +346,32 @@ func copilotDeepLinksV27(message string) []map[string]string {
 }
 
 func (a *App) callCopilotOpenAIV27(prompt string) (string, error) {
-	key := a.openAIKey()
-	if key == "" {
-		return "", errors.New("OPENAI_API_KEY no está configurada")
+	// Reuse the same OpenAI path already proven by agents, automations and channels.
+	// This avoids maintaining a second parser/client just for Copilot.
+	return a.callOpenAI(
+		"Eres Worktic Copilot, el asistente interno experto de WorkticAI. Responde en español claro, práctico y profesional. No inventes conexiones, métricas ni configuraciones. Nunca solicites secretos, tokens ni API keys.",
+		prompt,
+	)
+}
+
+func copilotFallbackV274(message string, ctx map[string]any) string {
+	t := strings.ToLower(strings.TrimSpace(message))
+	connected := fmt.Sprint(ctx["connected_channels"])
+	agents := fmt.Sprint(ctx["active_agents"])
+	workflows := fmt.Sprint(ctx["active_workflows"])
+	unread := fmt.Sprint(ctx["unread_messages"])
+	switch {
+	case strings.Contains(t, "whatsapp"):
+		return "Puedo seguir guiándote aunque la IA externa esté temporalmente ocupada. Revisa primero WhatsApp Business → conexión oficial, número, webhook y plantillas aprobadas. En tu espacio aparecen " + connected + " canales conectados. Para campañas usa WhatsApp Marketing y confirma consentimiento antes del envío."
+	case strings.Contains(t, "automat") || strings.Contains(t, "workflow"):
+		return "Tu espacio registra " + workflows + " automatizaciones activas. Abre Automatizaciones y valida disparador, condiciones, acción y estado activo. Si me indicas qué proceso quieres automatizar, puedo ayudarte a estructurarlo paso a paso."
+	case strings.Contains(t, "agente") || strings.Contains(t, " ia"):
+		return "Actualmente se detectan " + agents + " agentes IA activos. Revisa Agentes IA → instrucciones, permisos, enrutamiento y simulador. Después prueba una conversación real desde el canal correspondiente."
+	case strings.Contains(t, "mensaje") || strings.Contains(t, "inbox") || strings.Contains(t, "convers"):
+		return "El Inbox muestra " + unread + " mensajes pendientes. Revisa Conversaciones para atenderlos, validar asignación y confirmar si la respuesta debe quedar en IA o pasar a un asesor humano."
+	default:
+		return "Puedo ayudarte con toda la plataforma. El servicio de IA tardó más de lo esperado, pero el diagnóstico interno sigue disponible. Indícame el módulo o problema concreto —por ejemplo CRM, WhatsApp, Social Hub, Automatizaciones, Ads, Analytics o Agenda— y te guío con la configuración real de WorkticAI."
 	}
-	payload := map[string]any{"model": a.cfg.OpenAIModel, "input": prompt, "store": false}
-	b, _ := json.Marshal(payload)
-	req, _ := http.NewRequest(http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(b))
-	req.Header.Set("Authorization", "Bearer "+key)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 60 * time.Second}).Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
-	if resp.StatusCode >= 300 {
-		return "", fmt.Errorf("OpenAI HTTP %d", resp.StatusCode)
-	}
-	var x struct {
-		Output []struct {
-			Content []struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"content"`
-		} `json:"output"`
-	}
-	if json.Unmarshal(raw, &x) != nil {
-		return "", errors.New("respuesta de IA inválida")
-	}
-	for _, o := range x.Output {
-		for _, c := range o.Content {
-			if c.Type == "output_text" && strings.TrimSpace(c.Text) != "" {
-				return strings.TrimSpace(c.Text), nil
-			}
-		}
-	}
-	return "", errors.New("la IA no devolvió respuesta")
 }
 
 func (a *App) copilotV27Handler(w http.ResponseWriter, r *http.Request) {
@@ -438,10 +426,12 @@ Historial reciente:
 ` + strings.Join(hist, "\n") + `
 
 Pregunta actual: ` + strings.TrimSpace(q.Message)
-	answer, err := a.callCopilotOpenAIV27(prompt)
-	if err != nil {
-		writeError(w, err, 502)
-		return
+	ctx := a.copilotContextV27(tid)
+	answer, aiErr := a.callCopilotOpenAIV27(prompt)
+	degraded := false
+	if aiErr != nil || strings.TrimSpace(answer) == "" {
+		degraded = true
+		answer = copilotFallbackV274(q.Message, ctx)
 	}
-	writeJSON(w, map[string]any{"ok": true, "answer": answer, "actions": copilotDeepLinksV27(q.Message), "context": a.copilotContextV27(tid)})
+	writeJSON(w, map[string]any{"ok": true, "answer": answer, "actions": copilotDeepLinksV27(q.Message), "context": ctx, "degraded": degraded})
 }

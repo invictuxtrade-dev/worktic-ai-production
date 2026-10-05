@@ -1,9 +1,10 @@
-WorkticAI V27.3 — Premium Experience
+WorkticAI V27.4 — Stability + Premium Command Center
 Build: 2026-10-05
 
-- Worktic Copilot rediseñado conversation-first con textarea amplio y legible.
-- Social Hub: corrección definitiva del estado socialOverview antes de inicialización.
-- Perfil de usuario CRM Premium con métricas, licencia, límites, seguridad, preferencias, canales, equipo y actividad.
-- Edición funcional de perfil y preferencias persistentes en PostgreSQL.
-- Cache busting V27.3 para app.js, Social Hub y Copilot.
-- Base: V27.2 + V26 Production Enterprise con PostgreSQL + Redis + Go 1.26.
+- Dashboard Premium rediseñado: hero ejecutivo, 4 KPIs principales con sparklines, métricas secundarias, rendimiento, embudo, captación, insights y actividad paginada.
+- Worktic Copilot rediseñado conversation-first: conversación amplia, herramientas colapsables, composer grande, estado de carga y fallback funcional.
+- Copilot reutiliza el cliente OpenAI ya probado por Agentes IA/Automatizaciones/Canales.
+- Social Hub: socialMediaRules inicializado antes de cualquier carga asíncrona y Composer diferido hasta abrir su pestaña.
+- Cache busting V27.4 para App, Social Hub, CSS y Copilot.
+- Perfil CRM Premium V27.3 preservado sin cambios.
+- Base: V27.3 + V26 Production Enterprise con PostgreSQL + Redis + Go 1.26.

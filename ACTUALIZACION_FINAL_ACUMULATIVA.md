@@ -771,3 +771,14 @@ V27 añade WhatsApp Marketing, Worktic Copilot global y Dashboard Intelligence s
 - Dashboard agrega revenue, ventas, leads, conversaciones, embudo, fuentes, operación e insights.
 - No añade variables de entorno obligatorias.
 - No requiere repetir la migración SQLite → PostgreSQL.
+
+---
+
+# V27.4 — Stability + Premium Command Center
+
+- Dashboard Growth Command Center rediseñado con jerarquía visual premium y métricas reales.
+- Worktic Copilot conversation-first con herramientas colapsables y fallback operativo.
+- Copilot reutiliza el cliente OpenAI consolidado del backend.
+- Corrección de TDZ `socialMediaRules` en Social Hub.
+- Composer Social diferido hasta su pestaña para reducir carga y errores de inicialización.
+- Sin migraciones nuevas de base de datos.
