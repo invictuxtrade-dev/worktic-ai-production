@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,7 +51,7 @@ type AgentRoute struct {
 	Enabled    bool   `json:"enabled"`
 }
 
-func initMultiAgentSchema(db *sql.DB) error {
+func initMultiAgentSchema(db *DB) error {
 	_, err := db.Exec(`
 CREATE TABLE IF NOT EXISTS ai_agents (
  id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id INTEGER NOT NULL, name TEXT NOT NULL,
@@ -111,7 +110,7 @@ func (a *App) agentTenant(r *http.Request) (int64, *User, error) {
 
 // migrateAgentTenants normaliza instalaciones anteriores donde ai_agents.tenant_id
 // guardaba el ID del propietario en vez del tenant empresarial real.
-func migrateAgentTenants(db *sql.DB) error {
+func migrateAgentTenants(db *DB) error {
 	rows, err := db.Query(`SELECT id,tenant_id FROM ai_agents`)
 	if err != nil {
 		return err
@@ -302,7 +301,13 @@ func (a *App) agentInstanceTestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	system := fmt.Sprintf("Eres %s, agente %s. Objetivo: %s. Tono: %s. Instrucciones: %s. Conocimiento: %s. Herramientas permitidas: %s. Responde en %s.", ag.Name, ag.Type, ag.Objective, ag.Tone, ag.Instructions, ag.Knowledge, ag.Tools, ag.Language)
+	if ctxV22 := a.agentV22Context(tenant, ag.ID, "simulator"); ctxV22 != "" {
+		system += "\n\n" + ctxV22
+	}
 	reply, e := a.callOpenAI(system, q.Text)
+	if e == nil {
+		a.agentV22Remember(tenant, ag.ID, "simulator", q.Text, reply)
+	}
 	if e != nil {
 		writeError(w, e, 502)
 		return
@@ -528,4 +533,81 @@ func (a *App) callOpenAI(system, user string) (string, error) {
 		}
 	}
 	return "", errors.New("OpenAI no devolvió texto")
+}
+
+// migrateClassicAgentToUnifiedAgents removes the product-level ambiguity between the
+// legacy single agent and the multi-agent engine. Existing tenants without agents get
+// one unified default agent. On single-tenant legacy installs, its settings are copied
+// from worktic_agent; multi-tenant installs get a safe neutral default instead of
+// copying one tenant's legacy identity into another.
+func migrateClassicAgentToUnifiedAgents(db *DB) error {
+	var tenantCount int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM tenants`).Scan(&tenantCount); err != nil {
+		return err
+	}
+	var legacy AgentConfig
+	var legacyEnabled int
+	if tenantCount == 1 {
+		_ = db.QueryRow(`SELECT name,company,objective,tone,instructions,knowledge,enabled FROM worktic_agent WHERE id=1`).Scan(
+			&legacy.Name, &legacy.Company, &legacy.Objective, &legacy.Tone, &legacy.Instructions, &legacy.Knowledge, &legacyEnabled,
+		)
+	}
+	rows, err := db.Query(`SELECT id,name FROM tenants ORDER BY id`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	type tenantSeed struct {
+		id   int64
+		name string
+	}
+	var tenants []tenantSeed
+	for rows.Next() {
+		var t tenantSeed
+		if rows.Scan(&t.id, &t.name) == nil && t.id > 0 {
+			tenants = append(tenants, t)
+		}
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, t := range tenants {
+		var count int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM ai_agents WHERE tenant_id=?`, t.id).Scan(&count); err != nil {
+			return err
+		}
+		if count > 0 {
+			continue
+		}
+		name := "Asistente Principal"
+		objective := "Atender clientes, calificar oportunidades y transferir a una persona cuando sea necesario."
+		tone := "Profesional y cercano"
+		instructions := "No inventes información. Usa únicamente datos verificados del negocio y escala a una persona cuando falte contexto."
+		knowledge := ""
+		status := "draft"
+		if tenantCount == 1 {
+			if strings.TrimSpace(legacy.Name) != "" {
+				name = legacy.Name
+			}
+			if strings.TrimSpace(legacy.Objective) != "" {
+				objective = legacy.Objective
+			}
+			if strings.TrimSpace(legacy.Tone) != "" {
+				tone = legacy.Tone
+			}
+			if strings.TrimSpace(legacy.Instructions) != "" {
+				instructions = legacy.Instructions
+			}
+			knowledge = legacy.Knowledge
+			if legacyEnabled == 1 {
+				status = "active"
+			}
+		}
+		_, err := db.Exec(`INSERT INTO ai_agents(tenant_id,name,type,description,objective,tone,language,instructions,knowledge,greeting,away_message,handoff_rules,tools,channels,status,is_default,monthly_budget,created_at,updated_at)
+			VALUES(?,?,'general','Agente principal unificado',?,?,'es',?,?,'','','Transferir a una persona cuando el caso requiera intervención humana.','contact,opportunity,appointment,handoff','',?,1,0,?,?)`,
+			t.id, name, objective, tone, instructions, knowledge, status, now, now)
+		if err != nil {
+			return err
+		}
+	}
+	_, _ = db.Exec(`INSERT INTO worktic_settings(key,value) VALUES('ai_agents_unified_v19','done') ON CONFLICT(key) DO UPDATE SET value=excluded.value`)
+	return nil
 }

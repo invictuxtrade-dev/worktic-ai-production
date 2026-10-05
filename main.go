@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
@@ -31,38 +32,60 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
+	"golang.org/x/crypto/argon2"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/protobuf/proto"
 	_ "modernc.org/sqlite"
 )
 
 type Config struct {
-	Port                     string
-	AppName                  string
-	AppEnv                   string
-	BaseURL                  string
-	DataDir                  string
-	DatabaseDSN              string
-	MaxMessageLength         int
-	SendCooldownSeconds      int
-	AutoReplyCooldownSeconds int
-	AllowGroupMessages       bool
-	TelegramBotToken         string
-	OpenAIAPIKey             string
-	OpenAIModel              string
-	MessengerVerifyToken     string
-	MetaGraphVersion         string
-	USDTBEP20Address         string
-	USDTTRC20Address         string
-	PaymentConfirmations     int
-	ChannelEncryptionKey     string
-	MetaAppID                string
-	MetaAppSecret            string
-	LinkedInClientID         string
-	LinkedInClientSecret     string
-	TikTokClientKey          string
-	TikTokClientSecret       string
-	GoogleClientID           string
-	GoogleClientSecret       string
+	Port                          string
+	AppName                       string
+	AppEnv                        string
+	BaseURL                       string
+	DataDir                       string
+	DatabaseDSN                   string
+	DatabaseDriver                string
+	LegacyWhatsAppDSN             string
+	LegacyWhatsAppDriver          string
+	RedisURL                      string
+	RedisRequired                 bool
+	BackgroundWorkersEnabled      bool
+	ChannelRuntimesEnabled        bool
+	MaintenanceMode               bool
+	BootstrapAdminEmail           string
+	BootstrapAdminPassword        string
+	TrustProxy                    bool
+	MaxMessageLength              int
+	SendCooldownSeconds           int
+	AutoReplyCooldownSeconds      int
+	AllowGroupMessages            bool
+	TelegramBotToken              string
+	OpenAIAPIKey                  string
+	OpenAIModel                   string
+	MessengerVerifyToken          string
+	WhatsAppVerifyToken           string
+	MetaLeadsVerifyToken          string
+	MetaGraphVersion              string
+	USDTBEP20Address              string
+	USDTTRC20Address              string
+	PaymentConfirmations          int
+	ChannelEncryptionKey          string
+	MetaAppID                     string
+	MetaAppSecret                 string
+	MetaWhatsAppConfigID          string
+	MetaSystemUserAccessToken     string
+	LinkedInClientID              string
+	LinkedInClientSecret          string
+	TikTokClientKey               string
+	TikTokClientSecret            string
+	TikTokBusinessAppID           string
+	TikTokBusinessSecret          string
+	TikTokBusinessAuthURL         string
+	GoogleClientID                string
+	GoogleClientSecret            string
+	GoogleAdsDeveloperToken       string
+	AutomationWebhookAllowedHosts string
 }
 
 type StoredMessage struct {
@@ -79,15 +102,23 @@ type StoredMessage struct {
 }
 
 type Conversation struct {
-	ChatJID       string `json:"chat_jid"`
-	Channel       string `json:"channel"`
-	Phone         string `json:"phone"`
-	Name          string `json:"name"`
-	LastText      string `json:"last_text"`
-	LastDirection string `json:"last_direction"`
-	LastTimestamp string `json:"last_timestamp"`
-	Unread        int    `json:"unread"`
-	MessageCount  int    `json:"message_count"`
+	ChatJID          string `json:"chat_jid"`
+	Channel          string `json:"channel"`
+	Phone            string `json:"phone"`
+	Name             string `json:"name"`
+	LastText         string `json:"last_text"`
+	LastDirection    string `json:"last_direction"`
+	LastTimestamp    string `json:"last_timestamp"`
+	Unread           int    `json:"unread"`
+	MessageCount     int    `json:"message_count"`
+	Status           string `json:"status"`
+	Mode             string `json:"mode"`
+	Priority         string `json:"priority"`
+	AssignedUserID   int64  `json:"assigned_user_id"`
+	AssignedUserName string `json:"assigned_user_name"`
+	Department       string `json:"department"`
+	Tags             string `json:"tags"`
+	SLADueAt         string `json:"sla_due_at"`
 }
 
 type AutoRule struct {
@@ -230,7 +261,7 @@ type Entitlements struct {
 
 type App struct {
 	cfg            Config
-	db             *sql.DB
+	db             *DB
 	client         *whatsmeow.Client
 	mu             sync.RWMutex
 	qrDataURL      string
@@ -241,20 +272,26 @@ type App struct {
 	tgOffset       int64
 	tgStop         chan struct{}
 	channelManager *ChannelManager
+	prod           *productionRuntime
 }
 
 func main() {
 	loadEnvFile(".env")
 	cfg := loadConfig()
+	if err := validateProductionConfig(cfg); err != nil {
+		log.Fatalf("configuración de producción inválida: %v", err)
+	}
 	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
 		log.Fatalf("no se pudo preparar DATA_DIR: %v", err)
 	}
-	dbPath := strings.TrimPrefix(strings.Split(cfg.DatabaseDSN, "?")[0], "file:")
-	if dir := filepath.Dir(dbPath); dir != "." && dir != "" {
-		_ = os.MkdirAll(dir, 0o755)
+	if cfg.DatabaseDriver == "sqlite" {
+		dbPath := strings.TrimPrefix(strings.Split(cfg.DatabaseDSN, "?")[0], "file:")
+		if dir := filepath.Dir(dbPath); dir != "." && dir != "" {
+			_ = os.MkdirAll(dir, 0o755)
+		}
 	}
 
-	db, err := sql.Open("sqlite", cfg.DatabaseDSN)
+	db, err := openAppDB(cfg.DatabaseDriver, cfg.DatabaseDSN)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -264,8 +301,26 @@ func main() {
 	if err = initSocialHubSchema(db); err != nil {
 		log.Fatalf("social hub schema: %v", err)
 	}
+	if err = initSocialAdvancedV23Schema(db); err != nil {
+		log.Fatalf("social advanced v23 schema: %v", err)
+	}
+	if err = initSocialGovernanceV231Schema(db); err != nil {
+		log.Fatalf("social governance v23.1 schema: %v", err)
+	}
+	if err = initWhatsAppBusinessCenterSchema(db); err != nil {
+		log.Fatalf("whatsapp business center schema: %v", err)
+	}
 	if err = initMarketingSchema(db); err != nil {
 		log.Fatal(err)
+	}
+	if err = initMetaLeadAdsSchema(db); err != nil {
+		log.Fatalf("meta lead ads schema: %v", err)
+	}
+	if err = initInboxV21Schema(db); err != nil {
+		log.Fatal(err)
+	}
+	if err = initAutomationV20Schema(db); err != nil {
+		log.Fatalf("automation v20 schema: %v", err)
 	}
 	if err = initLandingSchema(db); err != nil {
 		log.Fatal(err)
@@ -275,6 +330,9 @@ func main() {
 	}
 	if err = initMultiAgentSchema(db); err != nil {
 		log.Fatal(err)
+	}
+	if err = initAgentV22Schema(db); err != nil {
+		log.Fatalf("agent v22 schema: %v", err)
 	}
 	if err = initChannelTenantSchema(db); err != nil {
 		log.Fatal(err)
@@ -294,11 +352,36 @@ func main() {
 	if err = initCatalogPremiumSchema(db); err != nil {
 		log.Fatal(err)
 	}
+	if err = initAnalyticsV24Schema(db); err != nil {
+		log.Fatalf("analytics v24 schema: %v", err)
+	}
+	if err = initAdsV25Schema(db); err != nil {
+		log.Fatalf("ads v25 schema: %v", err)
+	}
+	if err = initProductionV26Schema(db); err != nil {
+		log.Fatalf("production v26 schema: %v", err)
+	}
 	if err = migrateAgentTenants(db); err != nil {
 		log.Fatalf("agent tenant migration: %v", err)
 	}
+	if err = migrateClassicAgentToUnifiedAgents(db); err != nil {
+		log.Fatalf("agent unification migration: %v", err)
+	}
+	if len(os.Args) > 1 && os.Args[1] == "--schema-only" {
+		log.Printf("schema V26 preparado correctamente (%s)", cfg.DatabaseDriver)
+		_ = db.Close()
+		return
+	}
+	if cfg.MaintenanceMode {
+		log.Printf("MAINTENANCE_MODE activo: la aplicación queda cerrada al público mientras se realiza la migración")
+		runMaintenanceServerV26(cfg, db)
+		return
+	}
+	if err = ensureBootstrapAdminV26(db, cfg); err != nil {
+		log.Fatal(err)
+	}
 
-	container, err := sqlstore.New(context.Background(), "sqlite", cfg.DatabaseDSN, waLog.Stdout("DB", "WARN", true))
+	container, err := sqlstore.New(context.Background(), cfg.LegacyWhatsAppDriver, cfg.LegacyWhatsAppDSN, waLog.Stdout("DB", "WARN", true))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -308,21 +391,32 @@ func main() {
 	}
 	client := whatsmeow.NewClient(deviceStore, waLog.Stdout("WA", "INFO", true))
 
-	app := &App{cfg: cfg, db: db, client: client, qrState: "idle", autoLast: map[string]time.Time{}, tgStop: make(chan struct{})}
-	go app.runSocialPublisher()
-	app.channelManager = NewChannelManager(app)
-	go app.channelManager.restoreActive()
-	go app.runMessengerConversationSync()
-	go app.runMessengerOutboxWorker()
-	go app.runMessengerTokenMonitor()
-	client.AddEventHandler(app.handleWAEvent)
-	if cfg.TelegramBotToken != "" {
-		go app.telegramLoop(cfg.TelegramBotToken)
+	prod, err := newProductionRuntime(cfg)
+	if err != nil {
+		log.Fatalf("production runtime: %v", err)
 	}
-	if client.Store.ID != nil {
-		app.qrState = "reconnecting"
-		if err := client.Connect(); err != nil {
-			app.setError(err)
+	app := &App{cfg: cfg, db: db, client: client, qrState: "idle", autoLast: map[string]time.Time{}, tgStop: make(chan struct{}), prod: prod}
+	if cfg.BackgroundWorkersEnabled {
+		go app.runSocialPublisher()
+		go app.runAutomationWorker()
+		go app.runAnalyticsV24Sync()
+		go app.runAdsV25Sync()
+		go app.runMessengerConversationSync()
+		go app.runMessengerOutboxWorker()
+		go app.runMessengerTokenMonitor()
+	}
+	app.channelManager = NewChannelManager(app)
+	if cfg.ChannelRuntimesEnabled {
+		go app.channelManager.restoreActive()
+		client.AddEventHandler(app.handleWAEvent)
+		if cfg.TelegramBotToken != "" {
+			go app.telegramLoop(cfg.TelegramBotToken)
+		}
+		if client.Store.ID != nil {
+			app.qrState = "reconnecting"
+			if err := client.Connect(); err != nil {
+				app.setError(err)
+			}
 		}
 	}
 
@@ -356,15 +450,34 @@ func main() {
 	mux.HandleFunc("/api/logout", app.logoutHandler)
 	mux.HandleFunc("/api/qr", app.qrHandler)
 	mux.HandleFunc("/api/conversations", app.conversationsHandler)
+	mux.HandleFunc("/api/inbox/overview", app.inboxOverviewHandler)
+	mux.HandleFunc("/api/inbox/conversation", app.inboxConversationHandler)
+	mux.HandleFunc("/api/inbox/notes", app.inboxNotesHandler)
+	mux.HandleFunc("/api/inbox/team", app.inboxTeamHandler)
 	mux.HandleFunc("/api/messages", app.messagesHandler)
 	mux.HandleFunc("/api/read", app.readHandler)
 	mux.HandleFunc("/api/contact", app.contactHandler)
 	mux.HandleFunc("/api/send", app.sendHandler)
 	mux.HandleFunc("/api/rules", app.rulesHandler)
+	mux.HandleFunc("/api/automations/workflows", app.automationWorkflowsHandler)
+	mux.HandleFunc("/api/automations/executions", app.automationExecutionsHandler)
+	mux.HandleFunc("/api/automations/run", app.automationRunHandler)
 	mux.HandleFunc("/api/telegram", app.telegramHandler)
 	mux.HandleFunc("/webhooks/telegram/", app.telegramWebhookHandler)
 	mux.HandleFunc("/api/messenger", app.messengerHandler)
 	mux.HandleFunc("/webhooks/meta/messenger", app.messengerWebhookHandler)
+	mux.HandleFunc("/webhooks/meta/whatsapp", app.whatsappCloudWebhookHandler)
+	mux.HandleFunc("/api/whatsapp/templates", app.whatsappTemplatesHandler)
+	mux.HandleFunc("/api/whatsapp/embedded/config", app.whatsappEmbeddedConfigHandler)
+	mux.HandleFunc("/api/whatsapp/embedded/complete", app.whatsappEmbeddedCompleteHandler)
+	mux.HandleFunc("/api/whatsapp/business/overview", app.whatsappBusinessOverviewHandler)
+	mux.HandleFunc("/api/whatsapp/business/contacts", app.whatsappBusinessContactsHandler)
+	mux.HandleFunc("/api/whatsapp/business/analytics", app.whatsappBusinessAnalyticsHandler)
+	mux.HandleFunc("/api/whatsapp/templates/drafts", app.whatsappTemplateDraftsHandler)
+	mux.HandleFunc("/api/whatsapp/templates/submit", app.whatsappTemplateSubmitHandler)
+	mux.HandleFunc("/api/whatsapp/templates/send-test", app.whatsappTemplateSendTestHandler)
+	mux.HandleFunc("/api/whatsapp/templates/delete", app.whatsappTemplateDeleteMetaHandler)
+	mux.HandleFunc("/api/whatsapp/templates/preview", app.whatsappTemplatePreviewHandler)
 	mux.HandleFunc("/webhooks/messenger/", app.messengerTenantWebhookHandler)
 	mux.HandleFunc("/api/agent", app.agentHandler)
 	mux.HandleFunc("/api/agent/test", app.agentTestHandler)
@@ -373,6 +486,10 @@ func main() {
 	mux.HandleFunc("/api/agents/routes", app.agentRoutesHandler)
 	mux.HandleFunc("/api/agents/metrics", app.agentMetricsHandler)
 	mux.HandleFunc("/api/agents/permissions", app.agentPermissionsHandler)
+	mux.HandleFunc("/api/agents/v22/overview", app.agentV22OverviewHandler)
+	mux.HandleFunc("/api/agents/v22/profile", app.agentV22ProfileHandler)
+	mux.HandleFunc("/api/agents/v22/knowledge", app.agentV22KnowledgeHandler)
+	mux.HandleFunc("/api/agents/v22/memory", app.agentV22MemoryHandler)
 	mux.HandleFunc("/api/crm/contacts", app.crmContactsPremiumHandler)
 	mux.HandleFunc("/api/crm/opportunities", app.opportunitiesPremiumHandler)
 	mux.HandleFunc("/api/dashboard", app.dashboardHandler)
@@ -404,6 +521,27 @@ func main() {
 	mux.HandleFunc("/api/social/oauth/start", app.socialOAuthStartHandler)
 	mux.HandleFunc("/api/social/oauth/callback/", app.socialOAuthCallbackHandler)
 	mux.HandleFunc("/api/social/test", app.socialConnectionTestHandler)
+	mux.HandleFunc("/api/social/media", app.socialMediaLibraryV23Handler)
+	mux.HandleFunc("/api/social/approvals", app.socialApprovalsV23Handler)
+	mux.HandleFunc("/api/social/repurpose", app.socialRepurposeV23Handler)
+	mux.HandleFunc("/api/social/community", app.socialCommunityV23Handler)
+	mux.HandleFunc("/api/social/governance", app.socialGovernanceV231Handler)
+	mux.HandleFunc("/api/analytics/v24/overview", app.analyticsV24OverviewHandler)
+	mux.HandleFunc("/api/analytics/v24/settings", app.analyticsV24SettingsHandler)
+	mux.HandleFunc("/api/analytics/v24/journeys", app.analyticsV24JourneysHandler)
+	mux.HandleFunc("/api/analytics/v24/export.csv", app.analyticsV24ExportHandler)
+	mux.HandleFunc("/api/ads/v25/config", app.adsV25ConfigHandler)
+	mux.HandleFunc("/api/ads/v25/connections", app.adsV25ConnectionsHandler)
+	mux.HandleFunc("/api/ads/v25/oauth/start", app.adsV25OAuthStartHandler)
+	mux.HandleFunc("/api/ads/v25/oauth/callback/", app.adsV25OAuthCallbackHandler)
+	mux.HandleFunc("/api/ads/v25/sync", app.adsV25SyncHandler)
+	mux.HandleFunc("/api/ads/v25/campaigns", app.adsV25CampaignsHandler)
+	mux.HandleFunc("/api/ads/v25/entities", app.adsV25EntitiesHandler)
+	mux.HandleFunc("/api/ads/v25/overview", app.adsV25OverviewHandler)
+	mux.HandleFunc("/api/ads/v25/mapping", app.adsV25MappingHandler)
+	mux.HandleFunc("/api/ads/v25/campaign-status", app.adsV25CampaignStatusHandler)
+	mux.HandleFunc("/api/ads/v25/internal-campaigns", app.adsV25InternalCampaignsHandler)
+	mux.HandleFunc("/t/", app.analyticsTrackingRedirectHandler)
 	mux.HandleFunc("/api/marketing/overview", app.marketingOverviewHandler)
 	mux.HandleFunc("/api/marketing/limits", app.marketingLimitsHandler)
 	mux.HandleFunc("/api/marketing/campaigns", app.marketingCampaignsHandler)
@@ -411,6 +549,10 @@ func main() {
 	mux.HandleFunc("/api/marketing/content", app.marketingContentHandler)
 	mux.HandleFunc("/api/marketing/forms", app.marketingFormsHandler)
 	mux.HandleFunc("/api/marketing/leads", app.marketingLeadsHandler)
+	mux.HandleFunc("/api/marketing/meta-leads/pages", app.metaLeadPagesHandler)
+	mux.HandleFunc("/api/marketing/meta-leads/forms", app.metaLeadFormsHandler)
+	mux.HandleFunc("/api/marketing/meta-leads/events", app.metaLeadEventsHandler)
+	mux.HandleFunc("/webhooks/meta/leads", app.metaLeadWebhookHandler)
 	mux.HandleFunc("/api/marketing/creatives", app.marketingCreativesHandler)
 	mux.HandleFunc("/api/marketing/landings", app.landingsHandler)
 	mux.HandleFunc("/api/marketing/landings/generate", app.landingGenerateHandler)
@@ -428,7 +570,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           secureHeaders(app.authMiddleware(mux)),
+		Handler:           secureHeaders(app.productionMiddleware(app.authMiddleware(mux))),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,
@@ -455,6 +597,9 @@ func main() {
 	if app.client != nil {
 		app.client.Disconnect()
 	}
+	if app.prod != nil {
+		app.prod.Close()
+	}
 	_ = db.Close()
 	log.Printf("apagado completado")
 }
@@ -472,48 +617,83 @@ func (a *App) readyHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("base de datos no disponible"), http.StatusServiceUnavailable)
 		return
 	}
-	writeJSON(w, map[string]any{"status": "ready", "environment": a.cfg.AppEnv})
+	if a.cfg.RedisRequired && a.prod != nil {
+		if err := a.prod.Ping(ctx); err != nil {
+			writeError(w, errors.New("Redis no disponible"), http.StatusServiceUnavailable)
+			return
+		}
+	}
+	writeJSON(w, map[string]any{"status": "ready", "environment": a.cfg.AppEnv, "database": a.cfg.DatabaseDriver, "redis": a.prod != nil && a.prod.redis != nil})
 }
 
 func loadConfig() Config {
 	dataDir := env("DATA_DIR", "data")
 	port := env("PORT", env("APP_PORT", "8080"))
-	dsn := env("DATABASE_DSN", "")
+	dsn := env("DATABASE_URL", env("DATABASE_DSN", ""))
+	driver := strings.ToLower(env("DATABASE_DRIVER", ""))
 	if dsn == "" {
 		dsn = "file:" + filepath.Join(dataDir, "worktic.db") + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
 	}
+	if driver == "" {
+		if strings.HasPrefix(strings.ToLower(dsn), "postgres://") || strings.HasPrefix(strings.ToLower(dsn), "postgresql://") {
+			driver = "postgres"
+		} else {
+			driver = "sqlite"
+		}
+	}
+	legacyWADSN := env("LEGACY_WHATSAPP_DSN", "file:"+filepath.Join(dataDir, "worktic.db")+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
 	return Config{
-		Port:                     port,
-		AppName:                  env("APP_NAME", "Worktic AI V14 Render Production"),
-		AppEnv:                   strings.ToLower(env("APP_ENV", "development")),
-		BaseURL:                  strings.TrimRight(env("BASE_URL", "http://localhost:"+port), "/"),
-		DataDir:                  dataDir,
-		DatabaseDSN:              dsn,
-		MaxMessageLength:         envInt("MAX_MESSAGE_LENGTH", 2000),
-		SendCooldownSeconds:      envInt("SEND_COOLDOWN_SECONDS", 3),
-		AutoReplyCooldownSeconds: envInt("AUTO_REPLY_COOLDOWN_SECONDS", 30),
-		AllowGroupMessages:       strings.EqualFold(env("ALLOW_GROUP_MESSAGES", "false"), "true"),
-		TelegramBotToken:         env("TELEGRAM_BOT_TOKEN", ""),
-		OpenAIAPIKey:             env("OPENAI_API_KEY", ""),
-		OpenAIModel:              env("OPENAI_MODEL", "gpt-5-mini"),
-		MessengerVerifyToken:     env("MESSENGER_VERIFY_TOKEN", "worktic_messenger_verify"),
-		MetaGraphVersion:         env("META_GRAPH_VERSION", "v25.0"),
-		USDTBEP20Address:         env("USDT_BEP20_ADDRESS", ""),
-		USDTTRC20Address:         env("USDT_TRC20_ADDRESS", ""),
-		PaymentConfirmations:     envInt("PAYMENT_CONFIRMATIONS", 12),
-		ChannelEncryptionKey:     env("CHANNEL_ENCRYPTION_KEY", env("APP_NAME", "change-me-v13")),
-		MetaAppID:                env("META_APP_ID", ""),
-		MetaAppSecret:            env("META_APP_SECRET", ""),
-		LinkedInClientID:         env("LINKEDIN_CLIENT_ID", ""),
-		LinkedInClientSecret:     env("LINKEDIN_CLIENT_SECRET", ""),
-		TikTokClientKey:          env("TIKTOK_CLIENT_KEY", ""),
-		TikTokClientSecret:       env("TIKTOK_CLIENT_SECRET", ""),
-		GoogleClientID:           env("GOOGLE_CLIENT_ID", ""),
-		GoogleClientSecret:       env("GOOGLE_CLIENT_SECRET", ""),
+		Port:                          port,
+		AppName:                       env("APP_NAME", "Worktic AI V14 Render Production"),
+		AppEnv:                        strings.ToLower(env("APP_ENV", "development")),
+		BaseURL:                       strings.TrimRight(env("BASE_URL", "http://localhost:"+port), "/"),
+		DataDir:                       dataDir,
+		DatabaseDSN:                   dsn,
+		DatabaseDriver:                driver,
+		LegacyWhatsAppDSN:             legacyWADSN,
+		LegacyWhatsAppDriver:          env("LEGACY_WHATSAPP_DRIVER", "sqlite"),
+		RedisURL:                      env("REDIS_URL", ""),
+		RedisRequired:                 strings.EqualFold(env("REDIS_REQUIRED", "false"), "true"),
+		BackgroundWorkersEnabled:      strings.EqualFold(env("BACKGROUND_WORKERS_ENABLED", "true"), "true"),
+		ChannelRuntimesEnabled:        strings.EqualFold(env("CHANNEL_RUNTIMES_ENABLED", "true"), "true"),
+		MaintenanceMode:               strings.EqualFold(env("MAINTENANCE_MODE", "false"), "true"),
+		BootstrapAdminEmail:           strings.ToLower(strings.TrimSpace(env("BOOTSTRAP_ADMIN_EMAIL", ""))),
+		BootstrapAdminPassword:        env("BOOTSTRAP_ADMIN_PASSWORD", ""),
+		TrustProxy:                    strings.EqualFold(env("TRUST_PROXY", "true"), "true"),
+		MaxMessageLength:              envInt("MAX_MESSAGE_LENGTH", 2000),
+		SendCooldownSeconds:           envInt("SEND_COOLDOWN_SECONDS", 3),
+		AutoReplyCooldownSeconds:      envInt("AUTO_REPLY_COOLDOWN_SECONDS", 30),
+		AllowGroupMessages:            strings.EqualFold(env("ALLOW_GROUP_MESSAGES", "false"), "true"),
+		TelegramBotToken:              env("TELEGRAM_BOT_TOKEN", ""),
+		OpenAIAPIKey:                  env("OPENAI_API_KEY", ""),
+		OpenAIModel:                   env("OPENAI_MODEL", "gpt-5-mini"),
+		MessengerVerifyToken:          env("MESSENGER_VERIFY_TOKEN", "worktic_messenger_verify"),
+		WhatsAppVerifyToken:           env("WHATSAPP_VERIFY_TOKEN", "worktic_whatsapp_verify"),
+		MetaLeadsVerifyToken:          env("META_LEADS_VERIFY_TOKEN", ""),
+		MetaGraphVersion:              env("META_GRAPH_VERSION", "v25.0"),
+		USDTBEP20Address:              env("USDT_BEP20_ADDRESS", ""),
+		USDTTRC20Address:              env("USDT_TRC20_ADDRESS", ""),
+		PaymentConfirmations:          envInt("PAYMENT_CONFIRMATIONS", 12),
+		ChannelEncryptionKey:          env("CHANNEL_ENCRYPTION_KEY", env("APP_NAME", "change-me-v13")),
+		MetaAppID:                     env("META_APP_ID", ""),
+		MetaAppSecret:                 env("META_APP_SECRET", ""),
+		MetaWhatsAppConfigID:          env("META_WHATSAPP_CONFIG_ID", ""),
+		MetaSystemUserAccessToken:     env("META_SYSTEM_USER_ACCESS_TOKEN", ""),
+		LinkedInClientID:              env("LINKEDIN_CLIENT_ID", ""),
+		LinkedInClientSecret:          env("LINKEDIN_CLIENT_SECRET", ""),
+		TikTokClientKey:               env("TIKTOK_CLIENT_KEY", ""),
+		TikTokClientSecret:            env("TIKTOK_CLIENT_SECRET", ""),
+		TikTokBusinessAppID:           env("TIKTOK_BUSINESS_APP_ID", ""),
+		TikTokBusinessSecret:          env("TIKTOK_BUSINESS_SECRET", ""),
+		TikTokBusinessAuthURL:         env("TIKTOK_BUSINESS_AUTH_URL", ""),
+		GoogleClientID:                env("GOOGLE_CLIENT_ID", ""),
+		GoogleClientSecret:            env("GOOGLE_CLIENT_SECRET", ""),
+		GoogleAdsDeveloperToken:       env("GOOGLE_ADS_DEVELOPER_TOKEN", ""),
+		AutomationWebhookAllowedHosts: env("AUTOMATION_WEBHOOK_ALLOWED_HOSTS", ""),
 	}
 }
 
-func initSchema(db *sql.DB) error {
+func initSchema(db *DB) error {
 	_, err := db.Exec(`
 CREATE TABLE IF NOT EXISTS worktic_messages (
  id INTEGER PRIMARY KEY AUTOINCREMENT, wa_id TEXT NOT NULL, chat_jid TEXT NOT NULL,
@@ -585,13 +765,6 @@ CREATE INDEX IF NOT EXISTS idx_team_invites_tenant ON team_invitations(tenant_id
 	 ('personal','Personal','Para profesionales independientes',25,30,1,2,500,2000,100,10,1),
 	 ('business','Negocio','Para equipos comerciales pequeños',75,30,5,3,3000,10000,1000,50,1),
 	 ('enterprise','Empresa','Para operaciones con varios asesores y canales',150,30,15,6,10000,30000,5000,250,1)`)
-	var userCount int
-	_ = db.QueryRow(`SELECT COUNT(*) FROM app_users`).Scan(&userCount)
-	if userCount == 0 {
-		salt := randomToken(16)
-		_, _ = db.Exec(`INSERT INTO app_users(name,email,password_hash,role,company,active,created_at) VALUES(?,?,?,?,?,1,?)`, "Superadministrador", "admin@worktic.local", hashPassword("Admin123!", salt), "superadmin", "Worktic", time.Now().UTC().Format(time.RFC3339))
-		_, _ = db.Exec(`INSERT OR REPLACE INTO worktic_settings(key,value) VALUES('admin_salt',?)`, salt)
-	}
 	var adminID int64
 	if db.QueryRow(`SELECT id FROM app_users WHERE role='superadmin' ORDER BY id LIMIT 1`).Scan(&adminID) == nil {
 		var sc int
@@ -866,12 +1039,18 @@ func (a *App) qrHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) conversationsHandler(w http.ResponseWriter, r *http.Request) {
+	tid, _, terr := a.tenantForRequest(r)
+	if terr != nil {
+		writeError(w, terr, 401)
+		return
+	}
 	rows, err := a.db.Query(`SELECT c.chat_jid,c.channel,c.phone,c.name,c.unread,
-      COALESCE((SELECT text FROM worktic_messages m WHERE m.chat_jid=c.chat_jid ORDER BY m.id DESC LIMIT 1),''),
-      COALESCE((SELECT direction FROM worktic_messages m WHERE m.chat_jid=c.chat_jid ORDER BY m.id DESC LIMIT 1),''),
-      COALESCE((SELECT timestamp FROM worktic_messages m WHERE m.chat_jid=c.chat_jid ORDER BY m.id DESC LIMIT 1),c.updated_at),
-      (SELECT COUNT(*) FROM worktic_messages m WHERE m.chat_jid=c.chat_jid)
-      FROM worktic_contacts c ORDER BY 8 DESC`)
+      COALESCE((SELECT text FROM worktic_messages m WHERE m.tenant_id=c.tenant_id AND m.chat_jid=c.chat_jid ORDER BY m.id DESC LIMIT 1),''),
+      COALESCE((SELECT direction FROM worktic_messages m WHERE m.tenant_id=c.tenant_id AND m.chat_jid=c.chat_jid ORDER BY m.id DESC LIMIT 1),''),
+      COALESCE((SELECT timestamp FROM worktic_messages m WHERE m.tenant_id=c.tenant_id AND m.chat_jid=c.chat_jid ORDER BY m.id DESC LIMIT 1),c.updated_at),
+      (SELECT COUNT(*) FROM worktic_messages m WHERE m.tenant_id=c.tenant_id AND m.chat_jid=c.chat_jid),
+      COALESCE(ic.status,'open'),COALESCE(ic.mode,'ai'),COALESCE(ic.priority,'normal'),COALESCE(ic.assigned_user_id,0),COALESCE(u.name,''),COALESCE(ic.department,''),COALESCE(ic.tags,''),COALESCE(ic.sla_due_at,'')
+      FROM worktic_contacts c LEFT JOIN inbox_conversations ic ON ic.tenant_id=c.tenant_id AND ic.chat_jid=c.chat_jid LEFT JOIN app_users u ON u.id=ic.assigned_user_id AND u.tenant_id=c.tenant_id WHERE c.tenant_id=? ORDER BY 8 DESC`, tid)
 	if err != nil {
 		writeError(w, err, 500)
 		return
@@ -880,7 +1059,7 @@ func (a *App) conversationsHandler(w http.ResponseWriter, r *http.Request) {
 	out := []Conversation{}
 	for rows.Next() {
 		var c Conversation
-		if err := rows.Scan(&c.ChatJID, &c.Channel, &c.Phone, &c.Name, &c.Unread, &c.LastText, &c.LastDirection, &c.LastTimestamp, &c.MessageCount); err != nil {
+		if err := rows.Scan(&c.ChatJID, &c.Channel, &c.Phone, &c.Name, &c.Unread, &c.LastText, &c.LastDirection, &c.LastTimestamp, &c.MessageCount, &c.Status, &c.Mode, &c.Priority, &c.AssignedUserID, &c.AssignedUserName, &c.Department, &c.Tags, &c.SLADueAt); err != nil {
 			writeError(w, err, 500)
 			return
 		}
@@ -889,11 +1068,16 @@ func (a *App) conversationsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, out)
 }
 func (a *App) messagesHandler(w http.ResponseWriter, r *http.Request) {
+	tid, _, terr := a.tenantForRequest(r)
+	if terr != nil {
+		writeError(w, terr, 401)
+		return
+	}
 	chat := strings.TrimSpace(r.URL.Query().Get("chat"))
-	q := `SELECT id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp FROM worktic_messages`
-	args := []any{}
+	q := `SELECT id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp FROM worktic_messages WHERE tenant_id=?`
+	args := []any{tid}
 	if chat != "" {
-		q += ` WHERE chat_jid=?`
+		q += ` AND chat_jid=?`
 		args = append(args, chat)
 	}
 	q += ` ORDER BY id ASC LIMIT 500`
@@ -926,7 +1110,12 @@ func (a *App) readHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("chat obligatorio"), 400)
 		return
 	}
-	_, err := a.db.Exec(`UPDATE worktic_contacts SET unread=0 WHERE chat_jid=?`, req.Chat)
+	tid, _, terr := a.tenantForRequest(r)
+	if terr != nil {
+		writeError(w, terr, 401)
+		return
+	}
+	_, err := a.db.Exec(`UPDATE worktic_contacts SET unread=0 WHERE tenant_id=? AND chat_jid=?`, tid, req.Chat)
 	if err != nil {
 		writeError(w, err, 500)
 		return
@@ -946,7 +1135,12 @@ func (a *App) contactHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("chat obligatorio"), 400)
 		return
 	}
-	_, err := a.db.Exec(`UPDATE worktic_contacts SET name=?,updated_at=? WHERE chat_jid=?`, strings.TrimSpace(req.Name), time.Now().UTC().Format(time.RFC3339), req.Chat)
+	tid, _, terr := a.tenantForRequest(r)
+	if terr != nil {
+		writeError(w, terr, 401)
+		return
+	}
+	_, err := a.db.Exec(`UPDATE worktic_contacts SET name=?,updated_at=? WHERE tenant_id=? AND chat_jid=?`, strings.TrimSpace(req.Name), time.Now().UTC().Format(time.RFC3339), tid, req.Chat)
 	if err != nil {
 		writeError(w, err, 500)
 		return
@@ -980,7 +1174,25 @@ func (a *App) sendHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var resp string
 	var err error
-	if strings.HasPrefix(target, "messenger:") {
+	if strings.HasPrefix(target, "wacloud:") {
+		tenantID, _, tenantErr := a.tenantForRequest(r)
+		if tenantErr != nil {
+			writeError(w, tenantErr, 409)
+			return
+		}
+		to := strings.TrimPrefix(target, "wacloud:")
+		var c ChannelConnection
+		e := a.db.QueryRow(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,encrypted_credentials,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE tenant_id=? AND type='whatsapp_cloud' AND status='connected' ORDER BY id LIMIT 1`, tenantID).Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.EncryptedCredentials, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt)
+		if e != nil {
+			err = errors.New("WhatsApp Cloud no conectado")
+		} else {
+			resp, err = a.sendWhatsAppCloudText(r.Context(), c, to, req.Text)
+			if err == nil {
+				now := time.Now().UTC().Format(time.RFC3339)
+				_, _ = a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, tenantID, c.ID, "whatsapp_cloud", resp, target, "human", "out", "text", strings.TrimSpace(req.Text), "sent", now)
+			}
+		}
+	} else if strings.HasPrefix(target, "messenger:") {
 		tenantID, _, tenantErr := a.tenantForRequest(r)
 		if tenantErr != nil {
 			writeError(w, tenantErr, 409)
@@ -1664,7 +1876,7 @@ func randomToken(n int) string {
 	}
 	return hex.EncodeToString(b)
 }
-func hashPassword(password, salt string) string {
+func legacyHashPassword(password, salt string) string {
 	h := sha256.Sum256([]byte(salt + ":" + password))
 	v := h[:]
 	for i := 0; i < 120000; i++ {
@@ -1673,7 +1885,61 @@ func hashPassword(password, salt string) string {
 	}
 	return hex.EncodeToString(v)
 }
+func hashPasswordSecure(password string) (string, error) {
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		return "", err
+	}
+	const memory uint32 = 19 * 1024
+	const iterations uint32 = 2
+	const parallelism uint8 = 1
+	hash := argon2.IDKey([]byte(password), salt, iterations, memory, parallelism, 32)
+	return fmt.Sprintf("$argon2id$v=19$m=%d,t=%d,p=%d$%s$%s", memory, iterations, parallelism, base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(hash)), nil
+}
+func verifyArgon2idPassword(password, encoded string) bool {
+	parts := strings.Split(encoded, "$")
+	if len(parts) != 6 || parts[1] != "argon2id" || parts[2] != "v=19" {
+		return false
+	}
+	var memory, iterations uint32
+	var parallelism uint8
+	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &iterations, &parallelism); err != nil {
+		return false
+	}
+	if memory < 8*1024 || memory > 256*1024 || iterations < 1 || iterations > 10 || parallelism < 1 || parallelism > 8 {
+		return false
+	}
+	saltB64, hashB64 := parts[4], parts[5]
+	salt, err := base64.RawStdEncoding.DecodeString(saltB64)
+	if err != nil {
+		return false
+	}
+	expected, err := base64.RawStdEncoding.DecodeString(hashB64)
+	if err != nil || len(expected) == 0 {
+		return false
+	}
+	actual := argon2.IDKey([]byte(password), salt, iterations, memory, parallelism, uint32(len(expected)))
+	return subtle.ConstantTimeCompare(actual, expected) == 1
+}
 func (a *App) adminSalt() string { return a.setting("admin_salt") }
+func (a *App) verifyPasswordAndUpgrade(userID int64, password, stored string) bool {
+	if strings.HasPrefix(stored, "$argon2id$") {
+		return verifyArgon2idPassword(password, stored)
+	}
+	valid := false
+	if strings.HasPrefix(stored, "$2a$") || strings.HasPrefix(stored, "$2b$") || strings.HasPrefix(stored, "$2y$") {
+		valid = bcrypt.CompareHashAndPassword([]byte(stored), []byte(password)) == nil
+	} else if stored != "" {
+		valid = stored == legacyHashPassword(password, a.adminSalt())
+	}
+	if !valid {
+		return false
+	}
+	if upgraded, err := hashPasswordSecure(password); err == nil {
+		_, _ = a.db.Exec(`UPDATE app_users SET password_hash=? WHERE id=?`, upgraded, userID)
+	}
+	return true
+}
 func (a *App) currentUser(r *http.Request) *User {
 	if v := r.Context().Value(userContextKey); v != nil {
 		if u, ok := v.(*User); ok {
@@ -1684,7 +1950,7 @@ func (a *App) currentUser(r *http.Request) *User {
 }
 func (a *App) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/api/auth/login") || strings.HasPrefix(r.URL.Path, "/api/auth/register") || strings.HasPrefix(r.URL.Path, "/api/team/invitations/accept") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/messenger") || strings.HasPrefix(r.URL.Path, "/webhooks/messenger/") || strings.HasPrefix(r.URL.Path, "/webhooks/telegram/") {
+		if !strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/api/auth/login") || strings.HasPrefix(r.URL.Path, "/api/auth/register") || strings.HasPrefix(r.URL.Path, "/api/team/invitations/accept") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/messenger") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/whatsapp") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/leads") || strings.HasPrefix(r.URL.Path, "/webhooks/messenger/") || strings.HasPrefix(r.URL.Path, "/webhooks/telegram/") {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -1695,7 +1961,7 @@ func (a *App) authMiddleware(next http.Handler) http.Handler {
 		}
 		var u User
 		var active int
-		err = a.db.QueryRow(`SELECT u.id,u.name,u.email,u.role,u.company,u.active,u.created_at,u.tenant_id,COALESCE(t.account_type,'personal') FROM app_sessions s JOIN app_users u ON u.id=s.user_id LEFT JOIN tenants t ON t.id=u.tenant_id WHERE s.token=? AND s.expires_at>?`, c.Value, time.Now().UTC().Format(time.RFC3339)).Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.Company, &active, &u.CreatedAt, &u.TenantID, &u.AccountType)
+		err = a.db.QueryRow(`SELECT u.id,u.name,u.email,u.role,u.company,u.active,u.created_at,u.tenant_id,COALESCE(t.account_type,'personal') FROM app_sessions s JOIN app_users u ON u.id=s.user_id LEFT JOIN tenants t ON t.id=u.tenant_id WHERE s.token=? AND s.expires_at>?`, hashSessionTokenV26(c.Value), time.Now().UTC().Format(time.RFC3339)).Scan(&u.ID, &u.Name, &u.Email, &u.Role, &u.Company, &active, &u.CreatedAt, &u.TenantID, &u.AccountType)
 		if err != nil || active != 1 {
 			writeError(w, errors.New("sesión inválida o vencida"), 401)
 			return
@@ -1707,7 +1973,7 @@ func (a *App) authMiddleware(next http.Handler) http.Handler {
 func (a *App) createSession(w http.ResponseWriter, userID int64) error {
 	t := randomToken(32)
 	exp := time.Now().Add(7 * 24 * time.Hour).UTC()
-	_, err := a.db.Exec(`INSERT INTO app_sessions(token,user_id,expires_at) VALUES(?,?,?)`, t, userID, exp.Format(time.RFC3339))
+	_, err := a.db.Exec(`INSERT INTO app_sessions(token,user_id,expires_at) VALUES(?,?,?)`, hashSessionTokenV26(t), userID, exp.Format(time.RFC3339))
 	if err != nil {
 		return err
 	}
@@ -1729,7 +1995,8 @@ func (a *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 	var ph string
 	var active int
 	err := a.db.QueryRow(`SELECT u.id,u.name,u.email,u.password_hash,u.role,u.company,u.active,u.created_at,u.tenant_id,COALESCE(t.account_type,'personal') FROM app_users u LEFT JOIN tenants t ON t.id=u.tenant_id WHERE lower(u.email)=lower(?)`, strings.TrimSpace(q.Email)).Scan(&u.ID, &u.Name, &u.Email, &ph, &u.Role, &u.Company, &active, &u.CreatedAt, &u.TenantID, &u.AccountType)
-	if err != nil || active != 1 || ph != hashPassword(q.Password, a.adminSalt()) {
+	if err != nil || active != 1 || !a.verifyPasswordAndUpgrade(u.ID, q.Password, ph) {
+		a.auditSecurityV26(r, "auth.login_failed", map[string]any{"email": strings.ToLower(strings.TrimSpace(q.Email))})
 		writeError(w, errors.New("correo o contraseña incorrectos"), 401)
 		return
 	}
@@ -1738,6 +2005,7 @@ func (a *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u.Active = true
+	a.auditSecurityV26(r.WithContext(context.WithValue(r.Context(), userContextKey, &u)), "auth.login_success", nil)
 	writeJSON(w, map[string]any{"ok": true, "user": u})
 }
 func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
@@ -1753,8 +2021,8 @@ func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
 		AccountType string `json:"account_type"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&q)
-	if len(strings.TrimSpace(q.Name)) < 2 || !strings.Contains(q.Email, "@") || len(q.Password) < 8 {
-		writeError(w, errors.New("nombre, correo válido y contraseña de mínimo 8 caracteres son obligatorios"), 400)
+	if len(strings.TrimSpace(q.Name)) < 2 || !strings.Contains(q.Email, "@") || len(q.Password) < 12 {
+		writeError(w, errors.New("nombre, correo válido y contraseña de mínimo 12 caracteres son obligatorios"), 400)
 		return
 	}
 	if !strings.EqualFold(q.AccountType, "personal") && len(strings.TrimSpace(q.Company)) < 2 {
@@ -1766,13 +2034,18 @@ func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
 		company = "Mi espacio"
 	}
 	now := time.Now().UTC()
+	passwordHash, err := hashPasswordSecure(q.Password)
+	if err != nil {
+		writeError(w, errors.New("no se pudo proteger la contraseña"), 500)
+		return
+	}
 	tx, err := a.db.Begin()
 	if err != nil {
 		writeError(w, err, 500)
 		return
 	}
 	defer tx.Rollback()
-	res, err := tx.Exec(`INSERT INTO app_users(name,email,password_hash,role,company,active,created_at,tenant_id) VALUES(?,?,?,'owner',?,1,?,0)`, strings.TrimSpace(q.Name), strings.ToLower(strings.TrimSpace(q.Email)), hashPassword(q.Password, a.adminSalt()), company, now.Format(time.RFC3339))
+	res, err := tx.Exec(`INSERT INTO app_users(name,email,password_hash,role,company,active,created_at,tenant_id) VALUES(?,?,?,'owner',?,1,?,0)`, strings.TrimSpace(q.Name), strings.ToLower(strings.TrimSpace(q.Email)), passwordHash, company, now.Format(time.RFC3339))
 	if err != nil {
 		writeError(w, errors.New("el correo ya está registrado"), 400)
 		return
@@ -1820,7 +2093,7 @@ func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
 }
 func (a *App) authLogoutHandler(w http.ResponseWriter, r *http.Request) {
 	if c, e := r.Cookie("worktic_session"); e == nil {
-		_, _ = a.db.Exec(`DELETE FROM app_sessions WHERE token=?`, c.Value)
+		_, _ = a.db.Exec(`DELETE FROM app_sessions WHERE token=?`, hashSessionTokenV26(c.Value))
 	}
 	http.SetCookie(w, &http.Cookie{Name: "worktic_session", Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.cfg.AppEnv == "production", SameSite: http.SameSiteLaxMode})
 	writeJSON(w, map[string]any{"ok": true})
@@ -2023,8 +2296,8 @@ func (a *App) acceptTeamInvitationHandler(w http.ResponseWriter, r *http.Request
 		Password string `json:"password"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&q)
-	if !strings.Contains(q.Email, "@") || len(q.Password) < 8 {
-		writeError(w, errors.New("correo válido y contraseña de mínimo 8 caracteres son obligatorios"), 400)
+	if !strings.Contains(q.Email, "@") || len(q.Password) < 12 {
+		writeError(w, errors.New("correo válido y contraseña de mínimo 12 caracteres son obligatorios"), 400)
 		return
 	}
 	tx, err := a.db.Begin()
@@ -2049,7 +2322,12 @@ func (a *App) acceptTeamInvitationHandler(w http.ResponseWriter, r *http.Request
 		name = invitedName
 	}
 	now := time.Now().UTC()
-	res, err := tx.Exec(`INSERT INTO app_users(name,email,password_hash,role,company,active,created_at,tenant_id) VALUES(?,?,?,?,?,1,?,?)`, name, strings.ToLower(strings.TrimSpace(q.Email)), hashPassword(q.Password, a.adminSalt()), role, company, now.Format(time.RFC3339), tenantID)
+	passwordHash, hashErr := hashPasswordSecure(q.Password)
+	if hashErr != nil {
+		writeError(w, errors.New("no se pudo proteger la contraseña"), 500)
+		return
+	}
+	res, err := tx.Exec(`INSERT INTO app_users(name,email,password_hash,role,company,active,created_at,tenant_id) VALUES(?,?,?,?,?,1,?,?)`, name, strings.ToLower(strings.TrimSpace(q.Email)), passwordHash, role, company, now.Format(time.RFC3339), tenantID)
 	if err != nil {
 		writeError(w, errors.New("el correo ya está registrado"), 400)
 		return
@@ -2805,7 +3083,17 @@ func secureHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
-		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https: wss:; script-src 'self' 'unsafe-inline' https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; frame-src https://www.facebook.com https://web.facebook.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
+		if strings.EqualFold(env("APP_ENV", "development"), "production") {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

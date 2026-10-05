@@ -1,60 +1,55 @@
-# Worktic AI V14 — Render Production Candidate
+# WorkticAI V26 — Production / Enterprise
 
-Versión preparada para despliegue Docker en Render con disco persistente, endpoints de salud, apagado controlado, cookies seguras en producción y almacenamiento multi-tenant configurable. Lee `RENDER_DEPLOYMENT.md` y `V14_PRODUCTION_CHECKLIST.md` antes de abrir el registro público.
+Rama acumulativa final construida sobre V15→V25. V26 prepara WorkticAI para el corte de producción con PostgreSQL, Render Key Value/Redis, endurecimiento de autenticación/sesiones, rate limiting, seguridad HTTP, observabilidad, backup y migración controlada desde el SQLite actualmente desplegado.
 
-# Worktic AI V13.1 — Team WhatsApp Premium
+## Documentos principales
 
-Versión multitenant con canales aislados, sistema multiagente, facturación por planes, invitaciones de equipo por WhatsApp, CRUD profesional y diseño premium responsive.
+Lee en este orden:
 
-Consulta `V13_1_TEAM_WHATSAPP_PREMIUM.md` para conocer las mejoras y el flujo de invitación.
+1. `PRODUCTION_ENTERPRISE_V26.md` — qué cambia técnicamente en V26.
+2. `VARIABLES_FINALES_V26.md` — inventario final de variables, callbacks y webhooks.
+3. `DESPLIEGUE_FINAL_V26_RENDER.md` — procedimiento exacto de actualización en Render.
+4. `ACTUALIZACION_FINAL_ACUMULATIVA.md` — historial V15→V26.
 
-# Worktic AI V13 Multi-Tenant Channels
+## Desarrollo local
 
-Plataforma omnicanal con CRM, sistema multiagente, campañas, landing pages, grupos, facturación y conexiones físicamente separadas por tenant.
+```text
+1. Copia .env.example a .env
+2. Configura las credenciales que vayas a probar
+3. Ejecuta el proyecto con Go 1.24+ (Docker usa Go 1.25)
+4. Abre http://localhost:8080
+```
 
-## Arranque rápido
+En desarrollo puede mantenerse SQLite. Producción V26 exige PostgreSQL salvo una excepción explícita de emergencia.
 
-1. Copia `.env.example` como `.env`.
-2. Configura OpenAI, direcciones USDT y secretos.
-3. Ejecuta `INSTALAR_DEPENDENCIAS_WINDOWS.bat`.
-4. Ejecuta `INICIAR_WINDOWS.bat`.
-5. Abre `http://localhost:8080`.
+## Producción
 
-Acceso inicial local:
+La instalación actual **no debe sustituirse directamente sin migración**. Sigue `DESPLIEGUE_FINAL_V26_RENDER.md`.
 
-- Correo: `admin@worktic.local`
-- Contraseña: `Admin123!`
+V26 no contiene credenciales administrativas hardcodeadas. En una instalación completamente vacía se utilizan temporalmente `BOOTSTRAP_ADMIN_EMAIL` y `BOOTSTRAP_ADMIN_PASSWORD`; en la actualización real desde la instalación existente esos valores no son necesarios porque los usuarios se migran.
 
-Cámbiala antes de exponer el servidor.
+## Binarios Docker
 
-## Principales módulos
+```text
+/app/worktic-ai
+/app/worktic-migrate
+```
 
-- Registro personal y empresarial.
-- Planes Free, Personal, Negocio y Empresa.
-- Pagos USDT BEP20/TRC20.
-- CRM, pipeline, catálogo y agenda.
-- Agentes IA múltiples con enrutamiento y métricas.
-- Canales por tenant y conexión.
-- WhatsApp QR con sesión independiente por conexión.
-- Telegram y Messenger con credenciales separadas.
-- Growth, campañas y atribución.
-- Landing pages premium públicas.
-- Grupos y comunidades.
-- Administración y auditoría.
-- Diseño móvil.
+## Utilidades de corte
 
-## Documentación
+```text
+/app/scripts/pre_cutover_backup.sh
+/app/scripts/post_cutover_check.sh
+```
 
-Lee `V13_MULTI_TENANT_CHANNELS.md` y `PRODUCTION_READINESS.md` antes del despliegue.
+## Datos
 
-## Estado
+- Base SaaS principal: PostgreSQL.
+- Rate limiting/coordinación: Render Key Value/Redis.
+- Persistent Disk: `/var/data`.
+- WhatsApp QR legado: conserva SQLite/store local durante V26.
+- Uploads y sesiones QR: no borrar durante el corte.
 
-V13 es una base de migración y pruebas preproducción. Debe compilarse y probarse en el servidor de destino, validar los permisos reales de Meta, configurar HTTPS, backups, correo, claves seguras y observabilidad antes de abrir el registro público.
+## Módulos acumulados
 
-## Corrección V13.0.3
-
-Se separó la experiencia de cuenta personal, cuenta empresarial y superadministración. Consulta `V13_0_3_ROLES_PROFILE_BILLING.md`.
-
-## Inicio en Windows V13.0.4
-
-Ejecuta primero `DESBLOQUEAR_WINDOWS.bat`, después `INSTALAR_DEPENDENCIAS_WINDOWS.bat` y finalmente `INICIAR_WINDOWS.bat`. El iniciador usa una ruta absoluta para el ejecutable y espera antes de abrir el navegador.
+WorkticAI V26 conserva e integra CRM, Inbox omnicanal, WhatsApp Business, Social Hub, Autopilot/Governance, Growth/Lead Ads, Automation Engine, Agentes IA 2.0, Agenda, Catálogo, Analytics/Attribution y Ads Center.

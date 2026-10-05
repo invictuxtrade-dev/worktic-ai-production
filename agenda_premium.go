@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -45,7 +44,7 @@ func canManageAgenda(role string) bool {
 	}
 }
 
-func initAgendaPremiumSchema(db *sql.DB) error {
+func initAgendaPremiumSchema(db *DB) error {
 	stmts := []string{
 		`ALTER TABLE crm_appointments ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE crm_appointments ADD COLUMN professional_id INTEGER NOT NULL DEFAULT 0`,

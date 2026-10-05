@@ -33,7 +33,7 @@ type CRMContactRecord struct {
 	LastMessage       string `json:"last_message"`
 }
 
-func initCRMContactsPremiumSchema(db *sql.DB) error {
+func initCRMContactsPremiumSchema(db *DB) error {
 	migrations := []string{
 		`ALTER TABLE crm_contacts ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE crm_contacts ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'`,
@@ -59,7 +59,7 @@ func initCRMContactsPremiumSchema(db *sql.DB) error {
 	_ = db.QueryRow(`SELECT value FROM worktic_settings WHERE key='crm_identity_lock_v1'`).Scan(&identityMigration)
 	if identityMigration == "" {
 		_, _ = db.Exec(`UPDATE crm_contacts SET identity_locked=1`)
-		_, _ = db.Exec(`INSERT OR REPLACE INTO worktic_settings(key,value) VALUES('crm_identity_lock_v1','done')`)
+		_, _ = db.Exec(`INSERT INTO worktic_settings(key,value) VALUES('crm_identity_lock_v1','done') ON CONFLICT(key) DO UPDATE SET value=excluded.value`)
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -108,7 +108,7 @@ func normalizeCRMStage(v string) string {
 	return v
 }
 
-func findCRMContactID(db *sql.DB, tenant int64, phone, email, externalID string, excludeID int64) (int64, error) {
+func findCRMContactID(db *DB, tenant int64, phone, email, externalID string, excludeID int64) (int64, error) {
 	phone = normalizeCRMPhone(phone)
 	email = normalizeCRMEmail(email)
 	externalID = strings.TrimSpace(externalID)
@@ -207,7 +207,7 @@ func (a *App) syncCRMContactAt(tenant int64, name, phone, email, channel, source
 	return tx.Commit()
 }
 
-func syncAllExistingCRMContacts(db *sql.DB) error {
+func syncAllExistingCRMContacts(db *DB) error {
 	rows, err := db.Query(`SELECT id FROM tenants ORDER BY id`)
 	if err != nil {
 		return err
@@ -228,7 +228,7 @@ func syncAllExistingCRMContacts(db *sql.DB) error {
 	return nil
 }
 
-func syncExistingCRMContactsForTenantDB(db *sql.DB, tenant int64) error {
+func syncExistingCRMContactsForTenantDB(db *DB, tenant int64) error {
 	app := &App{db: db}
 	type conversationSeed struct {
 		chat, channel, phone, name, updated string

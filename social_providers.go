@@ -7,13 +7,11 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -38,7 +36,7 @@ type socialProviderConfig struct {
 	OpenID      string `json:"open_id,omitempty"`
 }
 
-func ensureSocialProviderSchema(db *sql.DB) {
+func ensureSocialProviderSchema(db *DB) {
 	alters := []string{
 		`ALTER TABLE social_connections ADD COLUMN encrypted_credentials TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE social_connections ADD COLUMN config_json TEXT NOT NULL DEFAULT '{}'`,
@@ -114,7 +112,7 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "META_APP_ID no configurado", 409)
 			return
 		}
-		q := url.Values{"client_id": {a.cfg.MetaAppID}, "redirect_uri": {redirect}, "state": {state}, "response_type": {"code"}, "scope": {"pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish,business_management"}}
+		q := url.Values{"client_id": {a.cfg.MetaAppID}, "redirect_uri": {redirect}, "state": {state}, "response_type": {"code"}, "scope": {"pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata,pages_manage_engagement,leads_retrieval,instagram_basic,instagram_content_publish,instagram_manage_comments,business_management"}}
 		auth = "https://www.facebook.com/" + a.cfg.MetaGraphVersion + "/dialog/oauth?" + q.Encode()
 	case "linkedin":
 		if a.cfg.LinkedInClientID == "" {
@@ -135,7 +133,7 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "GOOGLE_CLIENT_ID no configurado", 409)
 			return
 		}
-		q := url.Values{"client_id": {a.cfg.GoogleClientID}, "redirect_uri": {redirect}, "response_type": {"code"}, "scope": {"https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly"}, "access_type": {"offline"}, "prompt": {"consent"}, "state": {state}}
+		q := url.Values{"client_id": {a.cfg.GoogleClientID}, "redirect_uri": {redirect}, "response_type": {"code"}, "scope": {"https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl"}, "access_type": {"offline"}, "prompt": {"consent"}, "state": {state}}
 		auth = "https://accounts.google.com/o/oauth2/v2/auth?" + q.Encode()
 	}
 	writeJSON(w, map[string]any{"authorization_url": auth, "state": state})
@@ -297,7 +295,7 @@ func (a *App) discoverAndSaveSocialConnection(ctx context.Context, tid int64, p 
 		for _, pg := range pages.Data {
 			pt := t
 			pt.AccessToken = pg.AccessToken
-			_ = a.saveOfficialConnection(tid, "facebook", pg.Name, pg.ID, pt, socialProviderConfig{PageID: pg.ID}, "pages_manage_posts,pages_read_engagement")
+			_ = a.saveOfficialConnection(tid, "facebook", pg.Name, pg.ID, pt, socialProviderConfig{PageID: pg.ID}, "pages_manage_posts,pages_read_engagement,pages_manage_metadata,leads_retrieval")
 			if pg.Instagram != nil {
 				_ = a.saveOfficialConnection(tid, "instagram", pg.Name+" · Instagram", pg.Instagram.ID, pt, socialProviderConfig{PageID: pg.ID, InstagramID: pg.Instagram.ID}, "instagram_basic,instagram_content_publish")
 			}
@@ -483,128 +481,75 @@ func (a *App) refreshSocialTokenIfNeeded(ctx context.Context, connectionID, tid 
 
 func (a *App) runSocialPublisher() {
 	ensureSocialProviderSchema(a.db)
-	log.Printf("social publisher: worker iniciado")
-
-	// Ejecuta una pasada inmediata al arrancar. Antes el worker esperaba al
-	// primer tick y los errores de consulta quedaban completamente silenciosos.
-	a.processDueSocialPosts()
-
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(20 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		a.processDueSocialPosts()
-	}
-}
-
-func parseSocialSchedule(raw string) (time.Time, bool) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return time.Time{}, true
-	}
-	layouts := []string{
-		time.RFC3339Nano,
-		time.RFC3339,
-		"2006-01-02T15:04:05",
-		"2006-01-02 15:04:05",
-	}
-	for _, layout := range layouts {
-		if t, err := time.Parse(layout, raw); err == nil {
-			return t.UTC(), true
-		}
-	}
-	return time.Time{}, false
-}
-
-func (a *App) processDueSocialPosts() {
-	now := time.Now().UTC()
-
-	// Recupera trabajos que pudieron quedar en publishing por un reinicio del
-	// servidor. Solo recuperamos los que llevan más de diez minutos estancados.
-	stale := now.Add(-10 * time.Minute).Format(time.RFC3339)
-	if _, err := a.db.Exec(`UPDATE social_posts SET status='retrying',error_message='Reintento automático después de una interrupción',updated_at=? WHERE status='publishing' AND updated_at<>'' AND updated_at<?`, now.Format(time.RFC3339), stale); err != nil {
-		log.Printf("social publisher: no se pudieron recuperar trabajos estancados: %v", err)
-	}
-
-	// No comparamos fechas RFC3339 como texto en SQL: una fecha con -05:00 y
-	// otra con Z pueden quedar en un orden lexicográfico distinto al cronológico.
-	rows, err := a.db.Query(`SELECT id,tenant_id,scheduled_at,status FROM social_posts WHERE status IN ('queued','scheduled','retrying') ORDER BY id LIMIT 100`)
-	if err != nil {
-		log.Printf("social publisher: error consultando cola: %v", err)
-		return
-	}
-	type job struct{ id, tid int64 }
-	jobs := make([]job, 0, 20)
-	for rows.Next() {
-		var id, tid int64
-		var scheduledAt, status string
-		if err := rows.Scan(&id, &tid, &scheduledAt, &status); err != nil {
-			log.Printf("social publisher: fila inválida: %v", err)
-			continue
-		}
-		when, ok := parseSocialSchedule(scheduledAt)
-		if !ok {
-			msg := "fecha de programación inválida: " + scheduledAt
-			_, _ = a.db.Exec(`UPDATE social_posts SET status='failed',error_message=?,updated_at=? WHERE id=? AND tenant_id=?`, msg, now.Format(time.RFC3339), id, tid)
-			log.Printf("social publisher: post %d rechazado: %s", id, msg)
-			continue
-		}
-		if !when.IsZero() && when.After(now) {
-			continue
-		}
-
-		// Reclamo atómico: evita que dos instancias de Render publiquen el mismo
-		// post si ambas ven la cola al mismo tiempo.
-		res, err := a.db.Exec(`UPDATE social_posts SET status='publishing',updated_at=? WHERE id=? AND tenant_id=? AND status IN ('queued','scheduled','retrying')`, now.Format(time.RFC3339), id, tid)
+		rows, err := a.db.Query(`SELECT id,tenant_id FROM social_posts WHERE status IN ('queued','scheduled','retrying') AND (scheduled_at='' OR scheduled_at<=?) ORDER BY id LIMIT 20`, time.Now().UTC().Format(time.RFC3339))
 		if err != nil {
-			log.Printf("social publisher: no se pudo reclamar post %d: %v", id, err)
 			continue
 		}
-		n, _ := res.RowsAffected()
-		if n == 1 {
-			jobs = append(jobs, job{id: id, tid: tid})
+		var jobs [][2]int64
+		for rows.Next() {
+			var id, tid int64
+			_ = rows.Scan(&id, &tid)
+			jobs = append(jobs, [2]int64{id, tid})
 		}
-	}
-	rows.Close()
-
-	for _, j := range jobs {
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-		_, err := a.publishSocialPost(ctx, j.tid, j.id)
-		cancel()
-		if err != nil {
-			// Algunos errores ocurren antes de llamar al proveedor (por ejemplo,
-			// conexión ausente o credenciales inválidas). Antes esos trabajos se
-			// quedaban eternamente en publishing/queued sin explicación.
-			var current string
-			_ = a.db.QueryRow(`SELECT status FROM social_posts WHERE id=? AND tenant_id=?`, j.id, j.tid).Scan(&current)
-			if current == "publishing" {
-				attempt := 1
-				_ = a.db.QueryRow(`SELECT COUNT(*)+1 FROM social_publish_attempts WHERE tenant_id=? AND post_id=?`, j.tid, j.id).Scan(&attempt)
-				nextStatus := "failed"
-				nextAt := ""
-				if attempt < 4 {
-					nextStatus = "retrying"
-					nextAt = time.Now().UTC().Add(time.Duration(attempt*2) * time.Minute).Format(time.RFC3339)
-				}
-				nowText := time.Now().UTC().Format(time.RFC3339)
-				_, _ = a.db.Exec(`INSERT INTO social_publish_attempts(tenant_id,post_id,attempt_no,status,error_message,created_at) VALUES(?,?,?,?,?,?)`, j.tid, j.id, attempt, "failed", err.Error(), nowText)
-				_, _ = a.db.Exec(`UPDATE social_posts SET status=?,error_message=?,scheduled_at=?,updated_at=? WHERE id=? AND tenant_id=? AND status='publishing'`, nextStatus, err.Error(), nextAt, nowText, j.id, j.tid)
-			}
-			log.Printf("social publisher: post %d falló: %v", j.id, err)
-		} else {
-			log.Printf("social publisher: post %d publicado", j.id)
+		rows.Close()
+		for _, j := range jobs {
+			_, _ = a.publishSocialPost(context.Background(), j[1], j[0])
 		}
 	}
 }
 
 func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]any, error) {
 	ensureSocialProviderSchema(a.db)
+	_ = a.ensureSocialTrackingURLV24(tid, id)
 	var p SocialPost
-	var mode, cstatus, enc, cfgj string
-	err := a.db.QueryRow(`SELECT p.id,p.tenant_id,p.connection_id,p.platform,p.format,p.title,p.caption,p.link_url,p.media_json,p.status,COALESCE(c.provider_mode,''),COALESCE(c.status,''),COALESCE(c.encrypted_credentials,''),COALESCE(c.config_json,'{}') FROM social_posts p LEFT JOIN social_connections c ON c.id=p.connection_id AND c.tenant_id=p.tenant_id WHERE p.id=? AND p.tenant_id=?`, id, tid).Scan(&p.ID, &p.TenantID, &p.ConnectionID, &p.Platform, &p.Format, &p.Title, &p.Caption, &p.LinkURL, &p.MediaJSON, &p.Status, &mode, &cstatus, &enc, &cfgj)
+	var mode, cstatus, enc, cfgj, master, groupUpdated string
+	err := a.db.QueryRow(`SELECT p.id,p.tenant_id,p.group_id,p.campaign_id,p.connection_id,p.platform,p.format,p.title,p.caption,CASE WHEN TRIM(COALESCE(p.tracking_url,''))<>'' THEN p.tracking_url ELSE p.link_url END,p.media_json,p.status,COALESCE(g.master_content,p.caption),COALESCE(g.updated_at,''),COALESCE(c.provider_mode,''),COALESCE(c.status,''),COALESCE(c.encrypted_credentials,''),COALESCE(c.config_json,'{}') FROM social_posts p LEFT JOIN social_post_groups g ON g.id=p.group_id AND g.tenant_id=p.tenant_id LEFT JOIN social_connections c ON c.id=p.connection_id AND c.tenant_id=p.tenant_id WHERE p.id=? AND p.tenant_id=?`, id, tid).Scan(&p.ID, &p.TenantID, &p.GroupID, &p.CampaignID, &p.ConnectionID, &p.Platform, &p.Format, &p.Title, &p.Caption, &p.LinkURL, &p.MediaJSON, &p.Status, &master, &groupUpdated, &mode, &cstatus, &enc, &cfgj)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
+	gov := a.loadSocialGovernanceV231(tid)
+	platforms := []string{p.Platform}
+	if p.GroupID > 0 {
+		platforms = platforms[:0]
+		rows, _ := a.db.Query(`SELECT DISTINCT platform FROM social_posts WHERE tenant_id=? AND group_id=?`, tid, p.GroupID)
+		if rows != nil {
+			for rows.Next() {
+				var platform string
+				_ = rows.Scan(&platform)
+				if validSocialPlatform(platform) {
+					platforms = append(platforms, platform)
+				}
+			}
+			rows.Close()
+		}
+	}
+	decision := a.socialGovernanceDecisionV231(tid, p.CampaignID, platforms, master, "publish")
+	if decision.RequireApproval && p.GroupID > 0 {
+		var approved, pending int
+		_ = a.db.QueryRow(`SELECT COUNT(*) FROM social_approvals WHERE tenant_id=? AND group_id=? AND status='approved' AND reviewed_at>=?`, tid, p.GroupID, groupUpdated).Scan(&approved)
+		if approved == 0 {
+			_ = a.db.QueryRow(`SELECT COUNT(*) FROM social_approvals WHERE tenant_id=? AND group_id=? AND status='pending'`, tid, p.GroupID).Scan(&pending)
+			_, _ = a.db.Exec(`UPDATE social_post_groups SET status='pending_approval',updated_at=? WHERE id=? AND tenant_id=?`, now, p.GroupID, tid)
+			_, _ = a.db.Exec(`UPDATE social_posts SET status='pending_approval',updated_at=? WHERE group_id=? AND tenant_id=? AND status<>'published'`, now, p.GroupID, tid)
+			if pending == 0 {
+				_, _ = a.db.Exec(`INSERT INTO social_approvals(tenant_id,group_id,requested_by,desired_action,desired_scheduled_at,request_note,status,requested_at) VALUES(?,?,?,?,?,?,?,?)`, tid, p.GroupID, 0, "publish", "", "Generado por el publisher al aplicar gobernanza V23.1", "pending", now)
+			}
+			a.auditSocialGovernanceV231(tid, p.GroupID, p.CampaignID, 0, "publish", platforms, decision)
+			return nil, errors.New("La política de Social Hub requiere aprobación antes de publicar")
+		}
+	}
+	if gov.EmergencyPause {
+		_, _ = a.db.Exec(`UPDATE social_posts SET status='governance_hold',error_message='GOVERNANCE_PAUSE',updated_at=? WHERE id=? AND tenant_id=?`, now, id, tid)
+		return nil, errors.New("Autopilot está pausado globalmente para esta empresa")
+	}
+	if kw := containsAnyKeywordV231(p.Caption, gov.BlockedKeywords); kw != "" {
+		_, _ = a.db.Exec(`UPDATE social_posts SET status='governance_hold',error_message=?,updated_at=? WHERE id=? AND tenant_id=?`, "GOVERNANCE_BLOCK:"+kw, now, id, tid)
+		return nil, errors.New("Publicación retenida por una regla de contenido bloqueado: " + kw)
+	}
 	if p.ConnectionID == 0 || cstatus != "connected" {
 		return nil, errors.New("conecta una cuenta activa para esta red")
 	}
@@ -628,25 +573,51 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 		}
 	}
 	media := ""
+	mediaURLs := []string{}
 	var arr []map[string]string
 	_ = json.Unmarshal([]byte(p.MediaJSON), &arr)
-	if len(arr) > 0 {
-		media = a.resolveSocialMediaURL(arr[0]["url"])
+	for _, m := range arr {
+		if u := strings.TrimSpace(m["url"]); u != "" {
+			mediaURLs = append(mediaURLs, u)
+		}
+	}
+	if len(mediaURLs) > 0 {
+		media = mediaURLs[0]
 	}
 	var result map[string]any
 	switch p.Platform {
 	case "facebook":
-		result, err = a.publishFacebook(ctx, tok.AccessToken, cfg.PageID, p.Caption, p.LinkURL, media, p.Format)
+		if p.Format == "carousel" && len(mediaURLs) > 1 {
+			result, err = a.publishFacebookCarousel(ctx, tok.AccessToken, cfg.PageID, p.Caption, mediaURLs)
+		} else {
+			result, err = a.publishFacebook(ctx, tok.AccessToken, cfg.PageID, p.Caption, p.LinkURL, media, p.Format)
+		}
 	case "instagram":
-		result, err = a.publishInstagram(ctx, tok.AccessToken, cfg.InstagramID, p.Caption, media, p.Format)
+		if p.Format == "carousel" && len(mediaURLs) > 1 {
+			result, err = a.publishInstagramCarousel(ctx, tok.AccessToken, cfg.InstagramID, p.Caption, mediaURLs)
+		} else {
+			result, err = a.publishInstagram(ctx, tok.AccessToken, cfg.InstagramID, p.Caption, media, p.Format)
+		}
 	case "linkedin":
-		result, err = a.publishLinkedIn(ctx, tok.AccessToken, cfg.AuthorURN, p.Caption, p.LinkURL)
+		if p.Format == "carousel" && len(mediaURLs) > 1 {
+			err = errors.New("LinkedIn carousel requiere un flujo de documentos/media distinto y no se publica automáticamente en V23")
+		} else {
+			result, err = a.publishLinkedIn(ctx, tok.AccessToken, cfg.AuthorURN, p.Caption, p.LinkURL)
+		}
 	case "telegram":
-		result, err = a.publishTelegram(ctx, tok.AccessToken, cfg.ChatID, p.Caption, media, p.Format)
+		if p.Format == "carousel" && len(mediaURLs) > 1 {
+			result, err = a.publishTelegramAlbum(ctx, tok.AccessToken, cfg.ChatID, p.Caption, mediaURLs)
+		} else {
+			result, err = a.publishTelegram(ctx, tok.AccessToken, cfg.ChatID, p.Caption, media, p.Format)
+		}
 	case "tiktok":
-		result, err = a.publishTikTok(ctx, tok.AccessToken, p.Caption, media, p.Format)
+		result, err = a.publishTikTok(ctx, tok.AccessToken, p.Caption, mediaURLs, p.Format)
 	case "youtube":
-		result, err = a.publishYouTube(ctx, tok.AccessToken, p.Title, p.Caption, media)
+		if len(mediaURLs) > 1 {
+			err = errors.New("YouTube admite un video por publicación")
+		} else {
+			result, err = a.publishYouTube(ctx, tok.AccessToken, p.Title, p.Caption, media)
+		}
 	default:
 		err = errors.New("plataforma no soportada")
 	}
@@ -667,38 +638,6 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	_, _ = a.db.Exec(`INSERT INTO social_publish_attempts(tenant_id,post_id,attempt_no,status,provider_response,created_at) VALUES(?,?,?,?,?,?)`, tid, id, attempt, "published", string(rb), now)
 	_, _ = a.db.Exec(`UPDATE social_posts SET status='published',published_at=?,external_post_id=?,published_url=?,error_message='',updated_at=? WHERE id=? AND tenant_id=?`, now, external, pu, now, id, tid)
 	return result, nil
-}
-
-// resolveSocialMediaURL convierte rutas de archivos subidos por Worktic en URLs
-// públicas absolutas. Las APIs sociales no pueden descargar rutas relativas como
-// /uploads/social/..., por lo que siempre deben recibir esquema y host.
-func (a *App) resolveSocialMediaURL(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	if strings.HasPrefix(raw, "//") {
-		return "https:" + raw
-	}
-	if strings.HasPrefix(raw, "/") {
-		base := strings.TrimRight(strings.TrimSpace(a.cfg.BaseURL), "/")
-		if base == "" {
-			return ""
-		}
-		return base + raw
-	}
-	u, err := url.Parse(raw)
-	if err == nil && u.IsAbs() && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https") {
-		return raw
-	}
-	// Facilita URLs pegadas sin esquema, por ejemplo cdn.ejemplo.com/video.mp4.
-	if !strings.ContainsAny(raw, " \t\r\n") {
-		u, err = url.Parse("https://" + raw)
-		if err == nil && u.Host != "" {
-			return u.String()
-		}
-	}
-	return ""
 }
 
 func (a *App) publishFacebook(ctx context.Context, token, pageID, caption, link, media, format string) (map[string]any, error) {
@@ -781,6 +720,178 @@ func (a *App) publishInstagram(ctx context.Context, token, igID, caption, media,
 	id := fmt.Sprint(out["id"])
 	return map[string]any{"id": id, "url": "https://www.instagram.com/"}, nil
 }
+func (a *App) publishFacebookCarousel(ctx context.Context, token, pageID, caption string, media []string) (map[string]any, error) {
+	if len(media) < 2 {
+		return nil, errors.New("Facebook carrusel requiere al menos 2 imágenes")
+	}
+	if len(media) > 10 {
+		media = media[:10]
+	}
+	ids := []string{}
+	for _, u := range media {
+		vals := url.Values{"url": {u}, "published": {"false"}, "access_token": {token}}
+		req, _ := http.NewRequestWithContext(ctx, "POST", "https://graph.facebook.com/"+a.cfg.MetaGraphVersion+"/"+pageID+"/photos", strings.NewReader(vals.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode/100 != 2 {
+			return nil, fmt.Errorf("Facebook carousel asset: %s", b)
+		}
+		var out map[string]any
+		_ = json.Unmarshal(b, &out)
+		id := fmt.Sprint(out["id"])
+		if id != "" {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) < 2 {
+		return nil, errors.New("Facebook no pudo preparar los recursos del carrusel")
+	}
+	vals := url.Values{"message": {caption}, "access_token": {token}}
+	for i, id := range ids {
+		b, _ := json.Marshal(map[string]string{"media_fbid": id})
+		vals.Set(fmt.Sprintf("attached_media[%d]", i), string(b))
+	}
+	req, _ := http.NewRequestWithContext(ctx, "POST", "https://graph.facebook.com/"+a.cfg.MetaGraphVersion+"/"+pageID+"/feed", strings.NewReader(vals.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("Facebook carousel: %s", b)
+	}
+	var out map[string]any
+	_ = json.Unmarshal(b, &out)
+	id := fmt.Sprint(out["id"])
+	return map[string]any{"id": id, "url": "https://www.facebook.com/" + id}, nil
+}
+
+func (a *App) publishInstagramCarousel(ctx context.Context, token, igID, caption string, media []string) (map[string]any, error) {
+	if len(media) < 2 {
+		return nil, errors.New("Instagram carrusel requiere al menos 2 recursos")
+	}
+	if len(media) > 10 {
+		media = media[:10]
+	}
+	children := []string{}
+	for _, u := range media {
+		vals := url.Values{"is_carousel_item": {"true"}, "access_token": {token}}
+		l := strings.ToLower(strings.Split(u, "?")[0])
+		if strings.HasSuffix(l, ".mp4") || strings.HasSuffix(l, ".mov") || strings.HasSuffix(l, ".webm") {
+			vals.Set("media_type", "VIDEO")
+			vals.Set("video_url", u)
+		} else {
+			vals.Set("image_url", u)
+		}
+		req, _ := http.NewRequestWithContext(ctx, "POST", "https://graph.facebook.com/"+a.cfg.MetaGraphVersion+"/"+igID+"/media", strings.NewReader(vals.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode/100 != 2 {
+			return nil, fmt.Errorf("Instagram carousel asset: %s", b)
+		}
+		var out map[string]any
+		_ = json.Unmarshal(b, &out)
+		id := fmt.Sprint(out["id"])
+		if id != "" {
+			children = append(children, id)
+		}
+	}
+	if len(children) < 2 {
+		return nil, errors.New("Instagram no pudo preparar el carrusel")
+	}
+	time.Sleep(2 * time.Second)
+	vals := url.Values{"media_type": {"CAROUSEL"}, "children": {strings.Join(children, ",")}, "caption": {caption}, "access_token": {token}}
+	req, _ := http.NewRequestWithContext(ctx, "POST", "https://graph.facebook.com/"+a.cfg.MetaGraphVersion+"/"+igID+"/media", strings.NewReader(vals.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("Instagram carousel container: %s", b)
+	}
+	var c map[string]any
+	_ = json.Unmarshal(b, &c)
+	cid := fmt.Sprint(c["id"])
+	time.Sleep(2 * time.Second)
+	vals = url.Values{"creation_id": {cid}, "access_token": {token}}
+	req, _ = http.NewRequestWithContext(ctx, "POST", "https://graph.facebook.com/"+a.cfg.MetaGraphVersion+"/"+igID+"/media_publish", strings.NewReader(vals.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	b, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("Instagram carousel publish: %s", b)
+	}
+	var out map[string]any
+	_ = json.Unmarshal(b, &out)
+	id := fmt.Sprint(out["id"])
+	return map[string]any{"id": id, "url": "https://www.instagram.com/"}, nil
+}
+
+func (a *App) publishTelegramAlbum(ctx context.Context, token, chatID, caption string, media []string) (map[string]any, error) {
+	if len(media) < 2 {
+		return nil, errors.New("Telegram álbum requiere al menos 2 recursos")
+	}
+	if len(media) > 10 {
+		media = media[:10]
+	}
+	items := []map[string]any{}
+	for i, u := range media {
+		l := strings.ToLower(strings.Split(u, "?")[0])
+		typ := "photo"
+		if strings.HasSuffix(l, ".mp4") || strings.HasSuffix(l, ".mov") || strings.HasSuffix(l, ".webm") {
+			typ = "video"
+		}
+		m := map[string]any{"type": typ, "media": u}
+		if i == 0 {
+			m["caption"] = caption
+		}
+		items = append(items, m)
+	}
+	payload := map[string]any{"chat_id": chatID, "media": items}
+	b, _ := json.Marshal(payload)
+	req, _ := http.NewRequestWithContext(ctx, "POST", "https://api.telegram.org/bot"+token+"/sendMediaGroup", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	rb, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("Telegram album: %s", rb)
+	}
+	var out struct {
+		Result []struct {
+			MessageID int `json:"message_id"`
+		} `json:"result"`
+	}
+	_ = json.Unmarshal(rb, &out)
+	id := ""
+	if len(out.Result) > 0 {
+		id = strconv.Itoa(out.Result[0].MessageID)
+	}
+	return map[string]any{"id": id, "url": ""}, nil
+}
+
 func (a *App) publishLinkedIn(ctx context.Context, token, author, caption, link string) (map[string]any, error) {
 	content := map[string]any{"author": author, "commentary": caption, "visibility": "PUBLIC", "distribution": map[string]any{"feedDistribution": "MAIN_FEED", "targetEntities": []any{}, "thirdPartyDistributionChannels": []any{}}, "lifecycleState": "PUBLISHED", "isReshareDisabledByAuthor": false}
 	if link != "" {
@@ -808,16 +919,10 @@ func (a *App) publishTelegram(ctx context.Context, token, chatID, caption, media
 	if token == "" || chatID == "" {
 		return nil, errors.New("Telegram requiere token de bot y chat/canal")
 	}
-	caption = strings.TrimSpace(caption)
-	media = strings.TrimSpace(media)
 	method := "sendMessage"
-	vals := url.Values{"chat_id": {chatID}, "text": {caption}}
+	vals := url.Values{"chat_id": {chatID}, "text": {caption}, "parse_mode": {"HTML"}}
 	if media != "" {
-		u, parseErr := url.Parse(media)
-		if parseErr != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-			return nil, errors.New("Telegram requiere una URL pública válida para la imagen o el video")
-		}
-		isVideo := format == "video" || format == "reel" || strings.Contains(strings.ToLower(u.Path), ".mp4") || strings.Contains(strings.ToLower(u.Path), ".mov") || strings.Contains(strings.ToLower(u.Path), ".webm")
+		isVideo := format == "video" || format == "reel" || strings.Contains(strings.ToLower(media), ".mp4") || strings.Contains(strings.ToLower(media), ".mov") || strings.Contains(strings.ToLower(media), ".webm")
 		if isVideo {
 			method = "sendVideo"
 			vals = url.Values{"chat_id": {chatID}, "video": {media}, "caption": {caption}}
@@ -825,8 +930,6 @@ func (a *App) publishTelegram(ctx context.Context, token, chatID, caption, media
 			method = "sendPhoto"
 			vals = url.Values{"chat_id": {chatID}, "photo": {media}, "caption": {caption}}
 		}
-	} else if caption == "" {
-		return nil, errors.New("Telegram requiere texto o un recurso multimedia")
 	}
 	req, _ := http.NewRequestWithContext(ctx, "POST", "https://api.telegram.org/bot"+token+"/"+method, strings.NewReader(vals.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -848,18 +951,54 @@ func (a *App) publishTelegram(ctx context.Context, token, chatID, caption, media
 	id := strconv.Itoa(out.Result.MessageID)
 	return map[string]any{"id": id, "url": ""}, nil
 }
-func (a *App) publishTikTok(ctx context.Context, token, caption, media, format string) (map[string]any, error) {
-	if media == "" {
+func (a *App) publishTikTok(ctx context.Context, token, caption string, media []string, format string) (map[string]any, error) {
+	if len(media) == 0 {
 		return nil, errors.New("TikTok requiere URL de video o foto en dominio verificado")
 	}
-	body := map[string]any{"post_info": map[string]any{"title": caption, "privacy_level": "PUBLIC_TO_EVERYONE", "disable_duet": false, "disable_comment": false, "disable_stitch": false}, "source_info": map[string]any{"source": "PULL_FROM_URL", "video_url": media}}
-	endpoint := "https://open.tiktokapis.com/v2/post/publish/video/init/"
-	if format == "carousel" || format == "post" {
-		endpoint = "https://open.tiktokapis.com/v2/post/publish/content/init/"
-		body = map[string]any{"post_info": map[string]any{"title": caption, "description": caption, "privacy_level": "PUBLIC_TO_EVERYONE"}, "source_info": map[string]any{"source": "PULL_FROM_URL", "photo_images": []string{media}, "photo_cover_index": 0}, "post_mode": "DIRECT_POST", "media_type": "PHOTO"}
+	// TikTok exige consultar creator_info antes del Direct Post para conocer
+	// opciones vigentes (privacidad, límites y capacidades) del creador.
+	var creator map[string]any
+	if err := apiJSON(ctx, "POST", "https://open.tiktokapis.com/v2/post/publish/creator_info/query/", token, map[string]any{}, &creator); err != nil {
+		return nil, fmt.Errorf("TikTok creator info: %w", err)
+	}
+	privacy := "SELF_ONLY"
+	if d, ok := creator["data"].(map[string]any); ok {
+		if opts, ok := d["privacy_level_options"].([]any); ok && len(opts) > 0 {
+			privacy = fmt.Sprint(opts[0])
+			for _, o := range opts {
+				if fmt.Sprint(o) == "PUBLIC_TO_EVERYONE" {
+					privacy = "PUBLIC_TO_EVERYONE"
+					break
+				}
+			}
+		}
+	}
+	isPhoto := format == "carousel" || format == "post"
+	if isPhoto {
+		if len(media) > 10 {
+			media = media[:10]
+		}
+		body := map[string]any{
+			"post_info":   map[string]any{"title": caption, "description": caption, "privacy_level": privacy, "disable_comment": false},
+			"source_info": map[string]any{"source": "PULL_FROM_URL", "photo_images": media, "photo_cover_index": 0},
+			"post_mode":   "DIRECT_POST", "media_type": "PHOTO",
+		}
+		var out map[string]any
+		if err := apiJSON(ctx, "POST", "https://open.tiktokapis.com/v2/post/publish/content/init/", token, body, &out); err != nil {
+			return nil, err
+		}
+		id := ""
+		if d, ok := out["data"].(map[string]any); ok {
+			id = fmt.Sprint(d["publish_id"])
+		}
+		return map[string]any{"id": id, "url": ""}, nil
+	}
+	body := map[string]any{
+		"post_info":   map[string]any{"title": caption, "privacy_level": privacy, "disable_duet": false, "disable_comment": false, "disable_stitch": false},
+		"source_info": map[string]any{"source": "PULL_FROM_URL", "video_url": media[0]},
 	}
 	var out map[string]any
-	if err := apiJSON(ctx, "POST", endpoint, token, body, &out); err != nil {
+	if err := apiJSON(ctx, "POST", "https://open.tiktokapis.com/v2/post/publish/video/init/", token, body, &out); err != nil {
 		return nil, err
 	}
 	id := ""
@@ -868,6 +1007,7 @@ func (a *App) publishTikTok(ctx context.Context, token, caption, media, format s
 	}
 	return map[string]any{"id": id, "url": ""}, nil
 }
+
 func (a *App) publishYouTube(ctx context.Context, token, title, description, media string) (map[string]any, error) {
 	if media == "" {
 		return nil, errors.New("YouTube requiere URL pública de video")

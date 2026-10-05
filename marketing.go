@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -59,22 +58,29 @@ type LeadForm struct {
 	CreatedAt   string `json:"created_at"`
 }
 type MarketingLead struct {
-	ID          int64  `json:"id"`
-	TenantID    int64  `json:"tenant_id"`
-	CampaignID  int64  `json:"campaign_id"`
-	FormID      int64  `json:"form_id"`
-	Source      string `json:"source"`
-	Name        string `json:"name"`
-	Phone       string `json:"phone"`
-	Email       string `json:"email"`
-	City        string `json:"city"`
-	Interest    string `json:"interest"`
-	Score       int    `json:"score"`
-	Status      string `json:"status"`
-	UTMSource   string `json:"utm_source"`
-	UTMCampaign string `json:"utm_campaign"`
-	Consent     bool   `json:"consent"`
-	CreatedAt   string `json:"created_at"`
+	ID                 int64  `json:"id"`
+	TenantID           int64  `json:"tenant_id"`
+	CampaignID         int64  `json:"campaign_id"`
+	FormID             int64  `json:"form_id"`
+	Source             string `json:"source"`
+	Name               string `json:"name"`
+	Phone              string `json:"phone"`
+	Email              string `json:"email"`
+	City               string `json:"city"`
+	Interest           string `json:"interest"`
+	Score              int    `json:"score"`
+	Status             string `json:"status"`
+	UTMSource          string `json:"utm_source"`
+	UTMCampaign        string `json:"utm_campaign"`
+	Consent            bool   `json:"consent"`
+	ExternalID         string `json:"external_id"`
+	PageID             string `json:"page_id"`
+	MetaFormID         string `json:"meta_form_id"`
+	AdID               string `json:"ad_id"`
+	AdsetID            string `json:"adset_id"`
+	CampaignExternalID string `json:"campaign_external_id"`
+	FollowupStatus     string `json:"followup_status"`
+	CreatedAt          string `json:"created_at"`
 }
 type Creative struct {
 	ID        int64  `json:"id"`
@@ -98,7 +104,7 @@ type MarketingLimits struct {
 	MaxCreatives int    `json:"max_creatives"`
 }
 
-func initMarketingSchema(db *sql.DB) error {
+func initMarketingSchema(db *DB) error {
 	_, err := db.Exec(`
 CREATE TABLE IF NOT EXISTS marketing_campaigns(id INTEGER PRIMARY KEY AUTOINCREMENT,tenant_id INTEGER NOT NULL,name TEXT NOT NULL,mode TEXT NOT NULL DEFAULT 'organic',objective TEXT NOT NULL DEFAULT '',product TEXT NOT NULL DEFAULT '',platforms TEXT NOT NULL DEFAULT 'facebook,instagram',destination TEXT NOT NULL DEFAULT 'whatsapp',audience TEXT NOT NULL DEFAULT '',budget_daily REAL NOT NULL DEFAULT 0,budget_total REAL NOT NULL DEFAULT 0,starts_at TEXT NOT NULL DEFAULT '',ends_at TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'draft',ai_plan TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_marketing_campaigns_tenant ON marketing_campaigns(tenant_id);
@@ -365,7 +371,7 @@ func (a *App) marketingLeadsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, e.Error(), 401)
 		return
 	}
-	rows, e := a.db.Query(`SELECT id,tenant_id,campaign_id,form_id,source,name,phone,email,city,interest,score,status,utm_source,utm_campaign,consent,created_at FROM marketing_leads WHERE tenant_id=? ORDER BY id DESC LIMIT 500`, t)
+	rows, e := a.db.Query(`SELECT id,tenant_id,campaign_id,form_id,source,name,phone,email,city,interest,score,status,utm_source,utm_campaign,consent,external_id,page_id,meta_form_id,ad_id,adset_id,campaign_external_id,followup_status,created_at FROM marketing_leads WHERE tenant_id=? ORDER BY id DESC LIMIT 500`, t)
 	if e != nil {
 		http.Error(w, e.Error(), 500)
 		return
@@ -375,7 +381,7 @@ func (a *App) marketingLeadsHandler(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var x MarketingLead
 		var consent int
-		_ = rows.Scan(&x.ID, &x.TenantID, &x.CampaignID, &x.FormID, &x.Source, &x.Name, &x.Phone, &x.Email, &x.City, &x.Interest, &x.Score, &x.Status, &x.UTMSource, &x.UTMCampaign, &consent, &x.CreatedAt)
+		_ = rows.Scan(&x.ID, &x.TenantID, &x.CampaignID, &x.FormID, &x.Source, &x.Name, &x.Phone, &x.Email, &x.City, &x.Interest, &x.Score, &x.Status, &x.UTMSource, &x.UTMCampaign, &consent, &x.ExternalID, &x.PageID, &x.MetaFormID, &x.AdID, &x.AdsetID, &x.CampaignExternalID, &x.FollowupStatus, &x.CreatedAt)
 		x.Consent = consent == 1
 		out = append(out, x)
 	}
@@ -474,6 +480,7 @@ func (a *App) publicLeadFormHandler(w http.ResponseWriter, r *http.Request) {
 		if e == nil {
 			_ = a.syncCRMContactAt(tenant, leadName, leadPhone, leadEmail, "landing", "form", "", createdAt)
 			leadID, _ := leadResult.LastInsertId()
+			a.applyLeadAttributionFromRequestV24(tenant, leadID, r)
 			_ = a.syncOpportunityFromLead(tenant, leadID, leadName, leadPhone, leadEmail, "landing", "form", r.FormValue("interest"), 60, createdAt)
 		}
 		if e != nil {
@@ -487,7 +494,8 @@ func (a *App) publicLeadFormHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "<!doctype html><html><meta charset=utf-8><meta name=viewport content='width=device-width'><style>body{font-family:Arial;background:#f7f5ff;display:grid;place-items:center;min-height:100vh}.box{background:white;padding:40px;border-radius:24px;max-width:560px;box-shadow:0 20px 60px #7c3aed22}</style><div class=box><h1>¡Gracias!</h1><p>%s</p></div></html>", f.ThankYou)
 		return
 	}
-	fmt.Fprintf(w, "<!doctype html><html lang=es><meta charset=utf-8><meta name=viewport content='width=device-width'><title>%s</title><style>body{font-family:Arial;background:linear-gradient(135deg,#f7f5ff,#fff);margin:0;padding:30px;color:#18103a}.box{background:white;padding:34px;border-radius:24px;max-width:620px;margin:30px auto;box-shadow:0 20px 70px #7c3aed22}input,textarea{width:100%%;box-sizing:border-box;padding:13px;margin:7px 0 15px;border:1px solid #ddd6fe;border-radius:10px}button{background:linear-gradient(135deg,#7c3aed,#d946ef);color:white;border:0;padding:14px 24px;border-radius:10px;font-weight:bold}</style><div class=box><h1>%s</h1><p>%s</p><form method=post><input name=name placeholder='Nombre' required><input name=phone placeholder='Teléfono'><input name=email type=email placeholder='Correo'><input name=city placeholder='Ciudad'><textarea name=interest placeholder='¿Qué te interesa?'></textarea><label><input style='width:auto' name=consent type=checkbox required> %s</label><br><br><button>Enviar información</button></form></div></html>", f.Headline, f.Headline, f.Description, f.ConsentText)
+	hidden := analyticsHiddenInputsV24(r, 0, 0)
+	fmt.Fprintf(w, "<!doctype html><html lang=es><meta charset=utf-8><meta name=viewport content='width=device-width'><title>%s</title><style>body{font-family:Arial;background:linear-gradient(135deg,#f7f5ff,#fff);margin:0;padding:30px;color:#18103a}.box{background:white;padding:34px;border-radius:24px;max-width:620px;margin:30px auto;box-shadow:0 20px 70px #7c3aed22}input,textarea{width:100%%;box-sizing:border-box;padding:13px;margin:7px 0 15px;border:1px solid #ddd6fe;border-radius:10px}button{background:linear-gradient(135deg,#7c3aed,#d946ef);color:white;border:0;padding:14px 24px;border-radius:10px;font-weight:bold}</style><div class=box><h1>%s</h1><p>%s</p><form method=post>%s<input name=name placeholder='Nombre' required><input name=phone placeholder='Teléfono'><input name=email type=email placeholder='Correo'><input name=city placeholder='Ciudad'><textarea name=interest placeholder='¿Qué te interesa?'></textarea><label><input style='width:auto' name=consent type=checkbox required> %s</label><br><br><button>Enviar información</button></form></div></html>", f.Headline, f.Headline, f.Description, hidden, f.ConsentText)
 }
 func boolInt(b bool) int {
 	if b {

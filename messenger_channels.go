@@ -1218,6 +1218,8 @@ func (a *App) messengerTenantWebhookHandler(w http.ResponseWriter, r *http.Reque
 		if _, err := a.db.Exec(`UPDATE channel_connections SET last_message_at=?,last_error='',updated_at=? WHERE id=? AND tenant_id=?`, now, now, c.ID, c.TenantID); err != nil {
 			a.recordMessengerChannelEvent(c, "messenger_processing_error", "connection_update", map[string]any{"error": err.Error(), "message_id": messageID})
 		}
+		a.ensureInboxConversation(c.TenantID, chat)
+		a.emitInboxEvent(c.TenantID, "message.received", map[string]any{"chat": chat, "channel": "messenger", "text": event.Text, "connection_id": c.ID})
 		log.Printf("[messenger webhook] inbound message stored connection=%d sender=%s type=%s", c.ID, event.SenderID, event.MessageType)
 		go a.maybeMessengerAIReply(c, event.SenderID, chat, event.Text)
 	}
@@ -1294,6 +1296,9 @@ func (a *App) sendTenantMessengerText(ctx context.Context, tenantID int64, chat,
 }
 
 func (a *App) maybeMessengerAIReply(c ChannelConnection, psid, chat, text string) {
+	if !a.inboxAIAllowed(c.TenantID, chat) {
+		return
+	}
 	if a.openAIKey() == "" {
 		_, _ = a.db.Exec(`UPDATE channel_connections SET last_error='Falta configurar OPENAI_API_KEY' WHERE id=?`, c.ID)
 		a.recordMessengerChannelEvent(c, "messenger_ai_reply", "missing_openai_key", map[string]any{"psid": psid})
@@ -1308,6 +1313,9 @@ func (a *App) maybeMessengerAIReply(c ChannelConnection, psid, chat, text string
 		err := a.db.QueryRow(`SELECT id,tenant_id,name,type,description,objective,tone,language,instructions,knowledge,greeting,away_message,handoff_rules,tools,channels,status,is_default,monthly_budget,created_at,updated_at FROM ai_agents WHERE id=? AND tenant_id=? AND status='active'`, agentID, c.TenantID).Scan(&ag.ID, &ag.TenantID, &ag.Name, &ag.Type, &ag.Description, &ag.Objective, &ag.Tone, &ag.Language, &ag.Instructions, &ag.Knowledge, &ag.Greeting, &ag.AwayMessage, &ag.HandoffRules, &ag.Tools, &ag.Channels, &ag.Status, &d, &ag.MonthlyBudget, &ag.CreatedAt, &ag.UpdatedAt)
 		if err == nil {
 			system = fmt.Sprintf("Eres %s. Objetivo: %s. Tono: %s. Instrucciones: %s. Conocimiento: %s. Historial:\n%s", ag.Name, ag.Objective, ag.Tone, ag.Instructions, ag.Knowledge, history)
+			if ctxV22 := a.agentV22Context(c.TenantID, agentID, chat); ctxV22 != "" {
+				system += "\n\n" + ctxV22
+			}
 		}
 	}
 	if system == "" {
@@ -1319,6 +1327,9 @@ func (a *App) maybeMessengerAIReply(c ChannelConnection, psid, chat, text string
 		system = fmt.Sprintf("Eres %s, asistente principal de %s. Objetivo: %s. Tono: %s. Instrucciones: %s. Conocimiento: %s. Historial:\n%s", ag.Name, ag.Company, ag.Objective, ag.Tone, ag.Instructions, ag.Knowledge, history)
 	}
 	reply, err := a.callOpenAI(system, text)
+	if err == nil && agentID > 0 {
+		a.agentV22Remember(c.TenantID, agentID, chat, text, reply)
+	}
 	if err != nil || strings.TrimSpace(reply) == "" {
 		detail := "respuesta vacía"
 		if err != nil {

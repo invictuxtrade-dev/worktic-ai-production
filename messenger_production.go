@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,7 +17,7 @@ import (
 // initMessengerProductionSchema adds the durable outbound queue and the
 // provider-message idempotency constraint used by both the webhook and the
 // Conversations API fallback.
-func initMessengerProductionSchema(db *sql.DB) error {
+func initMessengerProductionSchema(db *DB) error {
 	if _, err := db.Exec(`
 CREATE TABLE IF NOT EXISTS messenger_outbox (
  id INTEGER PRIMARY KEY AUTOINCREMENT,

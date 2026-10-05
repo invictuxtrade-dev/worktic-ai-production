@@ -6,7 +6,6 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -67,7 +66,7 @@ func NewChannelManager(app *App) *ChannelManager {
 	return &ChannelManager{app: app, runtimes: map[int64]*channelRuntime{}}
 }
 
-func initChannelTenantSchema(db *sql.DB) error {
+func initChannelTenantSchema(db *DB) error {
 	_, err := db.Exec(`
 CREATE TABLE IF NOT EXISTS tenants (
  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, account_type TEXT NOT NULL DEFAULT 'business',
@@ -119,12 +118,12 @@ CREATE TABLE IF NOT EXISTS channel_events (
 		_, _ = db.Exec(`UPDATE billing_plans SET max_channels=2,max_whatsapp=1,max_telegram=2,max_messenger=1,max_agents=2 WHERE code='personal'`)
 		_, _ = db.Exec(`UPDATE billing_plans SET max_channels=5,max_whatsapp=3,max_telegram=5,max_messenger=3,max_agents=5 WHERE code='business'`)
 		_, _ = db.Exec(`UPDATE billing_plans SET max_channels=15,max_whatsapp=10,max_telegram=15,max_messenger=10,max_agents=15 WHERE code='enterprise'`)
-		_, _ = db.Exec(`INSERT OR REPLACE INTO worktic_settings(key,value) VALUES('channel_plan_limits_v2','done')`)
+		_, _ = db.Exec(`INSERT INTO worktic_settings(key,value) VALUES('channel_plan_limits_v2','done') ON CONFLICT(key) DO UPDATE SET value=excluded.value`)
 	}
 	return migrateTenants(db)
 }
 
-func migrateTenants(db *sql.DB) error {
+func migrateTenants(db *DB) error {
 	rows, err := db.Query(`SELECT id,name,company,role,tenant_id FROM app_users ORDER BY id`)
 	if err != nil {
 		return err
@@ -165,7 +164,7 @@ func migrateTenants(db *sql.DB) error {
 			companyTenant[key] = tid
 		}
 		_, _ = db.Exec(`UPDATE app_users SET tenant_id=? WHERE id=?`, tid, u.id)
-		_, _ = db.Exec(`INSERT OR REPLACE INTO tenant_users(tenant_id,user_id,role,created_at) VALUES(?,?,?,?)`, tid, u.id, u.role, now)
+		_, _ = db.Exec(`INSERT INTO tenant_users(tenant_id,user_id,role,created_at) VALUES(?,?,?,?) ON CONFLICT(tenant_id,user_id) DO UPDATE SET role=excluded.role,created_at=excluded.created_at`, tid, u.id, u.role, now)
 	}
 	// Legacy rows are assigned to the first tenant only, never duplicated. Administrators can review them.
 	var firstTenant int64
@@ -201,7 +200,7 @@ func (a *App) tenantForRequest(r *http.Request) (int64, *User, error) {
 func channelTypeLimit(p Plan, typ string) int {
 	switch p.Code {
 	case "personal":
-		if typ == "whatsapp_qr" {
+		if typ == "whatsapp_qr" || typ == "whatsapp_cloud" {
 			return 1
 		}
 		if typ == "telegram" {
@@ -211,7 +210,7 @@ func channelTypeLimit(p Plan, typ string) int {
 			return 1
 		}
 	case "business":
-		if typ == "whatsapp_qr" {
+		if typ == "whatsapp_qr" || typ == "whatsapp_cloud" {
 			return 3
 		}
 		if typ == "telegram" {
@@ -221,7 +220,7 @@ func channelTypeLimit(p Plan, typ string) int {
 			return 3
 		}
 	case "enterprise":
-		if typ == "whatsapp_qr" {
+		if typ == "whatsapp_qr" || typ == "whatsapp_cloud" {
 			return 10
 		}
 		if typ == "telegram" {
@@ -231,7 +230,7 @@ func channelTypeLimit(p Plan, typ string) int {
 			return 10
 		}
 	default:
-		if typ == "whatsapp_qr" || typ == "telegram" {
+		if typ == "whatsapp_qr" || typ == "whatsapp_cloud" || typ == "telegram" {
 			return 1
 		}
 		return 0
@@ -243,7 +242,7 @@ func (a *App) channelTypeLimitForPlan(p Plan, typ string) int {
 	var wa, tg, msg int
 	if err := a.db.QueryRow(`SELECT max_whatsapp,max_telegram,max_messenger FROM billing_plans WHERE code=?`, p.Code).Scan(&wa, &tg, &msg); err == nil {
 		switch typ {
-		case "whatsapp_qr":
+		case "whatsapp_qr", "whatsapp_cloud":
 			return wa
 		case "telegram":
 			return tg
@@ -398,6 +397,9 @@ func (cm *ChannelManager) maybeTenantAIReply(rt *channelRuntime, recipient types
 	cm.app.autoLast[key] = time.Now()
 	cm.app.mu.Unlock()
 
+	if !cm.app.inboxAIAllowed(rt.conn.TenantID, storedChat) {
+		return
+	}
 	agentID := rt.conn.AssignedAgentID
 	if agentID == 0 {
 		resolved, err := cm.app.resolveAgent(rt.conn.TenantID, "whatsapp", "", text, 0, 0, 0)
@@ -415,6 +417,10 @@ func (cm *ChannelManager) maybeTenantAIReply(rt *channelRuntime, recipient types
 		)
 		if err == nil {
 			system = fmt.Sprintf("Eres %s, agente especializado de tipo %s. Objetivo: %s. Tono: %s. Idioma: %s. Instrucciones: %s. Conocimiento verificado: %s. Herramientas permitidas: %s. No inventes datos y responde de forma humana, clara y breve. Historial reciente:\n%s", ag.Name, ag.Type, ag.Objective, ag.Tone, ag.Language, ag.Instructions, ag.Knowledge, ag.Tools, history)
+			ctxV22 := cm.app.agentV22Context(rt.conn.TenantID, agentID, storedChat)
+			if ctxV22 != "" {
+				system += "\n\n" + ctxV22
+			}
 		} else {
 			// Una asignación antigua o inválida nunca debe dejar al canal sin respuesta.
 			// Se limpia la asignación y se usa el Asistente Principal como respaldo.
@@ -432,6 +438,9 @@ func (cm *ChannelManager) maybeTenantAIReply(rt *channelRuntime, recipient types
 	}
 	log.Printf("[WA-AI] generando respuesta tenant=%d conexion=%d agente=%d", rt.conn.TenantID, rt.conn.ID, agentID)
 	reply, err := cm.app.callOpenAI(system, text)
+	if err == nil && agentID > 0 {
+		cm.app.agentV22Remember(rt.conn.TenantID, agentID, storedChat, text, reply)
+	}
 	period := time.Now().UTC().Format("2006-01")
 	if err != nil {
 		if agentID > 0 {
@@ -510,7 +519,7 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 			out = append(out, c)
 		}
 		p, _, _ := a.activePlan(a.billingAccountUserID(u))
-		writeJSON(w, map[string]any{"connections": out, "max_total": p.MaxChannels, "limits": map[string]int{"whatsapp_qr": a.channelTypeLimitForPlan(p, "whatsapp_qr"), "telegram": a.channelTypeLimitForPlan(p, "telegram"), "messenger": a.channelTypeLimitForPlan(p, "messenger")}})
+		writeJSON(w, map[string]any{"connections": out, "max_total": p.MaxChannels, "limits": map[string]int{"whatsapp_qr": a.channelTypeLimitForPlan(p, "whatsapp_qr"), "whatsapp_cloud": a.channelTypeLimitForPlan(p, "whatsapp_cloud"), "telegram": a.channelTypeLimitForPlan(p, "telegram"), "messenger": a.channelTypeLimitForPlan(p, "messenger")}})
 	case http.MethodPost:
 		if u.Role != "owner" && u.Role != "admin" && u.Role != "superadmin" {
 			writeError(w, errors.New("sin permiso para conectar canales"), 403)
@@ -519,7 +528,7 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 		var q ChannelConnection
 		_ = json.NewDecoder(r.Body).Decode(&q)
 		q.Type = strings.ToLower(strings.TrimSpace(q.Type))
-		if q.Type != "whatsapp_qr" && q.Type != "telegram" && q.Type != "messenger" {
+		if q.Type != "whatsapp_qr" && q.Type != "whatsapp_cloud" && q.Type != "telegram" && q.Type != "messenger" {
 			writeError(w, errors.New("tipo de canal no soportado"), 400)
 			return
 		}
@@ -538,7 +547,7 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 		now := time.Now().UTC().Format(time.RFC3339)
 		pub := randomToken(12)
 		if q.Name == "" {
-			q.Name = map[string]string{"whatsapp_qr": "WhatsApp", "telegram": "Telegram", "messenger": "Messenger"}[q.Type]
+			q.Name = map[string]string{"whatsapp_qr": "WhatsApp QR", "whatsapp_cloud": "WhatsApp Business Cloud", "telegram": "Telegram", "messenger": "Messenger"}[q.Type]
 		}
 		res, e := a.db.Exec(`INSERT INTO channel_connections(tenant_id,public_id,type,name,status,assigned_agent_id,config_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)`, tid, pub, q.Type, q.Name, "draft", q.AssignedAgentID, firstNonEmpty(q.ConfigJSON, "{}"), now, now)
 		if e != nil {
@@ -579,13 +588,15 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var q struct {
-		ID         int64  `json:"id"`
-		Action     string `json:"action"`
-		Token      string `json:"token"`
-		ExternalID string `json:"external_id"`
-		AgentID    int64  `json:"agent_id"`
-		AppID      string `json:"app_id"`
-		AppSecret  string `json:"app_secret"`
+		ID            int64  `json:"id"`
+		Action        string `json:"action"`
+		Token         string `json:"token"`
+		ExternalID    string `json:"external_id"`
+		AgentID       int64  `json:"agent_id"`
+		AppID         string `json:"app_id"`
+		AppSecret     string `json:"app_secret"`
+		WABAID        string `json:"waba_id"`
+		PhoneNumberID string `json:"phone_number_id"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&q)
 	var c ChannelConnection
@@ -660,6 +671,17 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 			cfg, _ := json.Marshal(map[string]any{"external_id": bot.Username, "bot_id": bot.ID, "bot_name": bot.FirstName, "webhook_url": info.URL})
 			_, _ = a.db.Exec(`UPDATE channel_connections SET encrypted_credentials=?,external_account_id=?,config_json=?,status='connected',assigned_agent_id=?,last_connected_at=?,last_error='',updated_at=? WHERE id=? AND tenant_id=?`, creds, bot.Username, string(cfg), q.AgentID, now, now, q.ID, tid)
 		}
+		if c.Type == "whatsapp_cloud" {
+			result, cfgErr := a.configureWhatsAppCloud(r.Context(), c, strings.TrimSpace(q.WABAID), strings.TrimSpace(q.PhoneNumberID), strings.TrimSpace(q.Token), q.AgentID)
+			if cfgErr != nil {
+				_, _ = a.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=? AND tenant_id=?`, cfgErr.Error(), now, q.ID, tid)
+				writeError(w, cfgErr, 502)
+				return
+			}
+			_, _ = a.db.Exec(`INSERT INTO channel_audit(tenant_id,connection_id,user_id,action,detail,created_at) VALUES(?,?,?,?,?,?)`, tid, q.ID, u.ID, "connect", "whatsapp_cloud", now)
+			writeJSON(w, result)
+			return
+		}
 		if c.Type == "messenger" {
 			pageToken := strings.TrimSpace(q.Token)
 			pageID := strings.TrimSpace(q.ExternalID)
@@ -690,6 +712,12 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case "details":
+		if c.Type == "whatsapp_cloud" {
+			cfg := a.whatsappCloudConfigFor(c)
+			_, credErr := a.whatsappCloudCredentialsFor(c)
+			writeJSON(w, map[string]any{"ok": true, "platform": c.Type, "status": c.Status, "waba_id": cfg.WABAID, "phone_number_id": cfg.PhoneNumberID, "display_phone_number": cfg.DisplayPhone, "verified_name": cfg.VerifiedName, "quality_rating": cfg.QualityRating, "webhook_url": a.cfg.BaseURL + "/webhooks/meta/whatsapp", "verify_token": a.cfg.WhatsAppVerifyToken, "has_token": credErr == nil})
+			return
+		}
 		if c.Type == "messenger" {
 			writeJSON(w, a.messengerConnectionDetails(r, c))
 			return
@@ -697,6 +725,16 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": true, "platform": c.Type, "status": c.Status})
 		return
 	case "test":
+		if c.Type == "whatsapp_cloud" {
+			result, testErr := a.testWhatsAppCloud(r.Context(), c)
+			if testErr != nil {
+				writeError(w, testErr, 502)
+				return
+			}
+			_, _ = a.db.Exec(`UPDATE channel_connections SET status='connected',last_error='',updated_at=? WHERE id=? AND tenant_id=?`, now, q.ID, tid)
+			writeJSON(w, result)
+			return
+		}
 		if c.Type == "telegram" {
 			result, testErr := a.testTelegramConnection(r, c)
 			if testErr != nil {
@@ -828,6 +866,13 @@ func (a *App) sendViaConnection(ctx context.Context, tid, connectionID int64, ex
 			return "", err
 		}
 		return resp.ID, nil
+	}
+	if typ == "whatsapp_cloud" {
+		var c ChannelConnection
+		if a.db.QueryRow(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,encrypted_credentials,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE id=? AND tenant_id=?`, connectionID, tid).Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.EncryptedCredentials, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt) != nil {
+			return "", errors.New("conexión no encontrada")
+		}
+		return a.sendWhatsAppCloudText(ctx, c, strings.TrimPrefix(externalChat, "wacloud:"), text)
 	}
 	return "", errors.New("envío directo para este canal requiere webhook oficial configurado")
 }

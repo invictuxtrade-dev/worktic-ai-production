@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,7 +41,7 @@ type CatalogProduct struct {
 	UpdatedAt        string   `json:"updated_at"`
 }
 
-func initCatalogPremiumSchema(db *sql.DB) error {
+func initCatalogPremiumSchema(db *DB) error {
 	alters := []string{
 		`ALTER TABLE crm_products ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE crm_products ADD COLUMN type TEXT NOT NULL DEFAULT 'product'`,

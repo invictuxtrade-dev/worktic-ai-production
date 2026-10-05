@@ -422,6 +422,9 @@ func (a *App) telegramWebhookHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) maybeTenantTelegramAIReply(c ChannelConnection, token, telegramChatID, storedChat, text string) {
+	if !a.inboxAIAllowed(c.TenantID, storedChat) {
+		return
+	}
 	if strings.TrimSpace(text) == "" || strings.TrimSpace(token) == "" {
 		return
 	}
@@ -454,6 +457,10 @@ func (a *App) maybeTenantTelegramAIReply(c ChannelConnection, token, telegramCha
 		)
 		if err == nil {
 			system = fmt.Sprintf("Eres %s, agente especializado de tipo %s. Objetivo: %s. Tono: %s. Idioma: %s. Instrucciones: %s. Conocimiento verificado: %s. Herramientas permitidas: %s. No inventes datos y responde de forma humana, clara y breve. Historial reciente:\n%s", ag.Name, ag.Type, ag.Objective, ag.Tone, ag.Language, ag.Instructions, ag.Knowledge, ag.Tools, history)
+			ctxV22 := a.agentV22Context(c.TenantID, agentID, storedChat)
+			if ctxV22 != "" {
+				system += "\n\n" + ctxV22
+			}
 		} else {
 			agentID = 0
 			_, _ = a.db.Exec(`UPDATE channel_connections SET assigned_agent_id=0,last_error=?,updated_at=? WHERE id=?`, "Agente asignado inválido; usando Asistente Principal", time.Now().UTC().Format(time.RFC3339), c.ID)
@@ -469,6 +476,9 @@ func (a *App) maybeTenantTelegramAIReply(c ChannelConnection, token, telegramCha
 	}
 	log.Printf("[TG-AI] generando tenant=%d conexion=%d agente=%d", c.TenantID, c.ID, agentID)
 	reply, err := a.callOpenAI(system, text)
+	if err == nil && agentID > 0 {
+		a.agentV22Remember(c.TenantID, agentID, storedChat, text, reply)
+	}
 	period := time.Now().UTC().Format("2006-01")
 	if err != nil {
 		if agentID > 0 {

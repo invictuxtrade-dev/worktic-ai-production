@@ -166,7 +166,9 @@ func (a *App) socialMediaUploadHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	writeJSON(w, map[string]any{"url": "/uploads/social/" + strconv.FormatInt(tid, 10) + "/" + name, "type": strings.Split(mime, "/")[0], "mime": mime, "size": len(data), "name": header.Filename})
+	assetURL := "/uploads/social/" + strconv.FormatInt(tid, 10) + "/" + name
+	_, _ = a.db.Exec(`INSERT OR IGNORE INTO social_media_assets(tenant_id,name,url,media_type,mime,size_bytes,source,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)`, tid, header.Filename, assetURL, strings.Split(mime, "/")[0], mime, len(data), "upload", u.ID, time.Now().UTC().Format(time.RFC3339))
+	writeJSON(w, map[string]any{"url": assetURL, "type": strings.Split(mime, "/")[0], "mime": mime, "size": len(data), "name": header.Filename})
 }
 
 func (a *App) socialMediaFileHandler(w http.ResponseWriter, r *http.Request) {

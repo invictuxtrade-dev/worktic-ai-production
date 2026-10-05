@@ -120,8 +120,8 @@ func (a *App) adminFullUsersHandler(w http.ResponseWriter, r *http.Request) {
 		q.Name = strings.TrimSpace(q.Name)
 		q.Email = strings.ToLower(strings.TrimSpace(q.Email))
 		q.Company = strings.TrimSpace(q.Company)
-		if len(q.Name) < 2 || !strings.Contains(q.Email, "@") || len(q.Password) < 8 {
-			writeError(w, errors.New("nombre, correo válido y contraseña de mínimo 8 caracteres son obligatorios"), 400)
+		if len(q.Name) < 2 || !strings.Contains(q.Email, "@") || len(q.Password) < 12 {
+			writeError(w, errors.New("nombre, correo válido y contraseña de mínimo 12 caracteres son obligatorios"), 400)
 			return
 		}
 		if q.Role != "superadmin" {
@@ -137,13 +137,18 @@ func (a *App) adminFullUsersHandler(w http.ResponseWriter, r *http.Request) {
 			q.Company = q.Name
 		}
 		now := time.Now().UTC()
+		passwordHash, hashErr := hashPasswordSecure(q.Password)
+		if hashErr != nil {
+			writeError(w, errors.New("no se pudo proteger la contraseña"), 500)
+			return
+		}
 		tx, err := a.db.Begin()
 		if err != nil {
 			writeError(w, err, 500)
 			return
 		}
 		defer tx.Rollback()
-		res, err := tx.Exec(`INSERT INTO app_users(name,email,password_hash,role,company,active,created_at,tenant_id,updated_at) VALUES(?,?,?,?,?,1,?,0,?)`, q.Name, q.Email, hashPassword(q.Password, a.adminSalt()), q.Role, q.Company, now.Format(time.RFC3339), now.Format(time.RFC3339))
+		res, err := tx.Exec(`INSERT INTO app_users(name,email,password_hash,role,company,active,created_at,tenant_id,updated_at) VALUES(?,?,?,?,?,1,?,0,?)`, q.Name, q.Email, passwordHash, q.Role, q.Company, now.Format(time.RFC3339), now.Format(time.RFC3339))
 		if err != nil {
 			writeError(w, errors.New("el correo ya está registrado"), 400)
 			return
@@ -280,11 +285,16 @@ func (a *App) adminFullUsersHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if strings.TrimSpace(q.Password) != "" {
-				if len(q.Password) < 8 {
-					writeError(w, errors.New("la nueva contraseña debe tener mínimo 8 caracteres"), 400)
+				if len(q.Password) < 12 {
+					writeError(w, errors.New("la nueva contraseña debe tener mínimo 12 caracteres"), 400)
 					return
 				}
-				if _, err = tx.Exec(`UPDATE app_users SET password_hash=? WHERE id=?`, hashPassword(q.Password, a.adminSalt()), q.ID); err != nil {
+				passwordHash, hashErr := hashPasswordSecure(q.Password)
+				if hashErr != nil {
+					writeError(w, errors.New("no se pudo proteger la contraseña"), 500)
+					return
+				}
+				if _, err = tx.Exec(`UPDATE app_users SET password_hash=? WHERE id=?`, passwordHash, q.ID); err != nil {
 					writeError(w, err, 500)
 					return
 				}

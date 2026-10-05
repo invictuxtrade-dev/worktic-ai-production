@@ -1,3 +1,1 @@
-Worktic AI — Messenger Production Hardening
-Build: 2026-07-28
-Base: Messenger V7 Webhook + Conversations API
+WorkticAI V24 — Analytics & Attribution

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -53,7 +52,7 @@ type SocialPost struct {
 	Objective      string `json:"objective,omitempty"`
 }
 
-func initSocialHubSchema(db *sql.DB) error {
+func initSocialHubSchema(db *DB) error {
 	_, err := db.Exec(`
 CREATE TABLE IF NOT EXISTS social_connections(
  id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id INTEGER NOT NULL, platform TEXT NOT NULL,
@@ -229,11 +228,13 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 			Name, Objective, MasterContent, Format, CTA, LinkURL, MediaURL, ScheduledAt, Action string
 			CampaignID                                                                          int64
 			Platforms                                                                           []string
+			MediaURLs                                                                           []string `json:"mediaURLs"`
 		}
 		if json.NewDecoder(r.Body).Decode(&req) != nil || strings.TrimSpace(req.MasterContent) == "" || len(req.Platforms) == 0 {
 			http.Error(w, "contenido y redes son obligatorios", 400)
 			return
 		}
+		req.Action = strings.ToLower(strings.TrimSpace(req.Action))
 		req.ScheduledAt = strings.TrimSpace(req.ScheduledAt)
 		if req.ScheduledAt != "" && req.Action != "publish" {
 			req.Action = "schedule"
@@ -248,44 +249,82 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		decision := a.socialGovernanceDecisionV231(t, req.CampaignID, req.Platforms, req.MasterContent, req.Action)
+		if decision.Blocked && (req.Action == "publish" || req.Action == "schedule") {
+			a.auditSocialGovernanceV231(t, 0, req.CampaignID, u.ID, req.Action, req.Platforms, decision)
+			http.Error(w, decision.Reason, http.StatusConflict)
+			return
+		}
+		status := "draft"
+		if req.Action == "schedule" {
+			if decision.RequireApproval {
+				status = "pending_approval"
+			} else {
+				if !perms.Schedule {
+					http.Error(w, "Tu rol solo puede guardar borradores", 403)
+					return
+				}
+				status = "scheduled"
+			}
+		}
+		if req.Action == "publish" {
+			if decision.RequireApproval {
+				status = "pending_approval"
+			} else {
+				if !perms.Publish {
+					http.Error(w, "No tienes permiso para publicar", 403)
+					return
+				}
+				status = "queued"
+			}
+		}
 		now := time.Now().UTC().Format(time.RFC3339)
-		res, err := a.db.Exec(`INSERT INTO social_post_groups(tenant_id,name,master_content,objective,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)`, t, req.Name, req.MasterContent, req.Objective, "draft", now, now)
+		tx, err := a.db.Begin()
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		defer tx.Rollback()
+		res, err := tx.Exec(`INSERT INTO social_post_groups(tenant_id,name,master_content,objective,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)`, t, req.Name, req.MasterContent, req.Objective, status, now, now)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
 		gid, _ := res.LastInsertId()
 		ids := []int64{}
-		status := "draft"
-		if req.Action == "schedule" && !perms.Schedule {
-			http.Error(w, "Tu rol solo puede guardar borradores", 403)
-			return
-		}
-		if req.Action == "publish" && !perms.Publish {
-			http.Error(w, "No tienes permiso para publicar", 403)
-			return
-		}
-		if req.Action == "schedule" {
-			status = "scheduled"
-		}
-		if req.Action == "publish" {
-			status = "queued"
-		}
 		for _, p := range req.Platforms {
 			p = strings.ToLower(strings.TrimSpace(p))
 			if !validSocialPlatform(p) {
 				continue
 			}
 			var cid int64
-			_ = a.db.QueryRow(`SELECT id FROM social_connections WHERE tenant_id=? AND platform=? AND status='connected' ORDER BY id LIMIT 1`, t, p).Scan(&cid)
+			_ = tx.QueryRow(`SELECT id FROM social_connections WHERE tenant_id=? AND platform=? AND status='connected' ORDER BY id LIMIT 1`, t, p).Scan(&cid)
 			caption := adaptSocialCaption(p, req.MasterContent, req.CTA)
-			rr, e := a.db.Exec(`INSERT INTO social_posts(tenant_id,group_id,campaign_id,connection_id,platform,format,title,caption,cta,link_url,media_json,scheduled_at,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, t, gid, req.CampaignID, cid, p, req.Format, req.Name, caption, req.CTA, req.LinkURL, toMediaJSON(req.MediaURL), req.ScheduledAt, status, now, now)
-			if e == nil {
-				id, _ := rr.LastInsertId()
-				ids = append(ids, id)
+			rr, e := tx.Exec(`INSERT INTO social_posts(tenant_id,group_id,campaign_id,connection_id,platform,format,title,caption,cta,link_url,media_json,scheduled_at,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, t, gid, req.CampaignID, cid, p, req.Format, req.Name, caption, req.CTA, req.LinkURL, toMediaJSONMany(req.MediaURLs, req.MediaURL), req.ScheduledAt, status, now, now)
+			if e != nil {
+				http.Error(w, e.Error(), 500)
+				return
+			}
+			id, _ := rr.LastInsertId()
+			ids = append(ids, id)
+		}
+		if len(ids) == 0 {
+			http.Error(w, "no se encontró una red válida", 400)
+			return
+		}
+		if decision.RequireApproval && (req.Action == "publish" || req.Action == "schedule") {
+			_, err = tx.Exec(`INSERT INTO social_approvals(tenant_id,group_id,requested_by,desired_action,desired_scheduled_at,request_note,status,requested_at) VALUES(?,?,?,?,?,?,?,?)`, t, gid, u.ID, req.Action, req.ScheduledAt, "Generado automáticamente por la política de gobernanza V23.1", "pending", now)
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
 			}
 		}
-		writeJSON(w, map[string]any{"group_id": gid, "post_ids": ids, "status": status})
+		if err = tx.Commit(); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		a.auditSocialGovernanceV231(t, gid, req.CampaignID, u.ID, req.Action, req.Platforms, decision)
+		writeJSON(w, map[string]any{"group_id": gid, "post_ids": ids, "status": status, "governance": decision})
 	case "PUT":
 		if !perms.EditContent {
 			http.Error(w, "No tienes permiso para editar contenido", 403)
@@ -296,21 +335,18 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 			Name, Objective, MasterContent, Format, CTA, LinkURL, MediaURL, ScheduledAt, Action string
 			CampaignID                                                                          int64
 			Platforms                                                                           []string
+			MediaURLs                                                                           []string `json:"mediaURLs"`
 		}
 		if json.NewDecoder(r.Body).Decode(&req) != nil || req.GroupID == 0 || strings.TrimSpace(req.MasterContent) == "" || len(req.Platforms) == 0 {
 			http.Error(w, "grupo, contenido y redes son obligatorios", 400)
 			return
 		}
+		req.Action = strings.ToLower(strings.TrimSpace(req.Action))
 		req.ScheduledAt = strings.TrimSpace(req.ScheduledAt)
 		if req.ScheduledAt != "" && req.Action != "publish" {
 			req.Action = "schedule"
 		}
-		status := "draft"
 		if req.Action == "schedule" {
-			if !perms.Schedule {
-				http.Error(w, "Tu rol solo puede guardar borradores", 403)
-				return
-			}
 			if req.ScheduledAt == "" {
 				http.Error(w, "fecha de programación requerida", 400)
 				return
@@ -319,14 +355,35 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "fecha de programación inválida", 400)
 				return
 			}
-			status = "scheduled"
+		}
+		decision := a.socialGovernanceDecisionV231(t, req.CampaignID, req.Platforms, req.MasterContent, req.Action)
+		if decision.Blocked && (req.Action == "publish" || req.Action == "schedule") {
+			a.auditSocialGovernanceV231(t, req.GroupID, req.CampaignID, u.ID, req.Action, req.Platforms, decision)
+			http.Error(w, decision.Reason, http.StatusConflict)
+			return
+		}
+		status := "draft"
+		if req.Action == "schedule" {
+			if decision.RequireApproval {
+				status = "pending_approval"
+			} else {
+				if !perms.Schedule {
+					http.Error(w, "Tu rol solo puede guardar borradores", 403)
+					return
+				}
+				status = "scheduled"
+			}
 		}
 		if req.Action == "publish" {
-			if !perms.Publish {
-				http.Error(w, "No tienes permiso para publicar", 403)
-				return
+			if decision.RequireApproval {
+				status = "pending_approval"
+			} else {
+				if !perms.Publish {
+					http.Error(w, "No tienes permiso para publicar", 403)
+					return
+				}
+				status = "queued"
 			}
-			status = "queued"
 		}
 		now := time.Now().UTC().Format(time.RFC3339)
 		tx, err := a.db.Begin()
@@ -371,9 +428,9 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 			_ = tx.QueryRow(`SELECT id FROM social_connections WHERE tenant_id=? AND platform=? AND status='connected' ORDER BY id LIMIT 1`, t, p).Scan(&cid)
 			caption := adaptSocialCaption(p, req.MasterContent, req.CTA)
 			if id, ok := existing[p]; ok {
-				_, err = tx.Exec(`UPDATE social_posts SET campaign_id=?,connection_id=?,format=?,title=?,caption=?,cta=?,link_url=?,media_json=?,scheduled_at=?,status=?,error_message='',updated_at=? WHERE id=? AND tenant_id=?`, req.CampaignID, cid, req.Format, req.Name, caption, req.CTA, req.LinkURL, toMediaJSON(req.MediaURL), req.ScheduledAt, status, now, id, t)
+				_, err = tx.Exec(`UPDATE social_posts SET campaign_id=?,connection_id=?,format=?,title=?,caption=?,cta=?,link_url=?,media_json=?,scheduled_at=?,status=?,error_message='',updated_at=? WHERE id=? AND tenant_id=?`, req.CampaignID, cid, req.Format, req.Name, caption, req.CTA, req.LinkURL, toMediaJSONMany(req.MediaURLs, req.MediaURL), req.ScheduledAt, status, now, id, t)
 			} else {
-				_, err = tx.Exec(`INSERT INTO social_posts(tenant_id,group_id,campaign_id,connection_id,platform,format,title,caption,cta,link_url,media_json,scheduled_at,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, t, req.GroupID, req.CampaignID, cid, p, req.Format, req.Name, caption, req.CTA, req.LinkURL, toMediaJSON(req.MediaURL), req.ScheduledAt, status, now, now)
+				_, err = tx.Exec(`INSERT INTO social_posts(tenant_id,group_id,campaign_id,connection_id,platform,format,title,caption,cta,link_url,media_json,scheduled_at,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, t, req.GroupID, req.CampaignID, cid, p, req.Format, req.Name, caption, req.CTA, req.LinkURL, toMediaJSONMany(req.MediaURLs, req.MediaURL), req.ScheduledAt, status, now, now)
 			}
 			if err != nil {
 				http.Error(w, err.Error(), 500)
@@ -389,11 +446,20 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		if decision.RequireApproval && (req.Action == "publish" || req.Action == "schedule") {
+			_, _ = tx.Exec(`UPDATE social_approvals SET status='superseded',reviewed_at=? WHERE tenant_id=? AND group_id=? AND status='pending'`, now, t, req.GroupID)
+			_, err = tx.Exec(`INSERT INTO social_approvals(tenant_id,group_id,requested_by,desired_action,desired_scheduled_at,request_note,status,requested_at) VALUES(?,?,?,?,?,?,?,?)`, t, req.GroupID, u.ID, req.Action, req.ScheduledAt, "Generado automáticamente por la política de gobernanza V23.1", "pending", now)
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+		}
 		if err = tx.Commit(); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		writeJSON(w, map[string]any{"ok": true, "group_id": req.GroupID, "status": status})
+		a.auditSocialGovernanceV231(t, req.GroupID, req.CampaignID, u.ID, req.Action, req.Platforms, decision)
+		writeJSON(w, map[string]any{"ok": true, "group_id": req.GroupID, "status": status, "governance": decision})
 	case "DELETE":
 		if !perms.DeleteContent {
 			http.Error(w, "No tienes permiso para eliminar publicaciones", 403)
@@ -411,11 +477,27 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func toMediaJSON(url string) string {
-	if strings.TrimSpace(url) == "" {
-		return "[]"
+func toMediaJSON(url string) string { return toMediaJSONMany(nil, url) }
+func toMediaJSONMany(urls []string, fallback string) string {
+	seen := map[string]bool{}
+	out := []map[string]string{}
+	for _, raw := range append(urls, fallback) {
+		u := strings.TrimSpace(raw)
+		if u == "" || seen[u] {
+			continue
+		}
+		seen[u] = true
+		typ := "image"
+		l := strings.ToLower(strings.Split(u, "?")[0])
+		if strings.HasSuffix(l, ".mp4") || strings.HasSuffix(l, ".mov") || strings.HasSuffix(l, ".webm") {
+			typ = "video"
+		}
+		out = append(out, map[string]string{"url": u, "type": typ})
+		if len(out) >= 10 {
+			break
+		}
 	}
-	b, _ := json.Marshal([]map[string]string{{"url": strings.TrimSpace(url), "type": "auto"}})
+	b, _ := json.Marshal(out)
 	return string(b)
 }
 func adaptSocialCaption(platform, body, cta string) string {
@@ -460,12 +542,64 @@ func (a *App) socialPublishHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "id requerido", 400)
 		return
 	}
+	var groupID, campaignID int64
+	var status, master string
+	if err := a.db.QueryRow(`SELECT p.group_id,p.campaign_id,p.status,COALESCE(g.master_content,p.caption) FROM social_posts p LEFT JOIN social_post_groups g ON g.id=p.group_id AND g.tenant_id=p.tenant_id WHERE p.id=? AND p.tenant_id=?`, req.ID, t).Scan(&groupID, &campaignID, &status, &master); err != nil {
+		http.Error(w, "publicación no encontrada", 404)
+		return
+	}
+	platforms := []string{}
+	rows, _ := a.db.Query(`SELECT DISTINCT platform FROM social_posts WHERE tenant_id=? AND group_id=?`, t, groupID)
+	if rows != nil {
+		for rows.Next() {
+			var p string
+			_ = rows.Scan(&p)
+			if validSocialPlatform(p) {
+				platforms = append(platforms, p)
+			}
+		}
+		rows.Close()
+	}
+	decision := a.socialGovernanceDecisionV231(t, campaignID, platforms, master, "publish")
+	if decision.Blocked {
+		a.auditSocialGovernanceV231(t, groupID, campaignID, u.ID, "publish", platforms, decision)
+		http.Error(w, decision.Reason, http.StatusConflict)
+		return
+	}
+	if status == "pending_approval" || decision.RequireApproval {
+		now := time.Now().UTC().Format(time.RFC3339)
+		tx, e := a.db.Begin()
+		if e != nil {
+			http.Error(w, e.Error(), 500)
+			return
+		}
+		defer tx.Rollback()
+		_, e = tx.Exec(`UPDATE social_post_groups SET status='pending_approval',updated_at=? WHERE id=? AND tenant_id=?`, now, groupID, t)
+		if e == nil {
+			_, e = tx.Exec(`UPDATE social_posts SET status='pending_approval',updated_at=? WHERE group_id=? AND tenant_id=? AND status<>'published'`, now, groupID, t)
+		}
+		var n int
+		if e == nil {
+			_ = tx.QueryRow(`SELECT COUNT(*) FROM social_approvals WHERE tenant_id=? AND group_id=? AND status='pending'`, t, groupID).Scan(&n)
+			if n == 0 {
+				_, e = tx.Exec(`INSERT INTO social_approvals(tenant_id,group_id,requested_by,desired_action,desired_scheduled_at,request_note,status,requested_at) VALUES(?,?,?,?,?,?,?,?)`, t, groupID, u.ID, "publish", "", "Generado por la política de gobernanza V23.1", "pending", now)
+			}
+		}
+		if e != nil {
+			http.Error(w, e.Error(), 500)
+			return
+		}
+		_ = tx.Commit()
+		a.auditSocialGovernanceV231(t, groupID, campaignID, u.ID, "publish", platforms, decision)
+		writeJSON(w, map[string]any{"ok": true, "status": "pending_approval", "governance": decision})
+		return
+	}
 	result, err := a.publishSocialPost(r.Context(), t, req.ID)
 	if err != nil {
 		http.Error(w, err.Error(), 502)
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "status": "published", "result": result})
+	writeJSON(w, map[string]any{"ok": true, "status": "published", "result": result, "governance": decision})
 }
 
 func (a *App) socialOverviewHandler(w http.ResponseWriter, r *http.Request) {

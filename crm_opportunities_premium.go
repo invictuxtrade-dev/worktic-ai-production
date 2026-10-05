@@ -39,7 +39,7 @@ type CRMOpportunityRecord struct {
 	ManualLock      bool    `json:"manual_lock"`
 }
 
-func initCRMOpportunitiesPremiumSchema(db *sql.DB) error {
+func initCRMOpportunitiesPremiumSchema(db *DB) error {
 	migrations := []string{
 		`ALTER TABLE crm_opportunities ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE crm_opportunities ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'`,
@@ -366,7 +366,7 @@ func (a *App) syncOpportunityFromContactStage(tenant, contactID int64, stage str
 	return err
 }
 
-func syncAllExistingOpportunities(db *sql.DB) error {
+func syncAllExistingOpportunities(db *DB) error {
 	rows, err := db.Query(`SELECT id FROM tenants ORDER BY id`)
 	if err != nil {
 		return err

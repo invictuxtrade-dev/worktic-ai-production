@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -51,7 +50,7 @@ func scanLanding(s landingScanner, x *LandingPage) error {
 	return err
 }
 
-func initLandingSchema(db *sql.DB) error {
+func initLandingSchema(db *DB) error {
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS marketing_landings(
       id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id INTEGER NOT NULL,
       name TEXT NOT NULL, slug TEXT NOT NULL, template TEXT NOT NULL DEFAULT 'aurora',
@@ -467,7 +466,8 @@ func (a *App) publicLandingHandler(w http.ResponseWriter, r *http.Request) {
 		var f LeadForm
 		var active int
 		if a.db.QueryRow(`SELECT id,tenant_id,name,slug,headline,description,fields_json,consent_text,thank_you,redirect_url,active,created_at FROM marketing_forms WHERE id=? AND tenant_id=?`, x.FormID, tenant).Scan(&f.ID, &f.TenantID, &f.Name, &f.Slug, &f.Headline, &f.Description, &f.FieldsJSON, &f.ConsentText, &f.ThankYou, &f.RedirectURL, &active, &f.CreatedAt) == nil && active == 1 {
-			v.FormHTML = fmt.Sprintf(`<h2>%s</h2><p>%s</p><form method="post" action="/f/%d/%s"><input name="name" placeholder="Nombre completo" required><input name="phone" placeholder="WhatsApp o teléfono"><input name="email" type="email" placeholder="Correo electrónico"><input name="city" placeholder="Ciudad"><textarea name="interest" rows="4" placeholder="Cuéntanos qué necesitas"></textarea><label><input style="width:auto" name="consent" type="checkbox" required> %s</label><button class="btn">%s</button></form>`, template.HTMLEscapeString(f.Headline), template.HTMLEscapeString(f.Description), tenant, f.Slug, template.HTMLEscapeString(f.ConsentText), template.HTMLEscapeString(x.PrimaryCTA))
+			hidden := analyticsHiddenInputsV24(r, x.ID, x.CampaignID)
+			v.FormHTML = fmt.Sprintf(`<h2>%s</h2><p>%s</p><form method="post" action="/f/%d/%s">%s<input name="name" placeholder="Nombre completo" required><input name="phone" placeholder="WhatsApp o teléfono"><input name="email" type="email" placeholder="Correo electrónico"><input name="city" placeholder="Ciudad"><textarea name="interest" rows="4" placeholder="Cuéntanos qué necesitas"></textarea><label><input style="width:auto" name="consent" type="checkbox" required> %s</label><button class="btn">%s</button></form>`, template.HTMLEscapeString(f.Headline), template.HTMLEscapeString(f.Description), tenant, f.Slug, hidden, template.HTMLEscapeString(f.ConsentText), template.HTMLEscapeString(x.PrimaryCTA))
 		}
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
