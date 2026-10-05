@@ -361,6 +361,12 @@ func main() {
 	if err = initProductionV26Schema(db); err != nil {
 		log.Fatalf("production v26 schema: %v", err)
 	}
+	if err = (&App{db: db}).ensureAdminFullSchema(); err != nil {
+		log.Fatalf("admin full schema: %v", err)
+	}
+
+	ensureSocialProviderSchema(db)
+
 	if err = migrateAgentTenants(db); err != nil {
 		log.Fatalf("agent tenant migration: %v", err)
 	}
