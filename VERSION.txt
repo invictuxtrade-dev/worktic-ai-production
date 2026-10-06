@@ -1,10 +1,11 @@
-WorkticAI V27.4 — Stability + Premium Command Center
+WorkticAI V27.6 — Premium Interface
 Build: 2026-10-05
 
-- Dashboard Premium rediseñado: hero ejecutivo, 4 KPIs principales con sparklines, métricas secundarias, rendimiento, embudo, captación, insights y actividad paginada.
-- Worktic Copilot rediseñado conversation-first: conversación amplia, herramientas colapsables, composer grande, estado de carga y fallback funcional.
-- Copilot reutiliza el cliente OpenAI ya probado por Agentes IA/Automatizaciones/Canales.
-- Social Hub: socialMediaRules inicializado antes de cualquier carga asíncrona y Composer diferido hasta abrir su pestaña.
-- Cache busting V27.4 para App, Social Hub, CSS y Copilot.
-- Perfil CRM Premium V27.3 preservado sin cambios.
-- Base: V27.3 + V26 Production Enterprise con PostgreSQL + Redis + Go 1.26.
+- Base exacta: WorkticAI V27.5 Stability + Streaming Copilot entregada por el usuario.
+- Sin cambios en backend, PostgreSQL, Redis, Social Hub, workers ni migraciones.
+- Dashboard rediseñado al estilo Growth Command Center premium de la referencia.
+- Dashboard se entrega ya renderizado desde app.html para eliminar el flash de módulos legacy durante la carga.
+- Barra superior global funcional en toda la plataforma: búsqueda Ctrl+K, acceso a Inbox, Guías y Perfil.
+- Worktic Copilot rediseñado para conservar siempre una conversación legible y un composer de 96 px de alto.
+- Streaming V27.5 preservado sin modificar el motor de respuesta.
+- Cache busting V27.6 para CSS/JS principal de la interfaz.
