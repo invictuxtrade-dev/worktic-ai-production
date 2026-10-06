@@ -774,11 +774,13 @@ V27 añade WhatsApp Marketing, Worktic Copilot global y Dashboard Intelligence s
 
 ---
 
-# V27.4 — Stability + Premium Command Center
+# V27.5 — Stability + Streaming Copilot
 
-- Dashboard Growth Command Center rediseñado con jerarquía visual premium y métricas reales.
-- Worktic Copilot conversation-first con herramientas colapsables y fallback operativo.
-- Copilot reutiliza el cliente OpenAI consolidado del backend.
-- Corrección de TDZ `socialMediaRules` en Social Hub.
-- Composer Social diferido hasta su pestaña para reducir carga y errores de inicialización.
+- Corrige el binding obsoleto de `metaConnectInfo` que podía detener `app.js`.
+- Estados compartidos inicializados antes del bootstrap para evitar TDZ en Agentes IA, Grupos, Landings y módulos dependientes.
+- Inbox V21 corrige error ASI/`forEach` y normaliza colecciones de API.
+- Worktic Copilot usa streaming real mediante `/api/copilot/v27/stream`.
+- Render progresivo de respuesta y autoscroll inteligente que no interrumpe al usuario si lee mensajes anteriores.
+- Fallback al endpoint tradicional si el stream no puede iniciar.
+- Cache busting V27.5.
 - Sin migraciones nuevas de base de datos.

@@ -142,3 +142,12 @@
 @media(max-width:1100px){.v274-hero{grid-template-columns:1fr}.v274-hero-side{grid-template-columns:auto 1fr auto}.v274-ai-orb{grid-row:auto}.v274-primary-kpis{grid-template-columns:repeat(2,1fr)}.v274-main-grid,.v274-bottom-grid{grid-template-columns:1fr}.v274-sources{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:760px){.v274-primary-kpis,.v274-mini-kpis{grid-template-columns:1fr 1fr}.v274-kpi{grid-template-columns:auto 1fr 66px}.v274-hero{padding:20px}.v274-hero-copy h2{font-size:25px}.v274-hero-side{grid-template-columns:1fr}.v274-ai-orb{display:none}.v274-hero-signals{grid-template-columns:repeat(3,1fr)}.v274-sources{grid-template-columns:repeat(2,1fr)}.copilot-v274{left:8px;right:8px;top:8px;bottom:8px;width:auto;max-width:none;border-radius:18px}.copilot-v274 .copilot-select-grid{grid-template-columns:1fr}.copilot-composer-v274{grid-template-columns:minmax(0,1fr) 68px}.copilot-composer-meta{right:91px}}
 @media(max-width:460px){.v274-primary-kpis,.v274-mini-kpis,.v274-sources{grid-template-columns:1fr}.v274-kpi{grid-template-columns:auto 1fr 70px}.v274-hero-signals{grid-template-columns:1fr 1fr 1fr}.copilot-context-v274 p{white-space:normal}.copilot-composer-v274{grid-template-columns:1fr}.copilot-composer-v274>button{height:40px}.copilot-composer-meta{right:22px;bottom:60px}}
+
+/* =========================================================
+   V27.5 · COPILOT STREAMING + STABILITY UX
+   ========================================================= */
+.copilot-v274 .copilot-messages{scroll-behavior:auto;overscroll-behavior:contain}
+.copilot-v274 .copilot-msg.streaming>div{border:1px solid rgba(139,92,246,.16);background:linear-gradient(180deg,#faf8ff,#f6f3ff)}
+.copilot-v274 .copilot-msg.streaming p:after{content:'▍';display:inline-block;margin-left:2px;color:#7c3aed;animation:copilotCursorV275 .85s steps(1) infinite}
+@keyframes copilotCursorV275{0%,52%{opacity:1}53%,100%{opacity:0}}
+.copilot-v274 #copilotThinking{color:#6d28d9;font-weight:700}

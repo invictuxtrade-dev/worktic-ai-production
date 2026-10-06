@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -374,6 +377,129 @@ func copilotFallbackV274(message string, ctx map[string]any) string {
 	}
 }
 
+type copilotQueryV275 struct {
+	Message string `json:"message"`
+	View    string `json:"view"`
+	History []struct {
+		Role string `json:"role"`
+		Text string `json:"text"`
+	} `json:"history"`
+}
+
+func decodeCopilotQueryV275(r *http.Request) (copilotQueryV275, error) {
+	var q copilotQueryV275
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&q); err != nil {
+		return q, errors.New("solicitud inválida")
+	}
+	q.Message = strings.TrimSpace(q.Message)
+	if q.Message == "" {
+		return q, errors.New("escribe una pregunta")
+	}
+	if len(q.History) > 8 {
+		q.History = q.History[len(q.History)-8:]
+	}
+	return q, nil
+}
+
+func (a *App) copilotPromptV275(tid int64, u *User, q copilotQueryV275) (string, map[string]any) {
+	ctx := a.copilotContextV27(tid)
+	ctxRaw, _ := json.Marshal(ctx)
+	hist := []string{}
+	for _, h := range q.History {
+		text := strings.TrimSpace(h.Text)
+		if len(text) > 700 {
+			text = text[:700]
+		}
+		hist = append(hist, h.Role+": "+text)
+	}
+	prompt := `Eres Worktic Copilot, el asistente interno experto de WorkticAI. Ayudas al usuario a configurar y operar la plataforma de manera práctica, segura y orientada a resultados comerciales.
+
+Conoces en detalle estos módulos reales de WorkticAI V27: Dashboard Intelligence; Inbox Omnicanal; CRM Contactos y Oportunidades; Catálogo; Agenda; Agentes IA y enrutamiento; Canales; WhatsApp Business Cloud, Embedded Signup, plantillas y webhooks; WhatsApp Marketing con consentimiento; Automatizaciones visuales; Social Hub, calendario y gobernanza; Growth, campañas, formularios, leads y scoring; Landing Pages; Grupos y Comunidades; Analytics y Attribution; Ads Center para Meta/TikTok/Google; Equipo y roles; Perfil; Planes, membresías, pagos y Administración Worktic. También conoces los flujos de integración entre estos módulos.
+
+Tu función cubre onboarding, soporte, diagnóstico, explicación, configuración, optimización y guía paso a paso de toda la plataforma. Cuando el usuario pregunte algo ambiguo, relaciona la respuesta con el módulo correcto y termina con el siguiente paso concreto. Reglas: no inventes que una integración está conectada si el contexto dice lo contrario; no inventes métricas; para WhatsApp Marketing exige consentimiento y plantillas aprobadas; para acciones externas sensibles indica el paso exacto y que el usuario confirme en la interfaz; nunca pidas ni muestres secretos, tokens o API keys. Responde con párrafos breves y pasos concretos. Evita introducciones largas.
+
+Usuario: ` + u.Name + `
+Empresa: ` + u.Company + `
+Vista actual: ` + firstNonEmpty(q.View, "dashboard") + `
+Diagnóstico actual (solo conteos, sin PII): ` + string(ctxRaw) + `
+Historial reciente:
+` + strings.Join(hist, "\n") + `
+
+Pregunta actual: ` + q.Message
+	return prompt, ctx
+}
+
+func (a *App) streamCopilotOpenAIV275(ctx context.Context, prompt string, emit func(string) error) error {
+	payload := map[string]any{
+		"model":  a.cfg.OpenAIModel,
+		"input":  "Eres Worktic Copilot, el asistente interno experto de WorkticAI. Responde en español claro, práctico y profesional. No inventes conexiones, métricas ni configuraciones. Nunca solicites secretos, tokens ni API keys.\n\nMensaje del usuario: " + prompt,
+		"store":  false,
+		"stream": true,
+	}
+	b, _ := json.Marshal(payload)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+a.openAIKey())
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	resp, err := (&http.Client{Timeout: 65 * time.Second}).Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		return fmt.Errorf("OpenAI: %s", strings.TrimSpace(string(raw)))
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 64*1024), 2*1024*1024)
+	emitted := false
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "" || data == "[DONE]" {
+			continue
+		}
+		var ev struct {
+			Type  string `json:"type"`
+			Delta string `json:"delta"`
+			Error *struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if json.Unmarshal([]byte(data), &ev) != nil {
+			continue
+		}
+		switch ev.Type {
+		case "response.output_text.delta":
+			if ev.Delta != "" {
+				emitted = true
+				if err := emit(ev.Delta); err != nil {
+					return err
+				}
+			}
+		case "error", "response.failed":
+			if ev.Error != nil && ev.Error.Message != "" {
+				return errors.New(ev.Error.Message)
+			}
+			return errors.New("OpenAI no pudo completar la respuesta")
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	if !emitted {
+		return errors.New("OpenAI no devolvió texto en streaming")
+	}
+	return nil
+}
+
 func (a *App) copilotV27Handler(w http.ResponseWriter, r *http.Request) {
 	tid, u, err := a.tenantFor(r)
 	if err != nil {
@@ -388,45 +514,12 @@ func (a *App) copilotV27Handler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Método no permitido", 405)
 		return
 	}
-	var q struct {
-		Message string `json:"message"`
-		View    string `json:"view"`
-		History []struct {
-			Role string `json:"role"`
-			Text string `json:"text"`
-		} `json:"history"`
-	}
-	if json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&q) != nil || strings.TrimSpace(q.Message) == "" {
-		writeError(w, errors.New("escribe una pregunta"), 400)
+	q, err := decodeCopilotQueryV275(r)
+	if err != nil {
+		writeError(w, err, 400)
 		return
 	}
-	if len(q.History) > 8 {
-		q.History = q.History[len(q.History)-8:]
-	}
-	ctxRaw, _ := json.Marshal(a.copilotContextV27(tid))
-	hist := []string{}
-	for _, h := range q.History {
-		text := strings.TrimSpace(h.Text)
-		if len(text) > 700 {
-			text = text[:700]
-		}
-		hist = append(hist, h.Role+": "+text)
-	}
-	prompt := `Eres Worktic Copilot, el asistente interno experto de WorkticAI. Ayudas al usuario a configurar y operar la plataforma de manera práctica, segura y orientada a resultados comerciales.
-
-Conoces en detalle estos módulos reales de WorkticAI V27.1: Dashboard Intelligence; Inbox Omnicanal; CRM Contactos y Oportunidades; Catálogo; Agenda; Agentes IA y enrutamiento; Canales; WhatsApp Business Cloud, Embedded Signup, plantillas y webhooks; WhatsApp Marketing con consentimiento; Automatizaciones visuales; Social Hub, calendario y gobernanza; Growth, campañas, formularios, leads y scoring; Landing Pages; Grupos y Comunidades; Analytics y Attribution; Ads Center para Meta/TikTok/Google; Equipo y roles; Perfil; Planes, membresías, pagos y Administración Worktic. También conoces los flujos de integración entre estos módulos.
-
-Tu función cubre onboarding, soporte, diagnóstico, explicación, configuración, optimización y guía paso a paso de toda la plataforma. Cuando el usuario pregunte algo ambiguo, relaciona la respuesta con el módulo correcto y termina con el siguiente paso concreto. Reglas: no inventes que una integración está conectada si el contexto dice lo contrario; no inventes métricas; para WhatsApp Marketing exige consentimiento y plantillas aprobadas; para acciones externas sensibles indica el paso exacto y que el usuario confirme en la interfaz; nunca pidas ni muestres secretos, tokens o API keys. Da instrucciones breves, numeradas solo cuando realmente ayuden. Si detectas una configuración faltante, dilo claramente y nombra el módulo exacto donde se corrige.
-
-Usuario: ` + u.Name + `
-Empresa: ` + u.Company + `
-Vista actual: ` + firstNonEmpty(q.View, "dashboard") + `
-Diagnóstico actual (solo conteos, sin PII): ` + string(ctxRaw) + `
-Historial reciente:
-` + strings.Join(hist, "\n") + `
-
-Pregunta actual: ` + strings.TrimSpace(q.Message)
-	ctx := a.copilotContextV27(tid)
+	prompt, ctx := a.copilotPromptV275(tid, u, q)
 	answer, aiErr := a.callCopilotOpenAIV27(prompt)
 	degraded := false
 	if aiErr != nil || strings.TrimSpace(answer) == "" {
@@ -434,4 +527,62 @@ Pregunta actual: ` + strings.TrimSpace(q.Message)
 		answer = copilotFallbackV274(q.Message, ctx)
 	}
 	writeJSON(w, map[string]any{"ok": true, "answer": answer, "actions": copilotDeepLinksV27(q.Message), "context": ctx, "degraded": degraded})
+}
+
+func (a *App) copilotV275StreamHandler(w http.ResponseWriter, r *http.Request) {
+	tid, u, err := a.tenantFor(r)
+	if err != nil {
+		writeError(w, err, 401)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Método no permitido", 405)
+		return
+	}
+	q, err := decodeCopilotQueryV275(r)
+	if err != nil {
+		writeError(w, err, 400)
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, errors.New("streaming no disponible"), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-ndjson; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	writeEvent := func(v any) error {
+		b, _ := json.Marshal(v)
+		if _, err := w.Write(append(b, '\n')); err != nil {
+			return err
+		}
+		flusher.Flush()
+		return nil
+	}
+
+	prompt, ctx := a.copilotPromptV275(tid, u, q)
+	_ = writeEvent(map[string]any{"type": "start", "context": ctx})
+	parts := strings.Builder{}
+	streamErr := a.streamCopilotOpenAIV275(r.Context(), prompt, func(delta string) error {
+		parts.WriteString(delta)
+		return writeEvent(map[string]any{"type": "delta", "delta": delta})
+	})
+	degraded := false
+	if streamErr != nil && parts.Len() == 0 {
+		degraded = true
+		fallback := copilotFallbackV274(q.Message, ctx)
+		parts.WriteString(fallback)
+		_ = writeEvent(map[string]any{"type": "delta", "delta": fallback})
+	}
+	_ = writeEvent(map[string]any{
+		"type":     "done",
+		"answer":   strings.TrimSpace(parts.String()),
+		"actions":  copilotDeepLinksV27(q.Message),
+		"context":  ctx,
+		"degraded": degraded,
+	})
 }
