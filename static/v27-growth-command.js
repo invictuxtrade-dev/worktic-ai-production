@@ -8,23 +8,20 @@ function switchViewV27(view){const b=q(`nav button[data-view="${view}"]`);if(b){
 window.switchViewV27=switchViewV27;
 function svgLine(values){const w=760,h=210,p=16,max=Math.max(1,...values),min=Math.min(0,...values),span=Math.max(1,max-min);const pts=values.map((v,i)=>`${p+i*(w-2*p)/Math.max(1,values.length-1)},${h-p-(v-min)*(h-2*p)/span}`).join(' ');return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Tendencia de ingresos"><defs><linearGradient id="v274Area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7c3aed" stop-opacity=".28"/><stop offset="1" stop-color="#7c3aed" stop-opacity="0"/></linearGradient></defs><polygon points="${p},${h-p} ${pts} ${w-p},${h-p}" fill="url(#v274Area)"/><polyline points="${pts}" fill="none" stroke="#7c3aed" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`}
 function sparklineV274(values){const w=120,h=42,p=3,max=Math.max(1,...values),min=Math.min(0,...values),span=Math.max(1,max-min);const pts=values.map((v,i)=>`${p+i*(w-2*p)/Math.max(1,values.length-1)},${h-p-(v-min)*(h-2*p)/span}`).join(' ');return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`}
-function dashboardMarkup(){return `<div class="v276-dashboard-shell v277-dashboard-shell">
+function dashboardMarkup(){return `<div class="v276-dashboard-shell">
   <div class="v276-legacy-dashboard" aria-hidden="true"><div id="stats" class="stats"></div><div id="channelSummary"></div></div>
-  <section class="v276-hero v277-hero">
-    <div class="v276-hero-copy v277-hero-copy"><span class="eyebrow">WORKTIC AI · GROWTH COMMAND CENTER</span><h2 id="v27Greeting">Centro de mando comercial</h2><p>Aquí tienes un resumen del rendimiento de tu negocio.</p><div class="v276-hero-sub">Gestiona conversaciones, impulsa ventas y escala con IA.</div></div>
-    <div class="v276-hero-visual v277-hero-visual" aria-hidden="true">
-      <div class="v277-ai-mascot"><span class="v277-bot-spark spark-a">✦</span><span class="v277-bot-spark spark-b">✦</span><div class="v277-bot-arm arm-left"></div><div class="v277-bot-body"><span></span></div><div class="v277-bot-head"><i></i><i></i></div><div class="v277-bot-arm arm-right"></div></div>
-      <div class="v276-hero-checks v277-hero-checks"><span><i>✓</i> Más ventas</span><span><i>✓</i> Clientes más felices</span><span><i>✓</i> Automatización IA</span><span><i>✓</i> Crecimiento real</span></div>
-    </div>
+  <section class="v276-hero">
+    <div class="v276-hero-copy"><span class="eyebrow">WORKTIC AI · GROWTH COMMAND CENTER</span><h2 id="v27Greeting">Centro de mando comercial</h2><p>Aquí tienes una lectura ejecutiva del rendimiento de tu negocio.</p><div class="v276-hero-sub">Gestiona conversaciones, impulsa ventas y escala con IA.</div></div>
+    <div class="v276-hero-visual"><div class="v276-robot"><span class="v276-robot-glow"></span><img src="/assets/logo-mark.png" alt="Worktic AI"><b>✦</b></div><div class="v276-hero-checks"><span>✓ Más ventas</span><span>✓ Clientes más felices</span><span>✓ Automatización IA</span><span>✓ Crecimiento real</span></div></div>
   </section>
-  <section class="v276-kpis v277-kpis" id="v27Kpis"></section>
-  <section class="v276-analytics-grid v277-analytics-grid">
-    <article class="v276-card v277-card"><div class="v276-card-head v277-card-head"><div><h3><span class="v277-section-icon">▥</span> Captación por canal</h3><p>Leads registrados por cada canal en los últimos 30 días.</p></div><button class="v276-select-button v277-select-button" type="button" onclick="switchViewV27('analytics')">Ver Analytics</button></div><div id="v276ChannelBars" class="v276-bar-chart v277-bar-chart"></div></article>
-    <article class="v276-card v277-card"><div class="v276-card-head v277-card-head"><div><h3><span class="v277-section-icon">◔</span> Conversaciones por estado</h3><p>Atendidas y pendientes en tu operación actual.</p></div><span id="v276ConversationTotal" class="v276-card-total v277-card-total">—</span></div><div id="v276ConversationDonut" class="v276-donut-wrap v277-donut-wrap"></div></article>
+  <section class="v276-kpis" id="v27Kpis"></section>
+  <section class="v276-analytics-grid">
+    <article class="v276-card"><div class="v276-card-head"><div><h3>Captación por canal</h3><p>Leads registrados por fuente durante el periodo.</p></div><button class="v276-select-button" type="button" onclick="switchViewV27('analytics')">Ver Analytics</button></div><div id="v276ChannelBars" class="v276-bar-chart"></div></article>
+    <article class="v276-card"><div class="v276-card-head"><div><h3>Conversaciones por estado</h3><p>Atendidas y pendientes en tu operación actual.</p></div><span id="v276ConversationTotal" class="v276-card-total">—</span></div><div id="v276ConversationDonut" class="v276-donut-wrap"></div></article>
   </section>
-  <section class="v276-bottom-grid v277-bottom-grid">
-    <article class="v276-card v277-card v27-activity-card"><div class="v276-card-head v277-card-head v276-activity-head"><div><h3><span class="v277-section-icon neutral">◷</span> Actividad reciente</h3><p>Eventos comerciales y de automatización.</p></div><div class="v277-activity-head-actions"><div class="v27-activity-search"><input id="v27ActivitySearch" type="search" placeholder="Buscar actividad…" autocomplete="off"></div><button class="v276-select-button v277-select-button" type="button" onclick="switchViewV27('analytics')">Ver todas →</button></div></div><div id="v27Activity" class="v27-activity-list"><div class="v27-loading compact">Cargando actividad…</div></div><div class="v27-activity-footer"><small id="v27ActivityMeta">—</small><div class="v27-pager"><button id="v27ActivityPrev" type="button" class="secondary" aria-label="Anterior">‹</button><span id="v27ActivityPage">1</span><button id="v27ActivityNext" type="button" class="secondary" aria-label="Siguiente">›</button></div></div></article>
-    <article class="v276-card v277-card"><div class="v276-card-head v277-card-head"><div><h3><span class="v277-section-icon ai">✦</span> Insights de IA</h3><p>Alertas y oportunidades detectadas con datos reales.</p></div><button class="v276-select-button v277-select-button" type="button" onclick="switchViewV27('analytics')">Ver más insights →</button></div><div id="v27Insights" class="v27-insights v277-insights"><div class="v27-loading compact">Analizando…</div></div></article>
+  <section class="v276-bottom-grid">
+    <article class="v276-card v27-activity-card"><div class="v276-card-head v276-activity-head"><div><h3>Actividad reciente</h3><p>Eventos comerciales y de automatización.</p></div><div class="v27-activity-search"><input id="v27ActivitySearch" type="search" placeholder="Buscar actividad…" autocomplete="off"></div></div><div id="v27Activity" class="v27-activity-list"><div class="v27-loading compact">Cargando actividad…</div></div><div class="v27-activity-footer"><small id="v27ActivityMeta">—</small><div class="v27-pager"><button id="v27ActivityPrev" type="button" class="secondary" aria-label="Anterior">‹</button><span id="v27ActivityPage">1</span><button id="v27ActivityNext" type="button" class="secondary" aria-label="Siguiente">›</button></div></div></article>
+    <article class="v276-card"><div class="v276-card-head"><div><h3>✦ Insights de IA</h3><p>Alertas y oportunidades detectadas con datos reales.</p></div><button class="v276-select-button" type="button" onclick="switchViewV27('analytics')">Ver más insights</button></div><div id="v27Insights" class="v27-insights"><div class="v27-loading compact">Analizando…</div></div></article>
   </section>
 </div>`}
 async function loadGrowthDashboardV27(){
@@ -41,7 +38,7 @@ async function loadGrowthDashboardV27(){
       {label:'Leads',value:num(k.leads),change:k.leads_change,icon:'♙',series:series.map(x=>x.leads||0)},
       {label:'Conversaciones',value:num(k.conversations),change:k.conversations_change,icon:'◌',series:series.map(x=>x.conversations||0)}
     ];
-    q('#v27Kpis').innerHTML=primary.map((x,i)=>`<article class="v276-kpi v277-kpi v276-kpi-${i}"><div class="v276-kpi-icon v277-kpi-icon">${x.icon}</div><div class="v276-kpi-copy v277-kpi-copy"><small>${x.label}</small><b>${x.value}</b>${delta(x.change)}</div><div class="v276-spark v277-spark">${sparklineV274(x.series)}</div></article>`).join('');
+    q('#v27Kpis').innerHTML=primary.map((x,i)=>`<article class="v276-kpi v276-kpi-${i}"><div class="v276-kpi-icon">${x.icon}</div><div class="v276-kpi-copy"><small>${x.label}</small><b>${x.value}</b>${delta(x.change)}</div><div class="v276-spark">${sparklineV274(x.series)}</div></article>`).join('');
 
     const src=(d.sources||[]).slice(0,6), maxSrc=Math.max(1,...src.map(x=>Number(x.leads||0)));
     q('#v276ChannelBars').innerHTML=src.length?`<div class="v276-bars-grid">${src.map((x,i)=>{const v=Number(x.leads||0);const pct=Math.max(8,Math.round(v*100/maxSrc));return `<div class="v276-bar-col"><div class="v276-bar-value">${num(v)}</div><div class="v276-bar-track"><i style="height:${pct}%"></i></div><span>${esc(x.source||'Fuente')}</span></div>`}).join('')}</div>`:`<div class="v276-empty-chart"><b>Aún no hay captación suficiente</b><span>Cuando ingresen leads, aquí verás el rendimiento de cada fuente.</span></div>`;
@@ -52,7 +49,7 @@ async function loadGrowthDashboardV27(){
     const donut=q('.v276-donut');if(donut)donut.style.background=`conic-gradient(#10b981 0 ${attendedPct}%,#7c3aed ${attendedPct}% 100%)`;
 
     q('#v27Insights').innerHTML=(d.insights||[]).slice(0,5).map((x,i)=>`<div class="v276-insight ${esc(x.type)}"><span class="v276-insight-icon">${i===0?'↗':i===1?'⚡':'◎'}</span><div><b>${esc(x.title)}</b><p>${esc(x.text)}</p></div><span class="v276-insight-arrow">›</span></div>`).join('')||'<div class="v276-empty-chart"><b>Sin alertas por ahora</b><span>Worktic AI mostrará aquí oportunidades detectadas en tus datos.</span></div>';
-    q('#statusPill').textContent='Últimos 30 días';q('#statusPill').title=`${op.connected_channels||0} canales conectados · ${op.active_agents||0} agentes IA activos`;
+    q('#statusPill').textContent=`${op.connected_channels||0} canales · ${op.active_agents||0} agentes IA`;
     syncPremiumTopbarV276(d.user||{});
     loadDashboardActivityV271(activityStateV271.page);
   }catch(e){root.querySelector('.v276-dashboard-shell')?.insertAdjacentHTML('afterbegin',`<div class="notice danger">No se pudo actualizar el Dashboard Intelligence: ${esc(e.message)}</div>`)}
@@ -60,7 +57,7 @@ async function loadGrowthDashboardV27(){
 const activityStateV271={page:1,perPage:5,search:'',pages:0,total:0,timer:null};
 function activityLabelV271(v){const k=String(v||'evento').toLowerCase();const map={'conversation':'Conversación','lead.created':'Lead creado','opportunity.created':'Oportunidad creada','opportunity.won':'Venta ganada','appointment.created':'Cita creada','form.submitted':'Formulario enviado','social.click':'Clic social','whatsapp.marketing.sent':'WhatsApp enviado','whatsapp.marketing.read':'WhatsApp leído','whatsapp.marketing.replied':'Respuesta WhatsApp'};return map[k]||String(v||'evento').replaceAll('.',' · ')}
 function initDashboardActivityV271(){const input=q('#v27ActivitySearch'),prev=q('#v27ActivityPrev'),next=q('#v27ActivityNext');if(!input||input.dataset.bound==='1')return;input.dataset.bound='1';input.value=activityStateV271.search;input.addEventListener('input',()=>{clearTimeout(activityStateV271.timer);activityStateV271.timer=setTimeout(()=>{activityStateV271.search=input.value.trim();activityStateV271.page=1;loadDashboardActivityV271(1)},280)});prev.onclick=()=>{if(activityStateV271.page>1)loadDashboardActivityV271(activityStateV271.page-1)};next.onclick=()=>{if(activityStateV271.page<activityStateV271.pages)loadDashboardActivityV271(activityStateV271.page+1)}}
-async function loadDashboardActivityV271(page=1){const box=q('#v27Activity');if(!box)return;activityStateV271.page=Math.max(1,Number(page||1));box.innerHTML='<div class="v27-loading compact">Cargando…</div>';try{const params=new URLSearchParams({page:String(activityStateV271.page),per_page:String(activityStateV271.perPage)});if(activityStateV271.search)params.set('search',activityStateV271.search);const d=await api('/api/dashboard/v27/activity?'+params.toString()),items=d.items||[],pg=d.pagination||{};activityStateV271.page=Number(pg.page||1);activityStateV271.pages=Number(pg.pages||0);activityStateV271.total=Number(pg.total||0);box.innerHTML=items.length?items.map(x=>{const channel=String(x.channel||x.source||'Worktic').toLowerCase();const kind=channel.includes('whatsapp')?'wa':channel.includes('instagram')?'ig':channel.includes('facebook')||channel.includes('messenger')?'fb':channel.includes('telegram')?'tg':String(x.event_type||'').includes('opportunity')?'sale':'default';const ico={wa:'W',ig:'◎',fb:'f',tg:'➤',sale:'✓',default:'•'}[kind];return `<div class="v27-activity-item v277-activity-item"><span class="v27-activity-dot v277-activity-icon ${kind}">${ico}</span><div class="v27-activity-copy"><b>${esc(activityLabelV271(x.event_type))}</b><p>${esc(x.channel||x.source||'Worktic')}${Number(x.value||0)>0?' · '+money(x.value):''}</p></div><time>${x.occurred_at?new Date(x.occurred_at).toLocaleString():''}</time></div>`}).join(''):`<div class="v27-activity-empty">${activityStateV271.search?'No hay eventos que coincidan con la búsqueda.':'La actividad aparecerá aquí cuando Worktic registre eventos.'}</div>`;const pages=Math.max(1,activityStateV271.pages||1);q('#v27ActivityMeta').textContent=activityStateV271.total?`${activityStateV271.total} evento${activityStateV271.total===1?'':'s'}`:'Sin eventos';q('#v27ActivityPage').textContent=`${activityStateV271.page} / ${pages}`;q('#v27ActivityPrev').disabled=activityStateV271.page<=1;q('#v27ActivityNext').disabled=activityStateV271.pages===0||activityStateV271.page>=activityStateV271.pages}catch(e){box.innerHTML=`<div class="v27-activity-empty">No se pudo cargar la actividad: ${esc(e.message)}</div>`}}
+async function loadDashboardActivityV271(page=1){const box=q('#v27Activity');if(!box)return;activityStateV271.page=Math.max(1,Number(page||1));box.innerHTML='<div class="v27-loading compact">Cargando…</div>';try{const params=new URLSearchParams({page:String(activityStateV271.page),per_page:String(activityStateV271.perPage)});if(activityStateV271.search)params.set('search',activityStateV271.search);const d=await api('/api/dashboard/v27/activity?'+params.toString()),items=d.items||[],pg=d.pagination||{};activityStateV271.page=Number(pg.page||1);activityStateV271.pages=Number(pg.pages||0);activityStateV271.total=Number(pg.total||0);box.innerHTML=items.length?items.map(x=>`<div class="v27-activity-item"><span class="v27-activity-dot"></span><div class="v27-activity-copy"><b>${esc(activityLabelV271(x.event_type))}</b><p>${esc(x.channel||x.source||'Worktic')}${Number(x.value||0)>0?' · '+money(x.value):''}</p></div><time>${x.occurred_at?new Date(x.occurred_at).toLocaleString():''}</time></div>`).join(''):`<div class="v27-activity-empty">${activityStateV271.search?'No hay eventos que coincidan con la búsqueda.':'La actividad aparecerá aquí cuando Worktic registre eventos.'}</div>`;const pages=Math.max(1,activityStateV271.pages||1);q('#v27ActivityMeta').textContent=activityStateV271.total?`${activityStateV271.total} evento${activityStateV271.total===1?'':'s'}`:'Sin eventos';q('#v27ActivityPage').textContent=`${activityStateV271.page} / ${pages}`;q('#v27ActivityPrev').disabled=activityStateV271.page<=1;q('#v27ActivityNext').disabled=activityStateV271.pages===0||activityStateV271.page>=activityStateV271.pages}catch(e){box.innerHTML=`<div class="v27-activity-empty">No se pudo cargar la actividad: ${esc(e.message)}</div>`}}
 window.loadGrowthDashboardV27=loadGrowthDashboardV27;
 try{loadDashboard=loadGrowthDashboardV27}catch(_){/* global function may be lexical in future builds */}
 setTimeout(()=>{if(q('#dashboard')?.classList.contains('active'))loadGrowthDashboardV27()},0);
@@ -122,81 +119,176 @@ const COPILOT_SOLUTIONS_V272=[
   {group:'Cuenta y administración',id:'billing',label:'Plan y membresía',view:'billing',prompt:'Ayúdame a revisar plan, límites, pagos y facturación sin solicitar ni exponer datos sensibles.'},
   {group:'Cuenta y administración',id:'admin',label:'Administración Worktic',view:'admin',prompt:'Ayúdame a entender y operar las funciones administrativas disponibles para mi rol dentro de WorkticAI.'}
 ];
-const COPILOT_QUICK_V272=['Crear campaña','Analizar ventas','Automatizar FAQs','Mejorar mi catálogo','Revisar conversaciones'];
-function diagnosticTextV277(c={}){const channels=Number(c.connected_channels||0),agents=Number(c.active_agents||0),flows=Number(c.active_workflows||0),pending=Number(c.unread_messages||0);if(!channels)return 'No hay canales conectados todavía. Conecta al menos un canal para activar el flujo omnicanal y obtener un diagnóstico completo.';if(pending>0)return `He revisado tu operación: ${channels} canal(es), ${agents} agente(s) IA y ${flows} automatización(es). Tienes ${pending} conversación(es) pendiente(s) que conviene atender.`;return `He revisado tu operación: ${channels} canal(es), ${agents} agente(s) IA y ${flows} automatización(es) activas. No hay conversaciones pendientes registradas.`}
-
+const COPILOT_QUICK_V272=['Revisa mi configuración','¿Qué me falta para automatizar ventas?','Ayúdame con WhatsApp','Resolver un error'];
 function mountCopilot(){
   if(q('#workticCopilotLauncher'))return;
-  document.body.insertAdjacentHTML('beforeend',`<button id="workticCopilotLauncher" class="copilot-launcher v276-copilot-launcher v277-copilot-launcher" title="Worktic Copilot" aria-label="Abrir Worktic Copilot">✦</button><aside id="workticCopilot" class="copilot-panel copilot-v274 copilot-v276 copilot-v277" aria-label="Worktic Copilot">
-    <header class="copilot-head v276-copilot-head v277-copilot-head"><div class="copilot-head-main v277-copilot-head-main"><div class="v277-copilot-titleline"><b><span>✦</span> Worktic Copilot</b><span class="copilot-online">En línea</span></div><small>Tu asistente de IA para ventas, marketing y operaciones.</small></div><div class="copilot-head-actions"><button id="copilotMinimize" type="button" aria-label="Minimizar">−</button><div class="copilot-menu-wrap"><button id="copilotMore" type="button" aria-label="Más opciones">⋯</button><div id="copilotMenu" class="copilot-more-menu" hidden><button id="copilotMenuRefresh" type="button">Actualizar diagnóstico</button><button id="copilotMenuOpenModule" type="button">Abrir módulo seleccionado</button><button id="copilotMenuClear" type="button">Limpiar conversación</button></div></div><button id="copilotClose" type="button" aria-label="Cerrar">×</button></div></header>
-    <div class="v276-copilot-tabs v277-copilot-tabs"><button type="button" class="active" data-copilot-tab="assistant">💬&nbsp; Asistente</button><button type="button" data-copilot-tab="guides">📘&nbsp; Guías</button><button type="button" data-copilot-tab="automation">⚙️&nbsp; Automatizaciones</button><button type="button" data-copilot-tab="analysis">📊&nbsp; Análisis</button></div>
-    <section class="v276-copilot-workspace v277-copilot-workspace"><div class="v276-copilot-title v277-copilot-title"><b>¿Qué necesitas resolver?</b><small>Busca un módulo o escribe directamente tu caso.</small></div><label class="v276-solution-search v277-solution-search"><span>Buscar solución</span><input id="copilotSolutionSearch" type="search" placeholder="Ej. WhatsApp, CRM, anuncios, agenda…" autocomplete="off"></label><div class="copilot-select-grid v276-select-grid v277-select-grid"><label><span>Tipo de ayuda</span><select id="copilotMode"><option value="guide">Guía paso a paso</option><option value="diagnose">Diagnosticar</option><option value="optimize">Optimizar</option><option value="explain">Explicar función</option></select></label><label><span>Tema</span><select id="copilotSolution"></select></label></div><div class="v277-quick-block"><div class="v276-quick-label v277-quick-label">Acciones rápidas</div><div class="copilot-quick-v274 v276-quick v277-quick" id="copilotQuick"></div></div></section>
-    <div class="copilot-context-v274 v276-diagnostic v277-diagnostic"><span class="copilot-context-dot"></span><div><b><span class="v277-diag-star">✦</span> Diagnóstico rápido</b><p id="copilotContextText">Cargando contexto del espacio de trabajo…</p></div><button id="copilotRefreshContext" type="button" class="linkbtn">Actualizar</button></div>
-    <section class="copilot-conversation-v274 v276-conversation v277-conversation"><div class="copilot-conversation-head"><div><b>Conversación</b></div></div><div class="copilot-messages" id="copilotMessages"></div></section>
-    <form id="copilotForm" class="copilot-form copilot-composer-v274 v276-composer v277-composer"><textarea id="copilotInput" maxlength="2000" placeholder="Escribe tu mensaje aquí…&#10;Puedes hacer preguntas, pedir análisis, crear contenido o solicitar configuraciones."></textarea><div class="v276-composer-tools v277-composer-tools"><span title="Atajos">⌁</span><span title="Canales">◎</span><span title="IA">✦</span></div><div class="copilot-composer-meta"><span id="copilotThinking"></span><span id="copilotCharCount">0/2000</span></div><button id="copilotSend" type="submit" aria-label="Enviar"><b>➤</b></button></form>
+  document.body.insertAdjacentHTML('beforeend',`<button id="workticCopilotLauncher" class="copilot-launcher v279-copilot-launcher" title="Worktic Copilot" aria-label="Abrir Worktic Copilot">✦</button>
+  <aside id="workticCopilot" class="copilot-panel copilot-v279" aria-label="Worktic Copilot">
+    <header class="copilot-head v279-copilot-head">
+      <div class="v279-head-copy">
+        <div class="v279-title-row"><b><span>✦</span> Worktic Copilot</b><span class="copilot-online">● En línea</span></div>
+        <small>Tu asistente de IA para ventas, marketing y operaciones.</small>
+      </div>
+      <div class="copilot-head-actions">
+        <button id="copilotMinimize" type="button" aria-label="Minimizar">−</button>
+        <div class="v279-more-wrap">
+          <button id="copilotMore" type="button" aria-label="Más opciones">⋯</button>
+          <div id="copilotMoreMenu" class="v279-more-menu" hidden>
+            <button id="copilotToolsToggle" type="button">⚙ Herramientas y tema</button>
+            <button id="copilotRefreshMenu" type="button">↻ Actualizar diagnóstico</button>
+            <button id="copilotClear" type="button">⌫ Limpiar conversación</button>
+          </div>
+        </div>
+        <button id="copilotClose" type="button" aria-label="Cerrar">×</button>
+      </div>
+    </header>
+
+    <section id="copilotToolsDrawer" class="v279-tools-drawer" hidden>
+      <div class="v279-tools-head"><div><b>Herramientas del Copilot</b><small>Configura el tipo de ayuda solo cuando lo necesites.</small></div><button id="copilotToolsClose" type="button" aria-label="Cerrar herramientas">×</button></div>
+      <label class="v279-solution-search"><span>Buscar tema</span><input id="copilotSolutionSearch" type="search" placeholder="Ej. WhatsApp, CRM, anuncios, agenda…" autocomplete="off"></label>
+      <div class="v279-select-grid">
+        <label><span>Tipo de ayuda</span><select id="copilotMode"><option value="guide">Guía paso a paso</option><option value="diagnose">Diagnosticar</option><option value="optimize">Optimizar</option><option value="explain">Explicar función</option></select></label>
+        <label><span>Tema</span><select id="copilotSolution"></select></label>
+      </div>
+      <div class="v279-tool-actions"><button id="copilotStartSolution" type="button">Ayúdame con este tema</button><button id="copilotOpenModule" type="button" class="secondary">Abrir módulo</button></div>
+      <div class="v279-diagnostic"><div><b>✦ Diagnóstico rápido</b><p id="copilotContextText">Cargando contexto del espacio de trabajo…</p></div><button id="copilotRefreshContext" type="button" class="linkbtn">Actualizar</button></div>
+    </section>
+
+    <section class="v279-conversation">
+      <div class="v279-day"><span></span><b>Hoy</b><span></span></div>
+      <div class="copilot-messages" id="copilotMessages"></div>
+    </section>
+
+    <div class="v279-quick" id="copilotQuick"></div>
+
+    <form id="copilotForm" class="v279-composer">
+      <textarea id="copilotInput" maxlength="2000" placeholder="Escribe tu mensaje aquí…"></textarea>
+      <div class="v279-composer-bottom">
+        <div class="v279-composer-tools"><span title="Adjuntar">⌕</span><span title="Canales">◎</span><span title="IA">✦</span></div>
+        <div class="copilot-composer-meta"><span id="copilotThinking"></span><span id="copilotCharCount">0/2000</span></div>
+        <button id="copilotSend" type="submit" aria-label="Enviar"><b>➤</b></button>
+      </div>
+    </form>
   </aside>`);
-  const body=document.body,panel=q('#workticCopilot'),launcher=q('#workticCopilotLauncher'),msgs=q('#copilotMessages'),input=q('#copilotInput'),solutionSelect=q('#copilotSolution'),modeSelect=q('#copilotMode'),quick=q('#copilotQuick'),contextText=q('#copilotContextText'),search=q('#copilotSolutionSearch'),charCount=q('#copilotCharCount'),send=q('#copilotSend'),thinking=q('#copilotThinking'),menu=q('#copilotMenu');
+
+  const panel=q('#workticCopilot'),launcher=q('#workticCopilotLauncher'),msgs=q('#copilotMessages'),input=q('#copilotInput'),solutionSelect=q('#copilotSolution'),modeSelect=q('#copilotMode'),quick=q('#copilotQuick'),contextText=q('#copilotContextText'),search=q('#copilotSolutionSearch'),charCount=q('#copilotCharCount'),send=q('#copilotSend'),thinking=q('#copilotThinking'),menu=q('#copilotMoreMenu'),drawer=q('#copilotToolsDrawer');
   const history=[];let solutions=[...COPILOT_SOLUTIONS_V272],homeRequested=false,busy=false;
-  function renderSolutions(term=''){const t=String(term||'').trim().toLowerCase(),filtered=solutions.filter(x=>!t||`${x.group} ${x.label} ${x.id}`.toLowerCase().includes(t)),groups=[...new Set(filtered.map(x=>x.group))],previous=solutionSelect.value;solutionSelect.innerHTML='<option value="">Selecciona un tema…</option>'+groups.map(g=>`<optgroup label="${esc(g)}">${filtered.filter(x=>x.group===g).map(x=>`<option value="${esc(x.id)}">${esc(x.label)}</option>`).join('')}</optgroup>`).join('');if(filtered.some(x=>x.id===previous))solutionSelect.value=previous}
-  function bindQuick(items){const used=[...(items||[]),...COPILOT_QUICK_V272].filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i).slice(0,5);quick.innerHTML=used.map(x=>`<button type="button">${esc(x)}</button>`).join('');qa('#copilotQuick button').forEach(b=>b.onclick=()=>ask(b.textContent))}
+
+  function renderSolutions(term=''){
+    const t=String(term||'').trim().toLowerCase(),filtered=solutions.filter(x=>!t||`${x.group} ${x.label} ${x.id}`.toLowerCase().includes(t)),groups=[...new Set(filtered.map(x=>x.group))],previous=solutionSelect.value;
+    solutionSelect.innerHTML='<option value="">Selecciona un tema…</option>'+groups.map(g=>`<optgroup label="${esc(g)}">${filtered.filter(x=>x.group===g).map(x=>`<option value="${esc(x.id)}">${esc(x.label)}</option>`).join('')}</optgroup>`).join('');
+    if(filtered.some(x=>x.id===previous))solutionSelect.value=previous
+  }
+
+  function bindQuick(items){
+    const defaults=['Analizar mis ventas','Crear una campaña','Revisar conversaciones','Automatizar FAQs'];
+    const source=[...(items||[]),...defaults].filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i).slice(0,4);
+    quick.innerHTML=source.map((x,i)=>`<button type="button"><span>${['▥','➤','▣','✦'][i]||'✦'}</span>${esc(x)}</button>`).join('');
+    qa('#copilotQuick button').forEach(b=>b.onclick=()=>ask(b.textContent.trim()))
+  }
+
   function isNearBottom(limit=140){return (msgs.scrollHeight-msgs.scrollTop-msgs.clientHeight)<limit}
   function followConversation(force=false){if(!force&&!isNearBottom())return;requestAnimationFrame(()=>{msgs.scrollTop=msgs.scrollHeight})}
-  function appendCopilotActions(el,actions=[]){actions=(actions||[]).slice(0,2);if(!actions.length)return;const bodyBox=el.querySelector('div');if(!bodyBox)return;bodyBox.querySelector('.copilot-actions')?.remove();const box=document.createElement('div');box.className='copilot-actions';actions.forEach(x=>{const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=String(x.label||'Abrir').replace(/^Abrir\s+/i,'Ir a ');b.onclick=()=>{switchViewV27(x.view);setPanelState({open:false,minimized:false})};box.appendChild(b)});bodyBox.appendChild(box)}
-  function renderMessage(role,text,actions=[]){const el=document.createElement('div');el.className='copilot-msg '+role;if(role==='ai')el.innerHTML=`<span class="copilot-msg-avatar">WA</span><div><p>${esc(text)}</p></div>`;else el.innerHTML=`<div><p>${esc(text)}</p></div><span class="copilot-user-avatar">Tú</span>`;appendCopilotActions(el,actions);msgs.appendChild(el);return el}
-  function resetConversation(message='¡Hola! Soy Worktic Copilot 👋 ¿En qué te ayudo hoy?'){msgs.innerHTML='';renderMessage('ai',message)}
-  function normalizeText(s=''){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim()}
-  function localReply(text){const n=normalizeText(text);if(/^(hola|ola|hello|hi|hey|buenas|buen dia|buenos dias|buenas tardes|buenas noches|hola copilot)$/.test(n))return '¡Hola! 👋 Estoy listo para ayudarte. ¿Qué quieres resolver hoy?';if(/^(gracias|muchas gracias|ok|vale|perfecto|listo|entendido)$/.test(n))return '¡Con gusto! Si quieres, dime el módulo o la tarea y te acompaño paso a paso.';if(/^(ayuda|que puedes hacer|quien eres|como me puedes ayudar)$/.test(n))return 'Puedo ayudarte con ventas, CRM, automatizaciones, campañas, analytics y configuración. Cuéntame qué quieres lograr y lo resolvemos juntos.';return ''}
-  function toggleMenu(force){const next=typeof force==='boolean'?force:menu.hidden;menu.hidden=!next}
-  function setPanelState({open,minimized}={}){if(typeof open==='boolean')panel.classList.toggle('open',open);if(typeof minimized==='boolean')panel.classList.toggle('minimized',minimized);const docked=panel.classList.contains('open')&&!panel.classList.contains('minimized')&&window.innerWidth>=1240;body.classList.toggle('copilot-open',docked);launcher.classList.toggle('is-hidden',docked);if(panel.classList.contains('open')&&!homeRequested){homeRequested=true;loadHome()}if(panel.classList.contains('open')&&!panel.classList.contains('minimized'))setTimeout(()=>input.focus(),70)}
-  function selectedSolution(){return solutions.find(x=>x.id===solutionSelect.value)}
-  function openSelectedModule(){const item=selectedSolution();if(!item)return toast('Selecciona un tema');switchViewV27(item.view);setPanelState({open:false,minimized:false})}
-  renderSolutions();bindQuick(COPILOT_QUICK_V272);resetConversation();
-  qa('[data-copilot-tab]').forEach(btn=>btn.onclick=()=>{qa('[data-copilot-tab]').forEach(x=>x.classList.remove('active'));btn.classList.add('active');const tab=btn.dataset.copilotTab;if(tab==='guides'){modeSelect.value='guide';search.value='';renderSolutions()}else if(tab==='automation'){modeSelect.value='optimize';search.value='automat';renderSolutions(search.value);solutionSelect.value='automation'}else if(tab==='analysis'){modeSelect.value='diagnose';search.value='analytics';renderSolutions(search.value);solutionSelect.value='analytics'}else{modeSelect.value='guide';search.value='';renderSolutions()}});
-  search.addEventListener('input',()=>renderSolutions(search.value));
-  launcher.onclick=()=>setPanelState({open:!panel.classList.contains('open'),minimized:false});
-  q('#copilotClose').onclick=()=>setPanelState({open:false,minimized:false});
-  q('#copilotMinimize').onclick=()=>setPanelState({open:true,minimized:!panel.classList.contains('minimized')});
+  function appendCopilotActions(el,actions=[]){
+    actions=(actions||[]).slice(0,2);if(!actions.length)return;
+    const body=el.querySelector('div');if(!body)return;
+    const box=document.createElement('div');box.className='copilot-actions';
+    actions.forEach(x=>{const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=x.label;b.onclick=()=>{switchViewV27(x.view);panel.classList.remove('open')}});body.appendChild(box)
+  }
+  function renderMessage(role,text,actions=[]){
+    const el=document.createElement('div');el.className='copilot-msg '+role;
+    if(role==='ai')el.innerHTML=`<span class="copilot-msg-avatar"><img src="/assets/logo-mark.png" alt=""></span><div><p>${esc(text)}</p></div>`;
+    else el.innerHTML=`<div><p>${esc(text)}</p></div><span class="copilot-user-avatar">Tú</span>`;
+    appendCopilotActions(el,actions);msgs.appendChild(el);return el
+  }
+  function resetConversation(message='¡Hola! 👋 Soy Worktic Copilot. ¿Qué te gustaría hacer hoy?'){msgs.innerHTML='';renderMessage('ai',message)}
+  function normalizeText(s=''){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim()}
+  function localReply(text){
+    const n=normalizeText(text);
+    if(/^(hola|ola|hello|hi|hey|buenas|buen dia|buenos dias|buenas tardes|buenas noches|hola copilot)$/.test(n))return '¡Hola! 👋 ¿En qué te ayudo hoy?';
+    if(/^(gracias|muchas gracias|ok|vale|perfecto|listo|entendido)$/.test(n))return '¡Con gusto! ¿Quieres que sigamos con algo más?';
+    if(/^(que puedes hacer|quien eres|como me puedes ayudar|ayuda)$/.test(n))return 'Puedo ayudarte con ventas, CRM, campañas, automatizaciones, conversaciones, Analytics y configuración de WorkticAI. Dime qué quieres lograr.';
+    return ''
+  }
+  function toggleMenu(force){const show=typeof force==='boolean'?force:menu.hidden;menu.hidden=!show}
+  function toggleDrawer(force){const show=typeof force==='boolean'?force:drawer.hidden;drawer.hidden=!show;panel.classList.toggle('tools-open',show)}
+  function selectedItem(){return solutions.find(x=>x.id===solutionSelect.value)}
+  function openSelectedModule(){const item=selectedItem();if(!item)return toast('Selecciona un tema');switchViewV27(item.view);panel.classList.remove('open')}
+
+  renderSolutions();bindQuick();resetConversation();
+
+  launcher.onclick=()=>{panel.classList.toggle('open');panel.classList.remove('minimized');if(panel.classList.contains('open')&&!homeRequested){homeRequested=true;loadHome()}if(panel.classList.contains('open'))setTimeout(()=>input.focus(),70)};
+  q('#copilotClose').onclick=()=>{panel.classList.remove('open');toggleMenu(false);toggleDrawer(false)};
+  q('#copilotMinimize').onclick=()=>panel.classList.toggle('minimized');
   q('#copilotMore').onclick=e=>{e.stopPropagation();toggleMenu()};
-  document.addEventListener('click',e=>{if(menu.hidden)return;const moreBtn=q('#copilotMore');if(menu.contains(e.target)||moreBtn.contains(e.target))return;toggleMenu(false)});
-  q('#copilotMenuRefresh').onclick=()=>{toggleMenu(false);loadHome(true)};
-  q('#copilotMenuClear').onclick=()=>{toggleMenu(false);history.splice(0,history.length);resetConversation('Conversación limpia. ¿Qué quieres resolver ahora?');input.focus()};
-  q('#copilotMenuOpenModule').onclick=()=>{toggleMenu(false);openSelectedModule()};
+  q('#copilotToolsToggle').onclick=()=>{toggleMenu(false);toggleDrawer()};
+  q('#copilotToolsClose').onclick=()=>toggleDrawer(false);
+  q('#copilotRefreshMenu').onclick=()=>{toggleMenu(false);toggleDrawer(true);loadHome(true)};
+  q('#copilotClear').onclick=()=>{toggleMenu(false);history.splice(0,history.length);resetConversation('Conversación limpia. ¿Qué quieres resolver ahora?');input.focus()};
   q('#copilotRefreshContext').onclick=()=>loadHome(true);
+  q('#copilotStartSolution').onclick=()=>{const item=selectedItem();if(!item)return toast('Selecciona un tema');const mode={guide:'Guíame paso a paso.',diagnose:'Haz un diagnóstico y dime cómo corregirlo.',optimize:'Analiza cómo optimizar esta parte de mi operación.',explain:'Explícame esta función y cómo usarla correctamente.'}[modeSelect.value]||'';toggleDrawer(false);ask(`${mode} ${item.prompt}`)};
+  q('#copilotOpenModule').onclick=openSelectedModule;
+  search.addEventListener('input',()=>renderSolutions(search.value));
+  document.addEventListener('click',e=>{if(menu.hidden)return;if(menu.contains(e.target)||q('#copilotMore').contains(e.target))return;toggleMenu(false)});
   input.addEventListener('input',()=>{charCount.textContent=`${input.value.length}/2000`});
-  window.addEventListener('resize',()=>setPanelState({open:panel.classList.contains('open'),minimized:panel.classList.contains('minimized')}));
-  async function loadHome(force=false){if(force)contextText.textContent='Actualizando contexto…';try{const r=await api('/api/copilot/v27');if((r.suggestions||[]).length)bindQuick(r.suggestions);const c=r.context||{};contextText.textContent=diagnosticTextV277(c);}catch(e){contextText.textContent='Contexto no disponible. El chat sigue operativo.'}}
+
+  async function loadHome(force=false){
+    if(force)contextText.textContent='Actualizando contexto…';
+    try{const r=await api('/api/copilot/v27');if((r.suggestions||[]).length)bindQuick(r.suggestions);const c=r.context||{};contextText.textContent=diagnosticTextV277(c)}
+    catch(e){contextText.textContent='Contexto no disponible. El chat sigue operativo.'}
+  }
+
   async function ask(text){
     text=String(text||'').trim();if(!text||busy)return;
-    const userText=text, selected=selectedSolution(), modeHint={guide:'Guía paso a paso.',diagnose:'Haz un diagnóstico claro.',optimize:'Prioriza mejoras accionables.',explain:'Explica la función con claridad.'}[modeSelect.value]||'';
-    renderMessage('user',userText);followConversation(true);history.push({role:'user',text:userText});input.value='';charCount.textContent='0/2000';
-    const local=localReply(userText);if(local){renderMessage('ai',local);history.push({role:'assistant',text:local});followConversation(true);input.focus();return}
+    const userText=text,selected=selectedItem(),modeHint={guide:'Guía paso a paso.',diagnose:'Haz un diagnóstico práctico.',optimize:'Prioriza optimización y próximos pasos.',explain:'Explica con claridad cómo funciona.'}[modeSelect.value]||'';
+    renderMessage('user',userText);followConversation(true);
+    const previousHistory=history.slice(-8);history.push({role:'user',text:userText});input.value='';charCount.textContent='0/2000';
+
+    const local=localReply(userText);
+    if(local){renderMessage('ai',local);history.push({role:'assistant',text:local});followConversation(true);input.focus();return}
+
     busy=true;send.disabled=true;thinking.textContent='Pensando…';
     const holder=renderMessage('ai','Escribiendo…');holder.classList.add('streaming');const p=holder.querySelector('p');followConversation(true);
-    const previousHistory=history.slice(-8,-1);
-    const behavior='Instrucción de estilo: responde en español de forma breve, humana, cálida y útil. Si el usuario solo saluda, responde solo con un saludo corto y una única pregunta de seguimiento. Evita saturar con listas largas; usa pasos solo cuando aporten valor real.';
-    const requestText=selected?`${behavior} ${modeHint} Tema seleccionado: ${selected.label}. Contexto del módulo: ${selected.prompt} Solicitud del usuario: ${userText}`:`${behavior} ${modeHint} Solicitud del usuario: ${userText}`;
+    const behavior='Responde en español de forma humana, natural, breve y útil. Conversa antes de explicar. No enumeres muchas funciones ni des listas largas salvo que el usuario las pida. Si falta contexto, haz una sola pregunta clara. Mantén un tono profesional y cercano.';
+    const requestText=selected?`${behavior} ${modeHint} Tema seleccionado: ${selected.label}. Contexto del módulo: ${selected.prompt} Pregunta del usuario: ${userText}`:`${behavior} Pregunta del usuario: ${userText}`;
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),65000);let answer='',donePayload=null,started=false;
     const updateContext=c=>{c=c||{};contextText.textContent=diagnosticTextV277(c)};
+
     try{
       const response=await fetch('/api/copilot/v27/stream',{method:'POST',credentials:'same-origin',signal:controller.signal,headers:{'Content-Type':'application/json','Accept':'application/x-ndjson'},body:JSON.stringify({message:requestText,view:window.__wtCurrentView||'dashboard',history:previousHistory})});
       if(response.status===401){location.replace('/login.html?reason=session');throw new Error('Sesión requerida')}
       if(!response.ok||!response.body)throw new Error('No fue posible iniciar la respuesta en tiempo real');
       const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';thinking.textContent='Respondiendo…';
-      while(true){const {value,done}=await reader.read();buffer+=decoder.decode(value||new Uint8Array(),{stream:!done});const lines=buffer.split('\n');buffer=lines.pop()||'';for(const line of lines){if(!line.trim())continue;let ev;try{ev=JSON.parse(line)}catch(_){continue}if(ev.type==='start'){updateContext(ev.context);continue}if(ev.type==='delta'){if(!started){started=true;answer='';p.textContent=''}answer+=String(ev.delta||'');p.textContent=answer;followConversation(isNearBottom(180));continue}if(ev.type==='done'){donePayload=ev;updateContext(ev.context);if(ev.degraded)holder.classList.add('degraded')}}if(done)break}
+      while(true){
+        const {value,done}=await reader.read();
+        buffer+=decoder.decode(value||new Uint8Array(),{stream:!done});
+        const lines=buffer.split('\n');buffer=lines.pop()||'';
+        for(const line of lines){
+          if(!line.trim())continue;
+          let ev;try{ev=JSON.parse(line)}catch(_){continue}
+          if(ev.type==='start'){updateContext(ev.context);continue}
+          if(ev.type==='delta'){if(!started){started=true;answer='';p.textContent=''}answer+=String(ev.delta||'');p.textContent=answer;if(isNearBottom(180))followConversation(true);continue}
+          if(ev.type==='done'){donePayload=ev;updateContext(ev.context);if(ev.degraded)holder.classList.add('degraded')}
+        }
+        if(done)break
+      }
       if(buffer.trim()){try{const ev=JSON.parse(buffer);if(ev.type==='done')donePayload=ev}catch(_){}}
       if(!answer.trim()&&donePayload?.answer){answer=String(donePayload.answer);p.textContent=answer}
       if(!answer.trim()){answer='No recibí texto de respuesta.';p.textContent=answer}
       appendCopilotActions(holder,donePayload?.actions||[]);history.push({role:'assistant',text:answer});
     }catch(e){
       if(!started){
-        try{thinking.textContent='Recuperando respuesta…';const r=await api('/api/copilot/v27',{method:'POST',body:JSON.stringify({message:requestText,view:window.__wtCurrentView||'dashboard',history:previousHistory})});answer=r.answer||'No recibí texto de respuesta.';p.textContent=answer;if(r.degraded)holder.classList.add('degraded');appendCopilotActions(holder,r.actions||[]);updateContext(r.context);history.push({role:'assistant',text:answer});}
-        catch(e2){p.textContent=e?.name==='AbortError'?'La respuesta tardó demasiado. Intenta de nuevo o formula una pregunta más concreta.':'No pude completar la respuesta: '+(e2.message||e.message||'error de conexión');}
-      }else{p.textContent=answer+'\n\nLa conexión se interrumpió antes de terminar la respuesta.';}
+        try{
+          thinking.textContent='Recuperando respuesta…';
+          const r=await api('/api/copilot/v27',{method:'POST',body:JSON.stringify({message:requestText,view:window.__wtCurrentView||'dashboard',history:previousHistory})});
+          answer=r.answer||'No recibí texto de respuesta.';p.textContent=answer;if(r.degraded)holder.classList.add('degraded');appendCopilotActions(holder,r.actions||[]);updateContext(r.context);history.push({role:'assistant',text:answer});
+        }catch(e2){p.textContent=e?.name==='AbortError'?'La respuesta tardó demasiado. Intenta de nuevo.':'No pude completar la respuesta: '+(e2.message||e.message||'error de conexión')}
+      }else{p.textContent=answer+'\n\nLa conexión se interrumpió antes de terminar la respuesta.'}
     }finally{clearTimeout(timer);holder.classList.remove('streaming');busy=false;send.disabled=false;thinking.textContent='';followConversation(true);input.focus()}
   }
+
   q('#copilotForm').onsubmit=e=>{e.preventDefault();ask(input.value)};
   input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ask(input.value)}});
-  if(window.innerWidth>=1240){setPanelState({open:true,minimized:false})}
 }
 mountCopilot();
 })();

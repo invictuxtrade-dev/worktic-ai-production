@@ -1,10 +1,11 @@
-WorkticAI V27.8 — Copilot Fidelity Fix
+WorkticAI V27.9 — V27.6 Dashboard + Clean Copilot
 Build: 2026-10-06
 
-- Base exacta: WorkticAI V27.7 — Mockup Fidelity UI/UX.
-- Ajuste visual enfocado en fidelidad del Worktic Copilot y comportamiento conversacional más humano.
-- Panel Copilot reequilibrado para escritorio: docking en desktop, menos saturación visual y mejor jerarquía.
-- Menú de opciones (⋯) para acciones secundarias: actualizar diagnóstico, abrir módulo seleccionado y limpiar conversación.
-- Respuesta del Copilot suavizada desde frontend: estilo breve, cálido y menos verboso; saludos simples se resuelven localmente.
-- Cache busting V27.8 aplicado a interfaz principal.
-- Backend, PostgreSQL, Redis, workers, migraciones y módulos funcionales preservados.
+- Base exacta: WorkticAI V27.6 Premium Interface suministrada nuevamente por el usuario.
+- Dashboard/Resumen V27.6 conservado sin rediseño, sin docking y sin colapsar al abrir Copilot.
+- Único rediseño funcional: Worktic Copilot.
+- Copilot limpio: conversación protagonista, acciones rápidas compactas y composer amplio.
+- Funciones secundarias movidas al menú de tres puntos y drawer opcional de herramientas.
+- Saludos simples respondidos de forma humana y breve; solicitudes reales conservan streaming.
+- Endpoints V27 preservados: /api/copilot/v27/stream + fallback /api/copilot/v27.
+- Backend, PostgreSQL, Redis, Social Hub, Inbox, Perfil, WhatsApp Marketing, workers y migraciones intactos.
