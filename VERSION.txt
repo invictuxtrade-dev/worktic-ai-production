@@ -1,11 +1,10 @@
-WorkticAI V27.6 — Premium Interface
-Build: 2026-10-05
+WorkticAI V27.7 — Mockup Fidelity UI/UX
+Build: 2026-10-06
 
-- Base exacta: WorkticAI V27.5 Stability + Streaming Copilot entregada por el usuario.
-- Sin cambios en backend, PostgreSQL, Redis, Social Hub, workers ni migraciones.
-- Dashboard rediseñado al estilo Growth Command Center premium de la referencia.
-- Dashboard se entrega ya renderizado desde app.html para eliminar el flash de módulos legacy durante la carga.
-- Barra superior global funcional en toda la plataforma: búsqueda Ctrl+K, acceso a Inbox, Guías y Perfil.
-- Worktic Copilot rediseñado para conservar siempre una conversación legible y un composer de 96 px de alto.
-- Streaming V27.5 preservado sin modificar el motor de respuesta.
-- Cache busting V27.6 para CSS/JS principal de la interfaz.
+- Base exacta: WorkticAI V27.6 — Premium Interface suministrada por el usuario.
+- Evolución exclusivamente visual y de usabilidad sobre Dashboard/Resumen y Worktic Copilot.
+- Backend, PostgreSQL, Redis, workers, migraciones, Social Hub, Inbox, Perfil y WhatsApp Marketing preservados.
+- Dashboard ajustado para reproducir la composición aprobada: hero, KPIs, analítica, actividad e insights.
+- Worktic Copilot ajustado al panel lateral aprobado, con conversación y composer prioritarios.
+- Streaming V27.5/V27.6 preservado (`/api/copilot/v27/stream` + fallback `/api/copilot/v27`).
+- Cache busting V27.7 aplicado a interfaz principal.
