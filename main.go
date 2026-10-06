@@ -500,7 +500,6 @@ func main() {
 	mux.HandleFunc("/api/dashboard/v27", app.dashboardV27Handler)
 	mux.HandleFunc("/api/dashboard/v27/activity", app.dashboardActivityV27Handler)
 	mux.HandleFunc("/api/copilot/v27", app.copilotV27Handler)
-	mux.HandleFunc("/api/copilot/v27/stream", app.copilotV275StreamHandler)
 	mux.HandleFunc("/webhooks/messenger/", app.messengerTenantWebhookHandler)
 	mux.HandleFunc("/api/agent", app.agentHandler)
 	mux.HandleFunc("/api/agent/test", app.agentTestHandler)
