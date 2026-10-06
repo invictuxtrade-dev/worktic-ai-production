@@ -1,11 +1,13 @@
-WorkticAI V27.9 — V27.6 Dashboard + Clean Copilot
+WorkticAI V27.9.1 — Copilot UI Polish
 Build: 2026-10-06
 
-- Base exacta: WorkticAI V27.6 Premium Interface suministrada nuevamente por el usuario.
-- Dashboard/Resumen V27.6 conservado sin rediseño, sin docking y sin colapsar al abrir Copilot.
-- Único rediseño funcional: Worktic Copilot.
-- Copilot limpio: conversación protagonista, acciones rápidas compactas y composer amplio.
-- Funciones secundarias movidas al menú de tres puntos y drawer opcional de herramientas.
-- Saludos simples respondidos de forma humana y breve; solicitudes reales conservan streaming.
-- Endpoints V27 preservados: /api/copilot/v27/stream + fallback /api/copilot/v27.
+- Base exacta: WorkticAI V27.9 — V27.6 Dashboard + Clean Copilot.
+- Dashboard V27.6 preservado sin cambios visuales ni de layout.
+- Refinamiento exclusivo del Worktic Copilot.
+- Corregido el espacio vacío inferior causado por la grilla del panel cuando el drawer de herramientas está cerrado.
+- Composer reorganizado y aislado de reglas legacy: textarea, herramientas, contador y enviar alineados.
+- Acciones rápidas uniformes en una cuadrícula 2x2.
+- Burbujas, avatar, header y espaciado general refinados.
+- Herramientas secundarias siguen dentro del menú de tres puntos.
+- Saludos humanos y breves preservados; streaming y fallback V27 intactos.
 - Backend, PostgreSQL, Redis, Social Hub, Inbox, Perfil, WhatsApp Marketing, workers y migraciones intactos.

@@ -193,7 +193,7 @@ function mountCopilot(){
     actions=(actions||[]).slice(0,2);if(!actions.length)return;
     const body=el.querySelector('div');if(!body)return;
     const box=document.createElement('div');box.className='copilot-actions';
-    actions.forEach(x=>{const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=x.label;b.onclick=()=>{switchViewV27(x.view);panel.classList.remove('open')}});body.appendChild(box)
+    actions.forEach(x=>{const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=x.label;b.onclick=()=>{switchViewV27(x.view);panel.classList.remove('open')};box.appendChild(b)});body.appendChild(box)
   }
   function renderMessage(role,text,actions=[]){
     const el=document.createElement('div');el.className='copilot-msg '+role;
@@ -234,7 +234,7 @@ function mountCopilot(){
 
   async function loadHome(force=false){
     if(force)contextText.textContent='Actualizando contexto…';
-    try{const r=await api('/api/copilot/v27');if((r.suggestions||[]).length)bindQuick(r.suggestions);const c=r.context||{};contextText.textContent=diagnosticTextV277(c)}
+    try{const r=await api('/api/copilot/v27');const c=r.context||{};contextText.textContent=diagnosticTextV277(c)}
     catch(e){contextText.textContent='Contexto no disponible. El chat sigue operativo.'}
   }
 

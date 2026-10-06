@@ -331,3 +331,125 @@
   .v279-select-grid{grid-template-columns:1fr}.v279-tool-actions{grid-template-columns:1fr}
   .v279-quick{gap:6px}.v279-quick button{font-size:9px;padding:0 10px}
 }
+
+
+/* =================================================================
+   WorkticAI V27.9.1 — Copilot UI Polish
+   Scoped exclusively to Worktic Copilot. Dashboard remains V27.6.
+   ================================================================= */
+.copilot-v279.open{
+  grid-template-rows:82px minmax(0,1fr) auto 112px!important;
+}
+.copilot-v279.open.tools-open{
+  grid-template-rows:82px auto minmax(0,1fr) auto 112px!important;
+}
+.copilot-v279.minimized{grid-template-rows:82px!important}
+
+/* Header: tighter alignment and calmer controls */
+.v279-copilot-head{padding:15px 15px 13px!important}
+.v279-title-row{gap:8px!important}
+.v279-title-row b{font-size:15px!important;line-height:1.15!important}
+.v279-title-row .copilot-online{padding:3px 8px!important;font-size:8.5px!important}
+.v279-head-copy small{margin-top:5px!important;font-size:10px!important}
+.v279-copilot-head .copilot-head-actions>button,.v279-more-wrap>button{
+  width:31px!important;height:31px!important;border-radius:8px!important;font-size:17px!important
+}
+
+/* Conversation: more breathing room, cleaner bubbles */
+.v279-conversation{grid-template-rows:32px minmax(0,1fr)!important}
+.v279-day{padding:7px 16px 0!important;gap:9px!important}
+.v279-day b{padding:2px 9px!important;font-size:8.5px!important;background:#f7f7fb!important}
+.copilot-v279 .copilot-messages{padding:12px 15px 12px!important;gap:10px!important}
+.copilot-v279 .copilot-msg{max-width:91%!important;font-size:11.5px!important;line-height:1.48!important;gap:8px!important}
+.copilot-v279 .copilot-msg>div{
+  padding:10px 12px!important;border-radius:14px!important;background:#f6f6fa!important;
+  box-shadow:none!important
+}
+.copilot-v279 .copilot-msg.ai>div{border-top-left-radius:6px!important}
+.copilot-v279 .copilot-msg.user>div{
+  background:#eee8ff!important;border:1px solid #e2d7ff!important;border-top-right-radius:6px!important
+}
+.copilot-v279 .copilot-msg-avatar,.copilot-v279 .copilot-user-avatar{
+  width:28px!important;height:28px!important;min-width:28px!important
+}
+.copilot-v279 .copilot-msg-avatar img{width:18px!important;height:18px!important}
+
+/* Quick actions: fixed 2x2 grid, consistent visual rhythm */
+.v279-quick{
+  display:grid!important;grid-template-columns:1fr 1fr!important;gap:7px!important;
+  padding:9px 14px 10px!important;border-top:1px solid #f0f1f5!important;background:#fff!important
+}
+.v279-quick button{
+  width:100%!important;min-height:34px!important;height:34px!important;padding:0 10px!important;
+  display:flex!important;align-items:center!important;justify-content:flex-start!important;
+  overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;
+  border:1px solid #e3e4ec!important;border-radius:11px!important;background:#fff!important;
+  color:#4e5365!important;font-size:9.5px!important;font-weight:700!important;box-shadow:none!important
+}
+.v279-quick button span{
+  flex:0 0 auto;width:19px;height:19px;margin-right:7px!important;border-radius:6px;
+  display:grid;place-items:center;background:#f3edff;color:#7c3aed!important;font-size:9px
+}
+.v279-quick button:hover{border-color:#cbbaf5!important;background:#faf8ff!important;color:#5b21b6!important}
+
+/* Composer: single-column reset to avoid inherited legacy grid rules */
+.copilot-v279 .v279-composer{
+  display:grid!important;grid-template-columns:1fr!important;grid-template-rows:minmax(0,1fr) 36px!important;
+  gap:0!important;align-items:stretch!important;
+  height:auto!important;min-height:0!important;margin:0 13px 12px!important;padding:0!important;
+  border:1px solid #dedfe9!important;border-radius:15px!important;background:#fff!important;
+  box-shadow:0 3px 12px rgba(15,23,42,.04)!important;overflow:hidden!important
+}
+.copilot-v279 .v279-composer:focus-within{
+  border-color:#8b5cf6!important;box-shadow:0 0 0 3px rgba(139,92,246,.08)!important
+}
+.copilot-v279 .v279-composer textarea{
+  grid-column:1!important;grid-row:1!important;width:100%!important;height:62px!important;
+  min-height:62px!important;max-height:62px!important;margin:0!important;padding:12px 13px 6px!important;
+  border:0!important;outline:0!important;border-radius:0!important;background:#fff!important;
+  box-shadow:none!important;resize:none!important;overflow-y:auto!important;
+  color:#303347!important;font-size:11px!important;line-height:1.42!important
+}
+.copilot-v279 .v279-composer textarea::placeholder{color:#a0a5b4!important}
+.copilot-v279 .v279-composer-bottom{
+  grid-column:1!important;grid-row:2!important;display:flex!important;align-items:center!important;
+  min-height:36px!important;height:36px!important;gap:9px!important;padding:0 7px 7px 11px!important
+}
+.copilot-v279 .v279-composer-tools{display:flex!important;align-items:center!important;gap:11px!important;color:#73798c!important;font-size:12px!important}
+.copilot-v279 .v279-composer .copilot-composer-meta{
+  margin-left:auto!important;display:flex!important;align-items:center!important;gap:7px!important;min-width:0!important
+}
+.copilot-v279 .v279-composer .copilot-composer-meta span{font-size:8.5px!important;color:#959aaa!important}
+.copilot-v279 .v279-composer #copilotThinking{
+  max-width:150px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important
+}
+.copilot-v279 .v279-composer button{
+  flex:0 0 38px!important;width:38px!important;min-width:38px!important;max-width:38px!important;
+  height:34px!important;min-height:34px!important;max-height:34px!important;padding:0!important;
+  border:0!important;border-radius:10px!important;display:grid!important;place-items:center!important;
+  background:linear-gradient(135deg,#6d28d9,#b91fc8)!important;color:#fff!important;
+  box-shadow:0 6px 14px rgba(126,34,206,.18)!important
+}
+.copilot-v279 .v279-composer button b{font-size:14px!important;line-height:1!important}
+
+/* Tools drawer stays secondary and compact */
+.v279-tools-drawer{padding:12px 13px 13px!important}
+.v279-tools-head{margin-bottom:8px!important}.v279-tools-head b{font-size:11.5px!important}.v279-tools-head small{font-size:9px!important}
+.v279-solution-search input,.v279-select-grid select{height:34px!important;font-size:9.5px!important}
+.v279-tool-actions button{height:33px!important;font-size:9.5px!important}
+.v279-diagnostic{padding:9px 10px!important;margin-top:8px!important}
+
+@media(max-height:760px) and (min-width:701px){
+  .copilot-v279.open{grid-template-rows:74px minmax(0,1fr) auto 104px!important}
+  .copilot-v279.open.tools-open{grid-template-rows:74px auto minmax(0,1fr) auto 104px!important}
+  .copilot-v279 .v279-composer{grid-template-rows:minmax(0,1fr) 34px!important;margin-bottom:9px!important}
+  .copilot-v279 .v279-composer textarea{height:55px!important;min-height:55px!important;max-height:55px!important}
+  .v279-quick button{height:31px!important;min-height:31px!important}
+}
+@media(max-width:700px){
+  .copilot-v279.open{grid-template-rows:76px minmax(0,1fr) auto 110px!important}
+  .copilot-v279.open.tools-open{grid-template-rows:76px auto minmax(0,1fr) auto 110px!important}
+  .v279-quick{grid-template-columns:1fr 1fr!important;padding-left:10px!important;padding-right:10px!important}
+  .v279-quick button{font-size:8.8px!important;padding:0 8px!important}
+  .copilot-v279 .v279-composer{margin-left:10px!important;margin-right:10px!important}
+}
