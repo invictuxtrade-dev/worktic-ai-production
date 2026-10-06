@@ -122,7 +122,7 @@ const COPILOT_SOLUTIONS_V272=[
 const COPILOT_QUICK_V272=['Revisa mi configuración','¿Qué me falta para automatizar ventas?','Ayúdame con WhatsApp','Resolver un error'];
 function mountCopilot(){
   if(q('#workticCopilotLauncher'))return;
-  document.body.insertAdjacentHTML('beforeend',`<button id="workticCopilotLauncher" class="copilot-launcher v279-copilot-launcher" title="Worktic Copilot" aria-label="Abrir Worktic Copilot">✦</button>
+  document.body.insertAdjacentHTML('beforeend',`<button id="workticCopilotLauncher" class="copilot-launcher v279-copilot-launcher" title="Worktic Copilot" aria-label="Abrir Worktic Copilot"><svg class="v279-launcher-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.75c.7 4.68 2.57 6.55 7.25 7.25-4.68.7-6.55 2.57-7.25 7.25-.7-4.68-2.57-6.55-7.25-7.25 4.68-.7 6.55-2.57 7.25-7.25Z" fill="currentColor"/><path d="M18.2 15.8c.28 1.76.98 2.46 2.74 2.74-1.76.28-2.46.98-2.74 2.74-.28-1.76-.98-2.46-2.74-2.74 1.76-.28 2.46-.98 2.74-2.74Z" fill="currentColor" opacity=".78"/></svg></button>
   <aside id="workticCopilot" class="copilot-panel copilot-v279" aria-label="Worktic Copilot">
     <header class="copilot-head v279-copilot-head">
       <div class="v279-head-copy">
@@ -183,8 +183,8 @@ function mountCopilot(){
   function bindQuick(items){
     const defaults=['Analizar mis ventas','Crear una campaña','Revisar conversaciones','Automatizar FAQs'];
     const source=[...(items||[]),...defaults].filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i).slice(0,4);
-    quick.innerHTML=source.map((x,i)=>`<button type="button"><span>${['▥','➤','▣','✦'][i]||'✦'}</span>${esc(x)}</button>`).join('');
-    qa('#copilotQuick button').forEach(b=>b.onclick=()=>ask(b.textContent.trim()))
+    quick.innerHTML=source.map((x,i)=>`<button type="button" data-prompt="${esc(x)}"><span>${['▥','➤','▣','✦'][i]||'✦'}</span>${esc(x)}</button>`).join('');
+    qa('#copilotQuick button').forEach(b=>b.onclick=()=>ask(b.dataset.prompt||b.textContent.trim()))
   }
 
   function isNearBottom(limit=140){return (msgs.scrollHeight-msgs.scrollTop-msgs.clientHeight)<limit}
@@ -232,9 +232,16 @@ function mountCopilot(){
   document.addEventListener('click',e=>{if(menu.hidden)return;if(menu.contains(e.target)||q('#copilotMore').contains(e.target))return;toggleMenu(false)});
   input.addEventListener('input',()=>{charCount.textContent=`${input.value.length}/2000`});
 
+  function copilotContextText(c={}){
+    const n=k=>{const v=Number(c&&c[k]);return Number.isFinite(v)?v:0};
+    const channels=n('connected_channels'),agents=n('active_agents'),flows=n('active_workflows'),pending=n('unread_messages');
+    if(!channels&&!agents&&!flows&&!pending)return 'Tu espacio está listo para revisar. Aún no hay actividad suficiente para un diagnóstico detallado.';
+    return `${channels} canal${channels===1?'':'es'} conectado${channels===1?'':'s'} · ${agents} agente${agents===1?'':'s'} IA · ${flows} automatización${flows===1?'':'es'} · ${pending} pendiente${pending===1?'':'s'}`;
+  }
+
   async function loadHome(force=false){
     if(force)contextText.textContent='Actualizando contexto…';
-    try{const r=await api('/api/copilot/v27');const c=r.context||{};contextText.textContent=diagnosticTextV277(c)}
+    try{const r=await api('/api/copilot/v27');const c=r.context||{};contextText.textContent=copilotContextText(c)}
     catch(e){contextText.textContent='Contexto no disponible. El chat sigue operativo.'}
   }
 
@@ -252,7 +259,7 @@ function mountCopilot(){
     const behavior='Responde en español de forma humana, natural, breve y útil. Conversa antes de explicar. No enumeres muchas funciones ni des listas largas salvo que el usuario las pida. Si falta contexto, haz una sola pregunta clara. Mantén un tono profesional y cercano.';
     const requestText=selected?`${behavior} ${modeHint} Tema seleccionado: ${selected.label}. Contexto del módulo: ${selected.prompt} Pregunta del usuario: ${userText}`:`${behavior} Pregunta del usuario: ${userText}`;
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),65000);let answer='',donePayload=null,started=false;
-    const updateContext=c=>{c=c||{};contextText.textContent=diagnosticTextV277(c)};
+    const updateContext=c=>{c=c||{};contextText.textContent=copilotContextText(c)};
 
     try{
       const response=await fetch('/api/copilot/v27/stream',{method:'POST',credentials:'same-origin',signal:controller.signal,headers:{'Content-Type':'application/json','Accept':'application/x-ndjson'},body:JSON.stringify({message:requestText,view:window.__wtCurrentView||'dashboard',history:previousHistory})});
@@ -282,7 +289,7 @@ function mountCopilot(){
           thinking.textContent='Recuperando respuesta…';
           const r=await api('/api/copilot/v27',{method:'POST',body:JSON.stringify({message:requestText,view:window.__wtCurrentView||'dashboard',history:previousHistory})});
           answer=r.answer||'No recibí texto de respuesta.';p.textContent=answer;if(r.degraded)holder.classList.add('degraded');appendCopilotActions(holder,r.actions||[]);updateContext(r.context);history.push({role:'assistant',text:answer});
-        }catch(e2){p.textContent=e?.name==='AbortError'?'La respuesta tardó demasiado. Intenta de nuevo.':'No pude completar la respuesta: '+(e2.message||e.message||'error de conexión')}
+        }catch(e2){console.error('Worktic Copilot fallback error',e2||e);p.textContent=e?.name==='AbortError'?'La respuesta tardó demasiado. Intenta de nuevo.':'No pude conectarme con Worktic Copilot en este momento. Intenta nuevamente en unos segundos.'}
       }else{p.textContent=answer+'\n\nLa conexión se interrumpió antes de terminar la respuesta.'}
     }finally{clearTimeout(timer);holder.classList.remove('streaming');busy=false;send.disabled=false;thinking.textContent='';followConversation(true);input.focus()}
   }

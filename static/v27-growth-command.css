@@ -453,3 +453,16 @@
   .v279-quick button{font-size:8.8px!important;padding:0 8px!important}
   .copilot-v279 .v279-composer{margin-left:10px!important;margin-right:10px!important}
 }
+
+
+/* =================================================================
+   WorkticAI V27.9.2 — Copilot Functional Hotfix
+   Functional repair + launcher optical centering. Dashboard untouched.
+   ================================================================= */
+.v279-copilot-launcher{
+  padding:0!important;line-height:0!important;display:grid!important;place-items:center!important;
+}
+.v279-copilot-launcher .v279-launcher-star{
+  width:25px;height:25px;display:block;overflow:visible;transform:translate(0,0);
+}
+.v279-copilot-launcher:focus-visible{outline:3px solid rgba(139,92,246,.28);outline-offset:3px}

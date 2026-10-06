@@ -1,13 +1,12 @@
-WorkticAI V27.9.1 — Copilot UI Polish
+WorkticAI V27.9.2 — Copilot Functional Hotfix
 Build: 2026-10-06
 
-- Base exacta: WorkticAI V27.9 — V27.6 Dashboard + Clean Copilot.
+- Base exacta: WorkticAI V27.9.1 Copilot UI Polish.
 - Dashboard V27.6 preservado sin cambios visuales ni de layout.
-- Refinamiento exclusivo del Worktic Copilot.
-- Corregido el espacio vacío inferior causado por la grilla del panel cuando el drawer de herramientas está cerrado.
-- Composer reorganizado y aislado de reglas legacy: textarea, herramientas, contador y enviar alineados.
-- Acciones rápidas uniformes en una cuadrícula 2x2.
-- Burbujas, avatar, header y espaciado general refinados.
-- Herramientas secundarias siguen dentro del menú de tres puntos.
-- Saludos humanos y breves preservados; streaming y fallback V27 intactos.
+- Corregido error crítico `diagnosticTextV277 is not defined` que interrumpía respuestas del Copilot al recibir contexto.
+- Contexto del Copilot ahora se formatea localmente de forma segura y compatible con el backend V27.
+- Flujo streaming `/api/copilot/v27/stream` y fallback `/api/copilot/v27` preservados.
+- Acciones rápidas ahora envían únicamente el texto de la acción, sin símbolos decorativos.
+- Botón flotante usa SVG centrado para eliminar el desplazamiento visual de la estrella.
+- Mensaje técnico del fallback ya no expone errores JavaScript al usuario; el detalle queda en consola para diagnóstico.
 - Backend, PostgreSQL, Redis, Social Hub, Inbox, Perfil, WhatsApp Marketing, workers y migraciones intactos.
