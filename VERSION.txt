@@ -1,13 +1,15 @@
-WorkticAI V27.11 — Commercial Expansion + Worktic Partners Preview
+WorkticAI V27.12 — Partners Commercial Experience + Public Web Polish
 Build: 2026-10-15
 
-- Base: WorkticAI V27.10.1 SEO-Preserved Commercial Enhancement.
-- SEO y hero comercial original preservados; expansión añadida debajo del contenido existente.
-- Social Hub, conexiones sociales, WhatsApp Marketing, Automation Engine, agentes IA y módulos actuales explicados con mayor profundidad.
-- Dos motion graphics MP4 ligeros incorporados para Social Hub y flujos de agentes/automatización.
-- Precios públicos expresados en USD; checkout/billing interno existente no se modifica en esta entrega.
-- Burbuja WhatsApp profesional para Ventas y Soporte.
-- Nueva página informativa Worktic Partners con Worktic Momentum, Autopilot, Co-Sell, Impact Score y simulador educativo.
-- Programa Partners permanece en fase informativa/pre-lanzamiento; no se implementan payouts ni CRM de Partners todavía.
-- Marco financiero y regulatorio interno añadido para orientar la siguiente fase de implementación.
-- Backend, PostgreSQL, Redis, billing anual, Copilot e infraestructura permanecen intactos.
+- Base: V27.11 Web + Partners Only.
+- SEO y hero principal de WorkticAI preservados.
+- WhatsApp flotante bajado al borde inferior y añadido también a Partners.
+- Footer público simplificado a © 2026 Worktic. Todos los derechos reservados.
+- Menú hamburguesa reforzado en la web principal y creado para Partners.
+- Partners rediseñado con enfoque comercial de oportunidad, no documentación interna.
+- Share / Sell / Activate / Lead ampliados con explicación interactiva y flujo visual.
+- Partner Autopilot reorientado como herramienta de ayuda al vendedor/distribuidor.
+- Eliminado de la cara pública el bloque jurídico/contable y la explicación interna de INE/techo de payout.
+- Worktic Momentum, ejemplos de ganancias, Co-Sell y simulador conservados/reorganizados de forma comercial.
+- Video ilustrativo y microinteracciones añadidos a Partners.
+- Sin cambios en backend, billing, PostgreSQL, Redis, app interna o Copilot.
