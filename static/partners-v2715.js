@@ -38,11 +38,60 @@
 
   function shell(){
     const o=state.overview||{}, p=o.profile||{};
-    return `<div class="pc15-shell"><aside class="pc15-rail"><div class="pc15-brand"><div><small>WORKTIC PARTNERS</small><b>Partner Center</b><span>Tu backoffice comercial independiente</span></div><span class="pc15-rank-pill">${E(p.rank_name||p.rank_code||'Spark')}</span></div><nav class="pc15-nav">${navItems.map(([id,ico,name])=>`<button type="button" data-p15-view="${id}" class="${id===state.view?'active':''}"><span class="ico">${ico}</span>${E(name)}</button>`).join('')}</nav><div class="pc15-rail-foot"><b>${E(p.partner_code||'Partner')}</b><br>CRM, Billing, Academy y Analytics conectados sin duplicar tu operación.</div></aside><div class="pc15-work"><div id="pc15Content"><div class="pc15-loading">Cargando Partner Center…</div></div></div></div>`;
+    return `<div class="pc15-shell" id="pc15Shell"><div class="pc15-partner-backdrop" id="pc15PartnerBackdrop"></div><aside class="pc15-rail"><button type="button" class="pc15-rail-close" id="pc15RailClose" aria-label="Cerrar menú Partner">✕</button><div class="pc15-brand"><div><small>WORKTIC PARTNERS</small><b>Partner Center</b><span>Tu backoffice comercial independiente</span></div><span class="pc15-rank-pill">${E(p.rank_name||p.rank_code||'Spark')}</span></div><nav class="pc15-nav">${navItems.map(([id,ico,name])=>`<button type="button" data-p15-view="${id}" class="${id===state.view?'active':''}"><span class="ico">${ico}</span>${E(name)}</button>`).join('')}</nav><div class="pc15-rail-foot"><b>${E(p.partner_code||'Partner')}</b><br>CRM, Billing, Academy y Analytics conectados sin duplicar tu operación.</div></aside><div class="pc15-work"><div class="pc15-workspace-tools"><button type="button" class="pc15-workspace-tool pc15-partner-menu-trigger" id="pc15PartnerMenuBtn"><span>☰</span><b>Menú Partner</b></button><div class="pc15-workspace-toolset"><button type="button" class="pc15-workspace-tool" id="pc15ToggleCRM"><span>◫</span><b>Expandir CRM</b></button><button type="button" class="pc15-workspace-tool" id="pc15FocusMode"><span>◉</span><b>Modo enfoque Partner</b></button><button type="button" class="pc15-workspace-tool" id="pc15Fullscreen"><span>⛶</span><b>Pantalla completa</b></button><button type="button" class="pc15-workspace-tool pc15-workspace-back" id="pc15BackCRM"><span>←</span><b>Volver al CRM</b></button></div></div><div id="pc15Content"><div class="pc15-loading">Cargando Partner Center…</div></div></div></div>`;
+  }
+
+  function isPartnerWorkspace(){ return document.body.classList.contains('partner-workspace'); }
+  function setPartnerWorkspace(active){
+    document.body.classList.toggle('partner-workspace',!!active);
+    if(!active){
+      document.body.classList.remove('partner-crm-expanded','partner-focus');
+      document.documentElement.classList.remove('pc15-partner-menu-lock');
+      $('#pc15Shell')?.classList.remove('partner-menu-open');
+    }
+  }
+  function syncWorkspaceButtons(){
+    const expanded=document.body.classList.contains('partner-crm-expanded');
+    const focus=document.body.classList.contains('partner-focus');
+    const crm=$('#pc15ToggleCRM b'); if(crm) crm.textContent=expanded?'Colapsar CRM':'Expandir CRM';
+    const fm=$('#pc15FocusMode b'); if(fm) fm.textContent=focus?'Salir de enfoque':'Modo enfoque Partner';
+    const fs=$('#pc15Fullscreen b'); if(fs) fs.textContent=document.fullscreenElement?'Salir pantalla completa':'Pantalla completa';
+  }
+  function closePartnerDrawer(){
+    $('#pc15Shell')?.classList.remove('partner-menu-open');
+    document.documentElement.classList.remove('pc15-partner-menu-lock');
+  }
+  function bindWorkspaceControls(){
+    setPartnerWorkspace(true);
+    const crm=$('#pc15ToggleCRM');
+    if(crm) crm.onclick=()=>{
+      document.body.classList.remove('partner-focus');
+      document.body.classList.toggle('partner-crm-expanded');
+      syncWorkspaceButtons();
+    };
+    const focus=$('#pc15FocusMode');
+    if(focus) focus.onclick=()=>{
+      document.body.classList.remove('partner-crm-expanded');
+      document.body.classList.toggle('partner-focus');
+      syncWorkspaceButtons();
+    };
+    const fs=$('#pc15Fullscreen');
+    if(fs) fs.onclick=async()=>{
+      try{
+        if(document.fullscreenElement) await document.exitFullscreen();
+        else await document.documentElement.requestFullscreen();
+      }catch(e){ notify('El navegador no permitió pantalla completa.'); }
+      syncWorkspaceButtons();
+    };
+    const back=$('#pc15BackCRM'); if(back) back.onclick=()=>switchMainView('dashboard');
+    const menu=$('#pc15PartnerMenuBtn'); if(menu) menu.onclick=()=>{$('#pc15Shell')?.classList.add('partner-menu-open');document.documentElement.classList.add('pc15-partner-menu-lock')};
+    const close=$('#pc15RailClose'); if(close) close.onclick=closePartnerDrawer;
+    const backdrop=$('#pc15PartnerBackdrop'); if(backdrop) backdrop.onclick=closePartnerDrawer;
+    syncWorkspaceButtons();
   }
 
   function bindNav(){
-    $$('[data-p15-view]').forEach(b=>b.onclick=()=>openView(b.dataset.p15View));
+    $$('[data-p15-view]').forEach(b=>b.onclick=()=>{openView(b.dataset.p15View);closePartnerDrawer()});
   }
 
   async function openView(view){
@@ -155,9 +204,17 @@
   async function loadPartnersV2715(force=false){
     const root=$('#partnerscenter'); if(!root)return;
     if(force) root.innerHTML='<div class="pc15-loading">Actualizando Partner Center…</div>';
-    try{const d=await loadBase();if(!d.active){root.innerHTML=activationScreen(d);$('#pc15Activate')?.addEventListener('click',async e=>{setBusy(e.currentTarget,'Activando…');try{await request('/api/partners/me',{method:'POST',body:'{}'});notify('Partner Center activado');loadPartnersV2715(true)}catch(err){notify(err.message)}finally{unBusy(e.currentTarget)}});$('#pc15GoBilling')?.addEventListener('click',()=>switchMainView('billing'));return;}if(d.suspended){root.innerHTML=`<div class="pc15-activate-screen"><span class="pc15-eyebrow">WORKTIC PARTNERS</span><h2>Partner Center suspendido</h2><p>Tu historial permanece protegido. El administrador debe revisar el estado de tu perfil Partner.</p></div>`;return;}root.innerHTML=shell();bindNav();openView(state.view||'home')}catch(e){root.innerHTML=empty('No fue posible iniciar Partner Center',e.message||'Intenta nuevamente.')}
+    try{const d=await loadBase();if(!d.active){root.innerHTML=activationScreen(d);$('#pc15Activate')?.addEventListener('click',async e=>{setBusy(e.currentTarget,'Activando…');try{await request('/api/partners/me',{method:'POST',body:'{}'});notify('Partner Center activado');loadPartnersV2715(true)}catch(err){notify(err.message)}finally{unBusy(e.currentTarget)}});$('#pc15GoBilling')?.addEventListener('click',()=>switchMainView('billing'));return;}if(d.suspended){root.innerHTML=`<div class="pc15-activate-screen"><span class="pc15-eyebrow">WORKTIC PARTNERS</span><h2>Partner Center suspendido</h2><p>Tu historial permanece protegido. El administrador debe revisar el estado de tu perfil Partner.</p></div>`;return;}root.innerHTML=shell();bindWorkspaceControls();bindNav();openView(state.view||'home')}catch(e){root.innerHTML=empty('No fue posible iniciar Partner Center',e.message||'Intenta nuevamente.')}
   }
   window.loadPartnersV2715=loadPartnersV2715;
+
+  // Workspace lifecycle: Partner Center collapses the CRM shell on desktop and restores it on exit.
+  $$('#appSidebar nav button[data-view]').forEach(b=>b.addEventListener('click',()=>{
+    const active=b.dataset.view==='partnerscenter';
+    setPartnerWorkspace(active);
+  }));
+  document.addEventListener('fullscreenchange',syncWorkspaceButtons);
+  window.addEventListener('resize',()=>{if(window.innerWidth>900)closePartnerDrawer()});
 
   /* ============================ SUPERADMIN PARTNERS ============================ */
   const adminState={tab:'overview',partners:null};
