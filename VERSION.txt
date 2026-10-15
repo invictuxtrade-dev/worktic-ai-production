@@ -1,15 +1,10 @@
-WorkticAI V27.10 — Commercial Website + Annual Billing
+WorkticAI V27.10.1 — SEO-Preserved Commercial Enhancement
 Build: 2026-10-15
 
-- Base exacta: WorkticAI V27.9.2 — Copilot Functional Hotfix suministrada por el usuario.
-- Plataforma interna V27.9.2 preservada; actualización enfocada en web pública, planes y facturación anual.
-- `static/index.html` rediseñado como página comercial premium del ecosistema WorkticAI actual.
-- Mensaje comercial actualizado: motor comercial autónomo que conecta captación, conversación, CRM, automatización, venta y analítica.
-- Nuevas secciones para WhatsApp Business/Marketing, Agentes IA, Automatizaciones, Social Hub, Ads Center, Analytics, Growth, Landing Pages, CRM, Agenda, Catálogo y Worktic Copilot.
-- WorkticAI Academy enlazada oficialmente a https://academy.workticai.com.
-- Planes con selector Mensual / Anual y ahorro anual del 20%.
-- Facturación anual real habilitada sin migraciones nuevas: Personal 240 USDT/año, Negocio 720 USDT/año, Empresa 1.440 USDT/año.
-- Checkout USDT, códigos promocionales y activación administrativa compatibles con ciclo mensual/anual.
-- Un pago anual aprobado activa la suscripción por 1 año; un pago mensual conserva `billing_days` del plan.
-- Registro desde la web conserva plan/ciclo elegido y abre el checkout correspondiente al ingresar a la plataforma.
-- PostgreSQL, Redis, Social Hub, Inbox, Copilot, Workers, integraciones y credenciales no se alteran.
+- Base funcional: WorkticAI V27.10 (facturación anual real preservada).
+- Página pública restaurada sobre el diseño original suministrado por el usuario.
+- SEO original preservado exactamente: title y meta description.
+- Hero original preservado exactamente: badge, H1, lead, CTAs, trust y métricas.
+- Identidad/nav original preservados; Academy se añade como enlace complementario.
+- Se añaden únicamente capas complementarias: suite actual WorkticAI, Academy, selector Mensual/Anual, detalle ampliado de planes y comparación de capacidades.
+- Backend de billing anual, login, checkout y promo codes de V27.10 permanece intacto.
