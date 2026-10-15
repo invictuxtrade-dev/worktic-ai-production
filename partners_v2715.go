@@ -414,6 +414,7 @@ func (a *App) partnerOverviewHandlerV2715(w http.ResponseWriter, r *http.Request
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM partner_cosell_deals_v2715 WHERE (referrer_partner_user_id=? OR closer_partner_user_id=?) AND status IN ('pending','active')`, u.ID, u.ID).Scan(&cosellOpen)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM partner_marketplace_jobs_v2715 WHERE status='open'`).Scan(&jobsOpen)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM partner_marketplace_applications_v2715 WHERE specialist_partner_user_id=? AND status='accepted'`, u.ID).Scan(&acceptedJobs)
+	assignedProjects, activeProjects, submittedProjects, completedProjects := a.partnerAssignmentCountsV2716(u.ID)
 	balances := a.partnerBalancesV2715(u.ID)
 	code := fmt.Sprint(profile["partner_code"])
 	base := strings.TrimRight(a.cfg.BaseURL, "/")
@@ -430,8 +431,14 @@ func (a *App) partnerOverviewHandlerV2715(w http.ResponseWriter, r *http.Request
 	writeJSON(w, map[string]any{
 		"active": true, "eligible": eligible, "plan_code": plan, "plan_ends_at": ends,
 		"profile": profile, "referral_url": base + "/r/" + code, "rank": rank,
-		"stats":    map[string]any{"clicks": clicks, "signups": signups, "direct_active": direct, "adopted_active": adopted, "level2_partners": level2, "level3_partners": level3, "cosell_open": cosellOpen, "marketplace_open": jobsOpen, "marketplace_accepted": acceptedJobs},
-		"balances": balances, "certification": cert,
+		"stats": map[string]any{
+			"clicks": clicks, "signups": signups, "direct_active": direct, "adopted_active": adopted,
+			"level2_partners": level2, "level3_partners": level3, "cosell_open": cosellOpen,
+			"marketplace_open": jobsOpen, "marketplace_accepted": acceptedJobs,
+			"assignments_new": assignedProjects, "assignments_active": activeProjects,
+			"assignments_submitted": submittedProjects, "assignments_completed": completedProjects,
+		},
+		"balances": balances, "certification": cert, "economics": a.partnerProgramEconomicsV2716(),
 	})
 }
 
@@ -2098,7 +2105,8 @@ func (a *App) adminPartnerDashboardV2715(w http.ResponseWriter, r *http.Request)
 	_ = a.db.QueryRow(`SELECT COALESCE(SUM(CASE WHEN amount>0 AND status<>'reversed' THEN amount ELSE 0 END),0) FROM partner_commission_ledger_v2714`).Scan(&commissions)
 	_ = a.db.QueryRow(`SELECT COALESCE(SUM(amount),0) FROM partner_payouts_v2714 WHERE status='paid'`).Scan(&payoutPaid)
 	_ = a.db.QueryRow(`SELECT COALESCE(SUM(platform_amount),0) FROM partner_marketplace_sales_v2715 WHERE status='approved'`).Scan(&platformRevenue)
-	writeJSON(w, map[string]any{"partners": partners, "active": active, "certified": certified, "jobs_open": jobsOpen, "cosell_open": cosellOpen, "payouts_pending": payoutsPending, "commissions_generated": roundUSDT(commissions), "payouts_paid": roundUSDT(payoutPaid), "human_sales_platform_revenue": roundUSDT(platformRevenue)})
+	assignmentSummary := a.adminPartnerAssignmentSummaryV2716()
+	writeJSON(w, map[string]any{"partners": partners, "active": active, "certified": certified, "jobs_open": jobsOpen, "cosell_open": cosellOpen, "payouts_pending": payoutsPending, "commissions_generated": roundUSDT(commissions), "payouts_paid": roundUSDT(payoutPaid), "human_sales_platform_revenue": roundUSDT(platformRevenue), "service_assignments": assignmentSummary})
 }
 
 func (a *App) partnerLedgerHandlerV2715(w http.ResponseWriter, r *http.Request) {

@@ -378,6 +378,9 @@ func main() {
 	if err = initPartnersV2715Schema(db); err != nil {
 		log.Fatalf("partners v27.15 schema: %v", err)
 	}
+	if err = initPartnersV2716Schema(db); err != nil {
+		log.Fatalf("partners v27.16 schema: %v", err)
+	}
 
 	ensureSocialProviderSchema(db)
 
@@ -465,6 +468,7 @@ func main() {
 	mux.HandleFunc("/api/partners/ledger", app.partnerLedgerHandlerV2715)
 	mux.HandleFunc("/api/partners/cosell", app.partnerCosellHandlerV2715)
 	mux.HandleFunc("/api/partners/certification", app.partnerCertificationHandlerV2715)
+	mux.HandleFunc("/api/partners/assignments", app.partnerAssignmentsHandlerV2716)
 	mux.HandleFunc("/api/partners/marketplace/jobs", app.partnerMarketplaceJobsHandlerV2715)
 	mux.HandleFunc("/api/partners/marketplace/applications", app.partnerMarketplaceApplicationsHandlerV2715)
 	mux.HandleFunc("/api/partners/marketplace/sales", app.partnerMarketplaceSalesHandlerV2715)
@@ -478,6 +482,7 @@ func main() {
 	mux.HandleFunc("/api/admin/partners/cosell", app.adminPartnerCosellHandlerV2715)
 	mux.HandleFunc("/api/admin/partners/payouts", app.adminPartnerPayoutsHandlerV2715)
 	mux.HandleFunc("/api/admin/partners/certifications", app.adminPartnerCertificationsHandlerV2715)
+	mux.HandleFunc("/api/admin/partners/assignments", app.adminPartnerAssignmentsHandlerV2716)
 	mux.HandleFunc("/api/admin/partners/marketplace", app.adminPartnerMarketplaceHandlerV2715)
 	mux.HandleFunc("/api/admin/partners/settings", app.adminPartnerSettingsHandlerV2715)
 	mux.HandleFunc("/api/admin/partners/ranks", app.adminPartnerRanksHandlerV2715)

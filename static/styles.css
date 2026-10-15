@@ -903,3 +903,17 @@ dialog#modal:has(.landing-editor-shell) .landing-editor-main > .landing-step .gr
 .meta-connect-btn{width:100%;min-height:48px;font-weight:800;font-size:15px}
 .manual-fallback{border:1px solid var(--line,#242636);border-radius:14px;padding:12px 14px}
 .manual-fallback summary{cursor:pointer;font-weight:700;margin-bottom:10px}
+
+/* V27.16 · Destructive action contrast normalization */
+button.danger,
+button.ghost-danger,
+.actions button.danger,
+.row-actions button.danger,
+.table-actions button.danger{
+  background:var(--red)!important;
+  color:#fff!important;
+  border-color:var(--red)!important;
+  box-shadow:0 1px 2px rgba(221,58,95,.22)!important;
+}
+button.danger:hover,
+button.ghost-danger:hover{filter:brightness(1.04)!important;color:#fff!important}

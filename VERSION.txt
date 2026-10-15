@@ -1,20 +1,17 @@
-WorkticAI V27.15.1 — Partner Workspace UX
+WorkticAI V27.16 — Partner Certified Services & UX Polish
 Build 2026-10-15
 
-Base: V27.15 Partner Business Backoffice rebased on the current V27.13.1 production repository.
-Scope: visual/layout refinement only for Partner Center. Backend, Partner accounting, CRM, billing, public website and business rules remain unchanged.
+Base: V27.15.1 Partner Workspace UX.
 
-Implemented:
-- Desktop Partner workspace automatically collapses the main CRM sidebar to icons.
-- Partner Center keeps its own full navigation rail and gains substantially more horizontal space.
-- Manual Expand/Collapse CRM control.
-- Partner Focus mode that hides the CRM rail while keeping the global Worktic header/topbar.
-- Browser fullscreen toggle.
-- Return to CRM shortcut.
-- Tablet/mobile Partner navigation converted to an off-canvas drawer with backdrop and close control.
-- Partner cards use a one-column responsive layout on tablet/mobile.
-- Network tree has a larger scrollable canvas.
-- Partner tables use touch-friendly horizontal responsive scrolling.
-- Public V27.13.1 website and Partners landing are unchanged.
+Scope:
+- AI Agents: delete button available for every agent. Deleting the principal automatically promotes another available agent and cleans related routes, permissions, usage, memory, knowledge and channel references.
+- Destructive buttons: normalized red background + white text across core app, admin and Partner Center.
+- Partner Opportunities: new WorkticAI-assigned project workflow for Activate Certified specialists.
+- Superadmin can assign a validated certified specialist to a client/project, define scope, deliverables, deadline, priority and compensation before the specialist accepts.
+- Partner can accept (starts work immediately), reject, work, submit for review and see the full history.
+- Admin can complete/approve a fixed-fee assignment and credit it into the Partner ledger, cancel or reassign.
+- Activate Certified now clearly explains what the certification means, what skills it validates and what it unlocks.
+- Home clearly explains the four earning paths: Share, Sell, Activate Certified and Lead with current program percentages.
+- Human Sales 80/20 remains available as a separate certified commercial path; it is no longer confused with WorkticAI-assigned service projects.
 
-No backend/schema changes. Do NOT run /app/worktic-migrate.
+No destructive migration is required. V27.16 tables are created additively at application startup. Do NOT run /app/worktic-migrate.

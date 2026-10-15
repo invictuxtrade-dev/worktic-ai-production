@@ -143,6 +143,26 @@ func canManageAgents(role string) bool {
 	return role == "superadmin" || role == "owner" || role == "admin"
 }
 
+// normalizeAgentDefault keeps a single principal agent per tenant. Older data
+// could contain more than one default after historical migrations; V27.16
+// repairs that invariant without changing the agents themselves.
+func (a *App) normalizeAgentDefault(tenant int64) {
+	if tenant <= 0 {
+		return
+	}
+	var primaryID int64
+	err := a.db.QueryRow(`SELECT id FROM ai_agents WHERE tenant_id=? AND is_default=1 ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END,id LIMIT 1`, tenant).Scan(&primaryID)
+	if err != nil {
+		_ = a.db.QueryRow(`SELECT id FROM ai_agents WHERE tenant_id=? ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END,id LIMIT 1`, tenant).Scan(&primaryID)
+	}
+	if primaryID <= 0 {
+		return
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, _ = a.db.Exec(`UPDATE ai_agents SET is_default=0,updated_at=? WHERE tenant_id=? AND id<>? AND is_default<>0`, now, tenant, primaryID)
+	_, _ = a.db.Exec(`UPDATE ai_agents SET is_default=1,updated_at=? WHERE tenant_id=? AND id=?`, now, tenant, primaryID)
+}
+
 func (a *App) agentsHandler(w http.ResponseWriter, r *http.Request) {
 	tenant, u, err := a.agentTenant(r)
 	if err != nil {
@@ -151,6 +171,7 @@ func (a *App) agentsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
+		a.normalizeAgentDefault(tenant)
 		rows, e := a.db.Query(`SELECT a.id,a.tenant_id,a.name,a.type,a.description,a.objective,a.tone,a.language,a.instructions,a.knowledge,a.greeting,a.away_message,a.handoff_rules,a.tools,a.channels,a.status,a.is_default,a.monthly_budget,a.created_at,a.updated_at,
           COALESCE((SELECT SUM(responses) FROM ai_agent_usage x WHERE x.tenant_id=a.tenant_id AND x.agent_id=a.id AND x.period=?),0)
           FROM ai_agents a WHERE a.tenant_id=? ORDER BY a.is_default DESC,a.id`, time.Now().UTC().Format("2006-01"), tenant)
@@ -252,19 +273,65 @@ func (a *App) agentsHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, errors.New("agente no encontrado"), 404)
 			return
 		}
+
+		// V27.16: cualquier agente puede eliminarse. Si era el principal, WorkticAI
+		// promueve automáticamente otro agente (prefiere uno activo). Si era el
+		// último, la cuenta queda sin principal hasta crear/seleccionar uno nuevo.
+		var replacementID int64
 		if isDefault == 1 {
-			writeError(w, errors.New("define otro agente principal antes de eliminar este"), 400)
-			return
+			_ = a.db.QueryRow(`SELECT id FROM ai_agents WHERE tenant_id=? AND id<>? ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END,id LIMIT 1`, tenant, id).Scan(&replacementID)
 		}
-		_, _ = a.db.Exec(`DELETE FROM ai_agent_routes WHERE tenant_id=? AND agent_id=?`, tenant, id)
-		_, _ = a.db.Exec(`DELETE FROM ai_agent_permissions WHERE tenant_id=? AND agent_id=?`, tenant, id)
-		_, e := a.db.Exec(`DELETE FROM ai_agents WHERE tenant_id=? AND id=?`, tenant, id)
+		tx, e := a.db.Begin()
 		if e != nil {
 			writeError(w, e, 500)
 			return
 		}
-		a.auditAgent(tenant, id, u.ID, "delete", "")
-		writeJSON(w, map[string]any{"ok": true})
+		rollback := true
+		defer func() {
+			if rollback {
+				_ = tx.Rollback()
+			}
+		}()
+		if isDefault == 1 && replacementID > 0 {
+			if _, e = tx.Exec(`UPDATE ai_agents SET is_default=0 WHERE tenant_id=?`, tenant); e != nil {
+				writeError(w, e, 500)
+				return
+			}
+			if _, e = tx.Exec(`UPDATE ai_agents SET is_default=1,updated_at=? WHERE tenant_id=? AND id=?`, time.Now().UTC().Format(time.RFC3339), tenant, replacementID); e != nil {
+				writeError(w, e, 500)
+				return
+			}
+		}
+		// Conexiones que apuntaban al agente eliminado pasan al reemplazo o al
+		// fallback principal (0) para no dejar referencias huérfanas.
+		if _, e = tx.Exec(`UPDATE channel_connections SET assigned_agent_id=?,updated_at=? WHERE tenant_id=? AND assigned_agent_id=?`, replacementID, time.Now().UTC().Format(time.RFC3339), tenant, id); e != nil {
+			writeError(w, e, 500)
+			return
+		}
+		for _, q := range []string{
+			`DELETE FROM ai_agent_routes WHERE tenant_id=? AND agent_id=?`,
+			`DELETE FROM ai_agent_permissions WHERE tenant_id=? AND agent_id=?`,
+			`DELETE FROM ai_agent_usage WHERE tenant_id=? AND agent_id=?`,
+			`DELETE FROM ai_agent_profiles_v22 WHERE tenant_id=? AND agent_id=?`,
+			`DELETE FROM ai_agent_memory_v22 WHERE tenant_id=? AND agent_id=?`,
+			`DELETE FROM ai_agent_knowledge_v22 WHERE tenant_id=? AND agent_id=?`,
+		} {
+			if _, e = tx.Exec(q, tenant, id); e != nil {
+				writeError(w, e, 500)
+				return
+			}
+		}
+		if _, e = tx.Exec(`DELETE FROM ai_agents WHERE tenant_id=? AND id=?`, tenant, id); e != nil {
+			writeError(w, e, 500)
+			return
+		}
+		if e = tx.Commit(); e != nil {
+			writeError(w, e, 500)
+			return
+		}
+		rollback = false
+		a.auditAgent(tenant, id, u.ID, "delete", fmt.Sprintf("replacement_agent_id=%d", replacementID))
+		writeJSON(w, map[string]any{"ok": true, "replacement_agent_id": replacementID})
 	default:
 		http.Error(w, "Método no permitido", 405)
 	}
