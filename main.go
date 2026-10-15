@@ -2992,10 +2992,11 @@ func (a *App) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var q struct {
-		PlanCode  string `json:"plan_code"`
-		Network   string `json:"network"`
-		TxHash    string `json:"tx_hash"`
-		PromoCode string `json:"promo_code"`
+		PlanCode     string `json:"plan_code"`
+		Network      string `json:"network"`
+		TxHash       string `json:"tx_hash"`
+		PromoCode    string `json:"promo_code"`
+		BillingCycle string `json:"billing_cycle"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&q)
 	q.PlanCode = strings.ToLower(strings.TrimSpace(q.PlanCode))
@@ -3029,7 +3030,8 @@ func (a *App) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("ingresa un hash de transacción válido"), 400)
 		return
 	}
-	promo, finalAmount, promoErr := a.promoCodeForCheckout(q.PromoCode, p)
+	baseAmount, billingCycle := billingCyclePrice(p, q.BillingCycle)
+	promo, finalAmount, promoErr := a.promoCodeForAmount(q.PromoCode, baseAmount)
 	if promoErr != nil {
 		writeError(w, promoErr, 400)
 		return
@@ -3040,13 +3042,13 @@ func (a *App) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 		promoCode = promo.Code
 		discount = promo.DiscountPercent
 	}
-	res, err := a.db.Exec(`INSERT INTO billing_payments(user_id,plan_code,network,wallet,amount_usdt,tx_hash,status,created_at,promo_code,discount_percent,original_amount_usdt) VALUES(?,?,?,?,?,?,'pending',?,?,?,?)`, a.billingAccountUserID(u), p.Code, q.Network, wallet, finalAmount, q.TxHash, time.Now().UTC().Format(time.RFC3339), promoCode, discount, p.PriceUSDT)
+	res, err := a.db.Exec(`INSERT INTO billing_payments(user_id,plan_code,network,wallet,amount_usdt,tx_hash,status,created_at,promo_code,discount_percent,original_amount_usdt) VALUES(?,?,?,?,?,?,'pending',?,?,?,?)`, a.billingAccountUserID(u), p.Code, q.Network, wallet, finalAmount, q.TxHash, time.Now().UTC().Format(time.RFC3339), promoCode, discount, baseAmount)
 	if err != nil {
 		writeError(w, errors.New("esa transacción ya fue registrada"), 400)
 		return
 	}
 	id, _ := res.LastInsertId()
-	writeJSON(w, map[string]any{"ok": true, "payment_id": id, "status": "pending", "amount_usdt": finalAmount, "promo_code": promoCode, "discount_percent": discount, "message": "Pago registrado. Worktic lo verificará antes de activar el plan."})
+	writeJSON(w, map[string]any{"ok": true, "payment_id": id, "status": "pending", "amount_usdt": finalAmount, "promo_code": promoCode, "discount_percent": discount, "billing_cycle": billingCycle, "message": "Pago registrado. Worktic lo verificará antes de activar el plan."})
 }
 
 func (a *App) paymentsHandler(w http.ResponseWriter, r *http.Request) {
@@ -3123,7 +3125,8 @@ func (a *App) adminPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&q)
 		var userID int64
 		var planCode, status string
-		if a.db.QueryRow(`SELECT user_id,plan_code,status FROM billing_payments WHERE id=?`, q.ID).Scan(&userID, &planCode, &status) != nil {
+		var originalAmount float64
+		if a.db.QueryRow(`SELECT user_id,plan_code,status,COALESCE(original_amount_usdt,0) FROM billing_payments WHERE id=?`, q.ID).Scan(&userID, &planCode, &status, &originalAmount) != nil {
 			writeError(w, errors.New("pago no encontrado"), 404)
 			return
 		}
@@ -3134,9 +3137,14 @@ func (a *App) adminPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 		now := time.Now().UTC()
 		if q.Action == "approve" {
 			var days int
-			_ = a.db.QueryRow(`SELECT billing_days FROM billing_plans WHERE code=?`, planCode).Scan(&days)
+			var monthlyPrice float64
+			_ = a.db.QueryRow(`SELECT billing_days,price_usdt FROM billing_plans WHERE code=?`, planCode).Scan(&days, &monthlyPrice)
+			endsAt := now.AddDate(0, 0, days)
+			if monthlyPrice > 0 && originalAmount > monthlyPrice*2 {
+				endsAt = now.AddDate(1, 0, 0)
+			}
 			_, _ = a.db.Exec(`UPDATE billing_subscriptions SET status='replaced' WHERE user_id=? AND status='active'`, userID)
-			_, err := a.db.Exec(`INSERT INTO billing_subscriptions(user_id,plan_code,status,starts_at,ends_at,created_at) VALUES(?,?,'active',?,?,?)`, userID, planCode, now.Format(time.RFC3339), now.AddDate(0, 0, days).Format(time.RFC3339), now.Format(time.RFC3339))
+			_, err := a.db.Exec(`INSERT INTO billing_subscriptions(user_id,plan_code,status,starts_at,ends_at,created_at) VALUES(?,?,'active',?,?,?)`, userID, planCode, now.Format(time.RFC3339), endsAt.Format(time.RFC3339), now.Format(time.RFC3339))
 			if err != nil {
 				writeError(w, err, 500)
 				return

@@ -24,10 +24,32 @@ type PromoCode struct {
 
 func normalizePromoCode(v string) string { return strings.ToUpper(strings.TrimSpace(v)) }
 
-func (a *App) promoCodeForCheckout(code string, plan Plan) (*PromoCode, float64, error) {
+func roundUSDT(v float64) float64 {
+	if v < 0 {
+		v = 0
+	}
+	return float64(int64(v*100+0.5)) / 100
+}
+
+func normalizeBillingCycle(v string) string {
+	if strings.EqualFold(strings.TrimSpace(v), "annual") {
+		return "annual"
+	}
+	return "monthly"
+}
+
+func billingCyclePrice(plan Plan, cycle string) (float64, string) {
+	cycle = normalizeBillingCycle(cycle)
+	if cycle == "annual" {
+		return roundUSDT(plan.PriceUSDT * 12 * 0.80), cycle
+	}
+	return roundUSDT(plan.PriceUSDT), cycle
+}
+
+func (a *App) promoCodeForAmount(code string, baseAmount float64) (*PromoCode, float64, error) {
 	code = normalizePromoCode(code)
 	if code == "" {
-		return nil, plan.PriceUSDT, nil
+		return nil, roundUSDT(baseAmount), nil
 	}
 	var p PromoCode
 	var active int
@@ -56,12 +78,12 @@ func (a *App) promoCodeForCheckout(code string, plan Plan) (*PromoCode, float64,
 	if p.DiscountPercent <= 0 || p.DiscountPercent > 100 {
 		return nil, 0, errors.New("el descuento configurado no es válido")
 	}
-	final := plan.PriceUSDT * (1 - p.DiscountPercent/100)
-	if final < 0 {
-		final = 0
-	}
-	final = float64(int64(final*100+0.5)) / 100
+	final := roundUSDT(baseAmount * (1 - p.DiscountPercent/100))
 	return &p, final, nil
+}
+
+func (a *App) promoCodeForCheckout(code string, plan Plan) (*PromoCode, float64, error) {
+	return a.promoCodeForAmount(code, plan.PriceUSDT)
 }
 
 func (a *App) promoValidateHandler(w http.ResponseWriter, r *http.Request) {
@@ -74,8 +96,9 @@ func (a *App) promoValidateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var q struct {
-		Code     string `json:"code"`
-		PlanCode string `json:"plan_code"`
+		Code         string `json:"code"`
+		PlanCode     string `json:"plan_code"`
+		BillingCycle string `json:"billing_cycle"`
 	}
 	if json.NewDecoder(r.Body).Decode(&q) != nil {
 		writeError(w, errors.New("datos inválidos"), 400)
@@ -87,7 +110,8 @@ func (a *App) promoValidateHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("plan inválido"), 400)
 		return
 	}
-	promo, final, err := a.promoCodeForCheckout(q.Code, plan)
+	baseAmount, cycle := billingCyclePrice(plan, q.BillingCycle)
+	promo, final, err := a.promoCodeForAmount(q.Code, baseAmount)
 	if err != nil {
 		writeError(w, err, 400)
 		return
@@ -96,7 +120,7 @@ func (a *App) promoValidateHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("ingresa un código promocional"), 400)
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "code": promo.Code, "discount_percent": promo.DiscountPercent, "original_amount": plan.PriceUSDT, "final_amount": final, "expires_at": promo.ExpiresAt})
+	writeJSON(w, map[string]any{"ok": true, "code": promo.Code, "discount_percent": promo.DiscountPercent, "original_amount": baseAmount, "final_amount": final, "expires_at": promo.ExpiresAt, "billing_cycle": cycle})
 }
 
 func (a *App) adminPromoCodesHandler(w http.ResponseWriter, r *http.Request) {

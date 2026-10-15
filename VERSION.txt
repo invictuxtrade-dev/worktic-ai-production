@@ -1,12 +1,15 @@
-WorkticAI V27.9.2 — Copilot Functional Hotfix
-Build: 2026-10-06
+WorkticAI V27.10 — Commercial Website + Annual Billing
+Build: 2026-10-15
 
-- Base exacta: WorkticAI V27.9.1 Copilot UI Polish.
-- Dashboard V27.6 preservado sin cambios visuales ni de layout.
-- Corregido error crítico `diagnosticTextV277 is not defined` que interrumpía respuestas del Copilot al recibir contexto.
-- Contexto del Copilot ahora se formatea localmente de forma segura y compatible con el backend V27.
-- Flujo streaming `/api/copilot/v27/stream` y fallback `/api/copilot/v27` preservados.
-- Acciones rápidas ahora envían únicamente el texto de la acción, sin símbolos decorativos.
-- Botón flotante usa SVG centrado para eliminar el desplazamiento visual de la estrella.
-- Mensaje técnico del fallback ya no expone errores JavaScript al usuario; el detalle queda en consola para diagnóstico.
-- Backend, PostgreSQL, Redis, Social Hub, Inbox, Perfil, WhatsApp Marketing, workers y migraciones intactos.
+- Base exacta: WorkticAI V27.9.2 — Copilot Functional Hotfix suministrada por el usuario.
+- Plataforma interna V27.9.2 preservada; actualización enfocada en web pública, planes y facturación anual.
+- `static/index.html` rediseñado como página comercial premium del ecosistema WorkticAI actual.
+- Mensaje comercial actualizado: motor comercial autónomo que conecta captación, conversación, CRM, automatización, venta y analítica.
+- Nuevas secciones para WhatsApp Business/Marketing, Agentes IA, Automatizaciones, Social Hub, Ads Center, Analytics, Growth, Landing Pages, CRM, Agenda, Catálogo y Worktic Copilot.
+- WorkticAI Academy enlazada oficialmente a https://academy.workticai.com.
+- Planes con selector Mensual / Anual y ahorro anual del 20%.
+- Facturación anual real habilitada sin migraciones nuevas: Personal 240 USDT/año, Negocio 720 USDT/año, Empresa 1.440 USDT/año.
+- Checkout USDT, códigos promocionales y activación administrativa compatibles con ciclo mensual/anual.
+- Un pago anual aprobado activa la suscripción por 1 año; un pago mensual conserva `billing_days` del plan.
+- Registro desde la web conserva plan/ciclo elegido y abre el checkout correspondiente al ingresar a la plataforma.
+- PostgreSQL, Redis, Social Hub, Inbox, Copilot, Workers, integraciones y credenciales no se alteran.
