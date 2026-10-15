@@ -1,10 +1,13 @@
-WorkticAI V27.10.1 — SEO-Preserved Commercial Enhancement
+WorkticAI V27.11 — Commercial Expansion + Worktic Partners Preview
 Build: 2026-10-15
 
-- Base funcional: WorkticAI V27.10 (facturación anual real preservada).
-- Página pública restaurada sobre el diseño original suministrado por el usuario.
-- SEO original preservado exactamente: title y meta description.
-- Hero original preservado exactamente: badge, H1, lead, CTAs, trust y métricas.
-- Identidad/nav original preservados; Academy se añade como enlace complementario.
-- Se añaden únicamente capas complementarias: suite actual WorkticAI, Academy, selector Mensual/Anual, detalle ampliado de planes y comparación de capacidades.
-- Backend de billing anual, login, checkout y promo codes de V27.10 permanece intacto.
+- Base: WorkticAI V27.10.1 SEO-Preserved Commercial Enhancement.
+- SEO y hero comercial original preservados; expansión añadida debajo del contenido existente.
+- Social Hub, conexiones sociales, WhatsApp Marketing, Automation Engine, agentes IA y módulos actuales explicados con mayor profundidad.
+- Dos motion graphics MP4 ligeros incorporados para Social Hub y flujos de agentes/automatización.
+- Precios públicos expresados en USD; checkout/billing interno existente no se modifica en esta entrega.
+- Burbuja WhatsApp profesional para Ventas y Soporte.
+- Nueva página informativa Worktic Partners con Worktic Momentum, Autopilot, Co-Sell, Impact Score y simulador educativo.
+- Programa Partners permanece en fase informativa/pre-lanzamiento; no se implementan payouts ni CRM de Partners todavía.
+- Marco financiero y regulatorio interno añadido para orientar la siguiente fase de implementación.
+- Backend, PostgreSQL, Redis, billing anual, Copilot e infraestructura permanecen intactos.
