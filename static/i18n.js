@@ -112,6 +112,9 @@ var I18N = {
 /* ══════════════════ HEADER (título / subtítulo por sección) ══════════════════ */
 "title.dashboard":{es:"Resumen",en:"Overview"},
 "subtitle.dashboard":{es:"Ventas y atención multicanal en una sola plataforma.",en:"Sales and multichannel support in a single platform."},
+"nav.partnerscenter":{es:"Partner Center",en:"Partner Center"},
+"title.partnerscenter":{es:"Partner Center",en:"Partner Center"},
+"subtitle.partnerscenter":{es:"Comparte, vende, activa clientes y desarrolla tu comunidad comercial.",en:"Share, sell, activate customers and grow your commercial community."},
 "title.inbox":{es:"Conversaciones",en:"Conversations"},
 "subtitle.inbox":{es:"WhatsApp, Telegram y Messenger en una sola bandeja.",en:"WhatsApp, Telegram and Messenger in one inbox."},
 "title.contacts":{es:"Contactos",en:"Contacts"},

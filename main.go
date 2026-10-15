@@ -86,6 +86,7 @@ type Config struct {
 	GoogleClientSecret            string
 	GoogleAdsDeveloperToken       string
 	AutomationWebhookAllowedHosts string
+	PartnerAcademyWebhookSecret   string
 }
 
 type StoredMessage struct {
@@ -371,6 +372,12 @@ func main() {
 	if err = (&App{db: db}).ensureBillingPlansSchema(); err != nil {
 		log.Fatalf("billing plans schema: %v", err)
 	}
+	if err = initPartnersV2714Schema(db); err != nil {
+		log.Fatalf("partners v27.14 schema: %v", err)
+	}
+	if err = initPartnersV2715Schema(db); err != nil {
+		log.Fatalf("partners v27.15 schema: %v", err)
+	}
 
 	ensureSocialProviderSchema(db)
 
@@ -409,6 +416,15 @@ func main() {
 		log.Fatalf("production runtime: %v", err)
 	}
 	app := &App{cfg: cfg, db: db, client: client, qrState: "idle", autoLast: map[string]time.Time{}, tgStop: make(chan struct{}), prod: prod}
+	if err := app.reconcilePartnerApprovedPaymentsV2715(); err != nil {
+		log.Printf("partners v27.15 commission reconciliation: %v", err)
+	}
+	if err := app.reconcilePartnerPaymentReversalsV2715(); err != nil {
+		log.Printf("partners v27.15 reversal reconciliation: %v", err)
+	}
+	if err := app.reconcilePartnerAcademyEventsV2715(); err != nil {
+		log.Printf("partners v27.15 Academy reconciliation: %v", err)
+	}
 	if cfg.BackgroundWorkersEnabled {
 		go app.runSocialPublisher()
 		go app.runAutomationWorker()
@@ -440,6 +456,32 @@ func main() {
 	mux.HandleFunc("/api/auth/logout", app.authLogoutHandler)
 	mux.HandleFunc("/api/auth/me", app.meHandler)
 	mux.HandleFunc("/api/account/profile", app.accountProfileHandler)
+	mux.HandleFunc("/api/partners/me", app.partnerMeHandlerV2715)
+	mux.HandleFunc("/api/partners/overview", app.partnerOverviewHandlerV2715)
+	mux.HandleFunc("/api/partners/ranks", app.partnerRanksHandlerV2714)
+	mux.HandleFunc("/api/partners/customers", app.partnerCustomersHandlerV2714)
+	mux.HandleFunc("/api/partners/network", app.partnerNetworkHandlerV2714)
+	mux.HandleFunc("/api/partners/network/tree", app.partnerNetworkTreeHandlerV2715)
+	mux.HandleFunc("/api/partners/ledger", app.partnerLedgerHandlerV2715)
+	mux.HandleFunc("/api/partners/cosell", app.partnerCosellHandlerV2715)
+	mux.HandleFunc("/api/partners/certification", app.partnerCertificationHandlerV2715)
+	mux.HandleFunc("/api/partners/marketplace/jobs", app.partnerMarketplaceJobsHandlerV2715)
+	mux.HandleFunc("/api/partners/marketplace/applications", app.partnerMarketplaceApplicationsHandlerV2715)
+	mux.HandleFunc("/api/partners/marketplace/sales", app.partnerMarketplaceSalesHandlerV2715)
+	mux.HandleFunc("/api/partners/payouts", app.partnerPayoutsHandlerV2715)
+	mux.HandleFunc("/api/partners/autopilot", app.partnerAutopilotHandlerV2715)
+	mux.HandleFunc("/api/partners/autopilot/activate", app.partnerAutopilotActivateHandlerV2715)
+	mux.HandleFunc("/api/admin/partners", app.adminPartnersHandlerV2714)
+	mux.HandleFunc("/api/admin/partners/dashboard", app.adminPartnerDashboardV2715)
+	mux.HandleFunc("/api/admin/partners/adoption", app.adminPartnerAdoptionHandlerV2714)
+	mux.HandleFunc("/api/admin/partners/ledger", app.adminPartnerLedgerHandlerV2714)
+	mux.HandleFunc("/api/admin/partners/cosell", app.adminPartnerCosellHandlerV2715)
+	mux.HandleFunc("/api/admin/partners/payouts", app.adminPartnerPayoutsHandlerV2715)
+	mux.HandleFunc("/api/admin/partners/certifications", app.adminPartnerCertificationsHandlerV2715)
+	mux.HandleFunc("/api/admin/partners/marketplace", app.adminPartnerMarketplaceHandlerV2715)
+	mux.HandleFunc("/api/admin/partners/settings", app.adminPartnerSettingsHandlerV2715)
+	mux.HandleFunc("/api/admin/partners/ranks", app.adminPartnerRanksHandlerV2715)
+	mux.HandleFunc(partnerAcademyWebhookPathV2715, app.academyPartnerCertificationWebhookV2715)
 	mux.HandleFunc("/api/admin/users", app.usersHandler)
 	mux.HandleFunc("/api/team/invitations", app.teamInvitationsHandler)
 	mux.HandleFunc("/api/team/invitations/accept", app.acceptTeamInvitationHandler)
@@ -589,6 +631,7 @@ func main() {
 	mux.HandleFunc("/api/groups/prospects", app.groupProspectsHandler)
 	mux.HandleFunc("/f/", app.publicLeadFormHandler)
 	mux.HandleFunc("/l/", app.publicLandingHandler)
+	mux.HandleFunc("/r/", app.partnerReferralRedirectHandlerV2714)
 	mux.Handle("/", http.FileServer(http.Dir("./static")))
 
 	server := &http.Server{
@@ -713,6 +756,7 @@ func loadConfig() Config {
 		GoogleClientSecret:            env("GOOGLE_CLIENT_SECRET", ""),
 		GoogleAdsDeveloperToken:       env("GOOGLE_ADS_DEVELOPER_TOKEN", ""),
 		AutomationWebhookAllowedHosts: env("AUTOMATION_WEBHOOK_ALLOWED_HOSTS", ""),
+		PartnerAcademyWebhookSecret:   env("PARTNER_ACADEMY_WEBHOOK_SECRET", ""),
 	}
 }
 
@@ -2042,8 +2086,10 @@ func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
 		Password    string `json:"password"`
 		Company     string `json:"company"`
 		AccountType string `json:"account_type"`
+		PartnerRef  string `json:"partner_ref"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&q)
+	partnerRef := partnerRefFromRequestV2714(r, q.PartnerRef)
 	if len(strings.TrimSpace(q.Name)) < 2 || !strings.Contains(q.Email, "@") || len(q.Password) < 12 {
 		writeError(w, errors.New("nombre, correo válido y contraseña de mínimo 12 caracteres son obligatorios"), 400)
 		return
@@ -2104,9 +2150,18 @@ func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err, 500)
 		return
 	}
+	if partnerRef != "" {
+		if err = a.capturePartnerAttributionTxV2714(tx, id, partnerRef, now); err != nil {
+			writeError(w, fmt.Errorf("no se pudo registrar la atribución Partner: %w", err), 500)
+			return
+		}
+	}
 	if err = tx.Commit(); err != nil {
 		writeError(w, err, 500)
 		return
+	}
+	if partnerRef != "" {
+		http.SetCookie(w, &http.Cookie{Name: partnerReferralCookieV2714, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.cfg.AppEnv == "production", SameSite: http.SameSiteLaxMode})
 	}
 	if err = a.createSession(w, id); err != nil {
 		writeError(w, err, 500)
@@ -3097,11 +3152,12 @@ func (a *App) adminOverviewHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) adminPaymentsHandler(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.requireSuperadmin(w, r); !ok {
+	admin, ok := a.requireSuperadmin(w, r)
+	if !ok {
 		return
 	}
 	if r.Method == http.MethodGet {
-		rows, err := a.db.Query(`SELECT bp.id,bp.user_id,u.name,u.email,bp.plan_code,p.name,bp.network,bp.wallet,bp.amount_usdt,bp.tx_hash,bp.status,bp.admin_note,bp.created_at,bp.reviewed_at FROM billing_payments bp JOIN app_users u ON u.id=bp.user_id JOIN billing_plans p ON p.code=bp.plan_code ORDER BY CASE bp.status WHEN 'pending' THEN 0 ELSE 1 END,bp.id DESC`)
+		rows, err := a.db.Query(`SELECT bp.id,bp.user_id,u.name,u.email,bp.plan_code,p.name,bp.network,bp.wallet,bp.amount_usdt,bp.tx_hash,bp.status,bp.admin_note,bp.created_at,bp.reviewed_at FROM billing_payments bp JOIN app_users u ON u.id=bp.user_id JOIN billing_plans p ON p.code=bp.plan_code ORDER BY CASE bp.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,bp.id DESC`)
 		if err != nil {
 			writeError(w, err, 500)
 			return
@@ -3116,25 +3172,34 @@ func (a *App) adminPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, out)
 		return
 	}
-	if r.Method == http.MethodPut {
-		var q struct {
-			ID     int64  `json:"id"`
-			Action string `json:"action"`
-			Note   string `json:"note"`
-		}
-		_ = json.NewDecoder(r.Body).Decode(&q)
-		var userID int64
-		var planCode, status string
-		var originalAmount float64
-		if a.db.QueryRow(`SELECT user_id,plan_code,status,COALESCE(original_amount_usdt,0) FROM billing_payments WHERE id=?`, q.ID).Scan(&userID, &planCode, &status, &originalAmount) != nil {
-			writeError(w, errors.New("pago no encontrado"), 404)
-			return
-		}
+	if r.Method != http.MethodPut {
+		http.Error(w, "Método no permitido", 405)
+		return
+	}
+	var q struct {
+		ID     int64  `json:"id"`
+		Action string `json:"action"`
+		Note   string `json:"note"`
+	}
+	if json.NewDecoder(r.Body).Decode(&q) != nil || q.ID == 0 {
+		writeError(w, errors.New("pago inválido"), 400)
+		return
+	}
+	q.Action = strings.ToLower(strings.TrimSpace(q.Action))
+	var userID, subscriptionID int64
+	var planCode, status string
+	var originalAmount float64
+	if a.db.QueryRow(`SELECT user_id,plan_code,status,COALESCE(original_amount_usdt,0),COALESCE(subscription_id,0) FROM billing_payments WHERE id=?`, q.ID).Scan(&userID, &planCode, &status, &originalAmount, &subscriptionID) != nil {
+		writeError(w, errors.New("pago no encontrado"), 404)
+		return
+	}
+	now := time.Now().UTC()
+
+	if q.Action == "approve" || q.Action == "reject" {
 		if status != "pending" {
 			writeError(w, errors.New("el pago ya fue procesado"), 400)
 			return
 		}
-		now := time.Now().UTC()
 		if q.Action == "approve" {
 			var days int
 			var monthlyPrice float64
@@ -3144,22 +3209,67 @@ func (a *App) adminPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 				endsAt = now.AddDate(1, 0, 0)
 			}
 			_, _ = a.db.Exec(`UPDATE billing_subscriptions SET status='replaced' WHERE user_id=? AND status='active'`, userID)
-			_, err := a.db.Exec(`INSERT INTO billing_subscriptions(user_id,plan_code,status,starts_at,ends_at,created_at) VALUES(?,?,'active',?,?,?)`, userID, planCode, now.Format(time.RFC3339), endsAt.Format(time.RFC3339), now.Format(time.RFC3339))
+			res, err := a.db.Exec(`INSERT INTO billing_subscriptions(user_id,plan_code,status,starts_at,ends_at,created_at) VALUES(?,?,'active',?,?,?)`, userID, planCode, now.Format(time.RFC3339), endsAt.Format(time.RFC3339), now.Format(time.RFC3339))
 			if err != nil {
 				writeError(w, err, 500)
 				return
 			}
-			_, _ = a.db.Exec(`UPDATE billing_payments SET status='approved',admin_note=?,reviewed_at=? WHERE id=?`, strings.TrimSpace(q.Note), now.Format(time.RFC3339), q.ID)
-		} else if q.Action == "reject" {
-			_, _ = a.db.Exec(`UPDATE billing_payments SET status='rejected',admin_note=?,reviewed_at=? WHERE id=?`, strings.TrimSpace(q.Note), now.Format(time.RFC3339), q.ID)
+			subscriptionID, _ = res.LastInsertId()
+			_, _ = a.db.Exec(`UPDATE billing_payments SET status='approved',admin_note=?,reviewed_at=?,subscription_id=? WHERE id=?`, strings.TrimSpace(q.Note), now.Format(time.RFC3339), subscriptionID, q.ID)
+			if err := a.processPartnerPaymentV2715(q.ID); err != nil {
+				log.Printf("partners v27.15 payment %d: %v", q.ID, err)
+			}
 		} else {
-			writeError(w, errors.New("acción inválida"), 400)
-			return
+			_, _ = a.db.Exec(`UPDATE billing_payments SET status='rejected',admin_note=?,reviewed_at=? WHERE id=?`, strings.TrimSpace(q.Note), now.Format(time.RFC3339), q.ID)
 		}
-		writeJSON(w, map[string]any{"ok": true})
+		writeJSON(w, map[string]any{"ok": true, "status": map[bool]string{true: "approved", false: "rejected"}[q.Action == "approve"]})
 		return
 	}
-	http.Error(w, "Método no permitido", 405)
+
+	if q.Action == "refund" || q.Action == "chargeback" {
+		newStatus := "refunded"
+		if q.Action == "chargeback" {
+			newStatus = "chargeback"
+		}
+		if status != "approved" && status != newStatus {
+			writeError(w, errors.New("solo un pago aprobado puede marcarse como reembolso o chargeback"), 400)
+			return
+		}
+		// Si el pago ya tiene el estado objetivo, reintentamos únicamente la reversión Partner.
+		// Esto hace la operación recuperable ante un fallo transitorio después del cambio de estado.
+		if status == "approved" {
+			tx, err := a.db.Begin()
+			if err != nil {
+				writeError(w, err, 500)
+				return
+			}
+			if _, err = tx.Exec(`UPDATE billing_payments SET status=?,admin_note=?,reviewed_at=? WHERE id=? AND status='approved'`, newStatus, strings.TrimSpace(q.Note), now.Format(time.RFC3339), q.ID); err != nil {
+				_ = tx.Rollback()
+				writeError(w, err, 500)
+				return
+			}
+			if subscriptionID > 0 {
+				if _, err = tx.Exec(`UPDATE billing_subscriptions SET status=? WHERE id=?`, newStatus, subscriptionID); err != nil {
+					_ = tx.Rollback()
+					writeError(w, err, 500)
+					return
+				}
+			}
+			if err = tx.Commit(); err != nil {
+				writeError(w, err, 500)
+				return
+			}
+		}
+		if err := a.reversePartnerPaymentV2715(q.ID, q.Action, admin.ID); err != nil {
+			log.Printf("partners v27.15 reverse payment %d: %v", q.ID, err)
+			writeError(w, fmt.Errorf("pago marcado, pero la reversión Partner requiere revisión y puede reintentarse: %w", err), 500)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "status": newStatus})
+		return
+	}
+
+	writeError(w, errors.New("acción inválida"), 400)
 }
 
 func (a *App) adminSubscriptionsHandler(w http.ResponseWriter, r *http.Request) {

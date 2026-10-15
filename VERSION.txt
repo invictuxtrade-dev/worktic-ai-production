@@ -1,3 +1,26 @@
-WorkticAI V27.13.1 — Partners Order Fix
+WorkticAI V27.15 — Partner Business Backoffice
 Build 2026-10-15
-Scope: public Partners page only
+
+Base: V27.13.1 public web + stable WorkticAI core + V27.14 Partner Core Engine.
+Scope: complete operational Partner Center as an independent business backoffice inside the same WorkticAI account/session.
+
+Implemented:
+- Independent Partner Business Backoffice; no second login and no duplicated CRM.
+- Dashboard, smart referral link, attribution, clients, network tree/list, Momentum, commissions, Co-Sell, Activate Certified, Human Sales opportunities, payouts, Partner Autopilot and settings.
+- Worktic Momentum with Spark, Pulse, Orbit, Apex and Infinity and 90-day downgrade protection.
+- Direct, N2, N3, adoption, renewal and automatic mentorship commissions.
+- Co-Sell with bilateral acceptance, configurable split and automatic split of direct commission after an eligible sale.
+- Academy HMAC webhook for automatic Activate Certified synchronization.
+- Human Sales Network marketplace with company opportunity publishing, admin review, certified specialist applications, company acceptance, sale reporting, business confirmation and 80/20 commission-pool settlement.
+- Partner commission ledger with validation holds, annual-plan monthly recognition and idempotent deduplication.
+- Payout profile, request, reservation, approval, processing, rejection/cancellation and paid settlement with payment/hash/reference audit.
+- Refund/chargeback handling with idempotent Partner reversals and automatic startup reconciliation.
+- Partner Autopilot using existing OpenAI integration; generates sales plan and creates draft Growth campaign/content + attributed landing page.
+- Superadmin Partner operations: dashboard, Partners, adoption, Co-Sell, Human Sales, payouts, certifications, settings and rank rules.
+- Public V27.13.1 website/Partners landing preserved byte-for-byte.
+- PostgreSQL/SQLite compatible additive schema initialization at application startup.
+
+Important:
+- Do NOT run /app/worktic-migrate.
+- Configure PARTNER_ACADEMY_WEBHOOK_SECRET before enabling Academy automatic certification.
+- External bank/USDT payout transfer remains operationally executed by the administrator; WorkticAI controls request, review, accounting, status and payment reference/hash without storing private wallet keys.

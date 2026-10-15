@@ -542,13 +542,15 @@ func (a *App) adminFullPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 			items = append(items, x)
 		}
 	}
-	var pending, approved, rejected int
+	var pending, approved, rejected, refunded, chargeback int
 	var revenue float64
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM billing_payments WHERE status='pending'`).Scan(&pending)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM billing_payments WHERE status='approved'`).Scan(&approved)
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM billing_payments WHERE status='rejected'`).Scan(&rejected)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM billing_payments WHERE status='refunded'`).Scan(&refunded)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM billing_payments WHERE status='chargeback'`).Scan(&chargeback)
 	_ = a.db.QueryRow(`SELECT COALESCE(SUM(amount_usdt),0) FROM billing_payments WHERE status='approved'`).Scan(&revenue)
-	writeJSON(w, map[string]any{"items": items, "pagination": paginationMeta(page, perPage, total), "summary": map[string]any{"pending": pending, "approved": approved, "rejected": rejected, "revenue_usdt": revenue}})
+	writeJSON(w, map[string]any{"items": items, "pagination": paginationMeta(page, perPage, total), "summary": map[string]any{"pending": pending, "approved": approved, "rejected": rejected, "refunded": refunded, "chargeback": chargeback, "revenue_usdt": revenue}})
 }
 
 func (a *App) adminFullSubscriptionsHandler(w http.ResponseWriter, r *http.Request) {

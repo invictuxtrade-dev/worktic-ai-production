@@ -50,6 +50,10 @@ var postgresSerialTables = map[string]bool{
 	"social_metrics": true, "social_oauth_states": true, "social_post_groups": true, "social_posts": true,
 	"social_publish_attempts": true, "social_repurpose_jobs_v23": true, "team_invitations": true, "tenants": true,
 	"whatsapp_business_events": true, "whatsapp_template_drafts": true, "whatsapp_marketing_campaigns_v27": true, "whatsapp_marketing_recipients_v27": true, "worktic_auto_rules": true, "worktic_messages": true,
+	"partner_profiles_v2714": true, "partner_clicks_v2714": true, "partner_attributions_v2714": true, "partner_rank_rules_v2714": true,
+	"partner_rank_snapshots_v2714": true, "partner_adoption_v2714": true, "partner_commission_ledger_v2714": true, "partner_payouts_v2714": true, "partner_audit_v2714": true,
+	"partner_cosell_deals_v2715": true, "partner_certifications_v2715": true, "partner_academy_events_v2715": true, "partner_marketplace_jobs_v2715": true,
+	"partner_marketplace_applications_v2715": true, "partner_marketplace_sales_v2715": true, "partner_autopilot_plans_v2715": true, "partner_payment_reversals_v2715": true,
 }
 
 var insertTableRx = regexp.MustCompile(`(?is)^\s*INSERT\s+INTO\s+([a-zA-Z0-9_]+)\b`)
