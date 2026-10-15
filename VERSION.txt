@@ -1,14 +1,3 @@
-WorkticAI V27.13 — Partners Paths + Activate Certified
-Build: 2026-10-15
-
-- Base: WorkticAI V27.12 Web + Partners Commercial Upgrade.
-- Aplicación interna, backend, billing, PostgreSQL, Redis y Copilot sin cambios.
-- Worktic Partners: profundización comercial de Share, Activate y Lead al nivel de Co-Sell.
-- Share: flujo visual de atribución, ejemplo de comisión y mini dashboard de conversión.
-- Activate Certified: ruta Academy -> evaluación -> certificación -> oportunidades con empresas.
-- Nuevo concepto de especialista WorkticAI para implementación y agente humano de ventas.
-- Reparto propuesto del pool comercial de agente humano: 80% especialista / 20% WorkticAI.
-- Simulador interactivo de Activate según ventas generadas y porcentaje comercial pactado.
-- Lead: visual de comunidad, mentoría, N2/N3 y ejemplo Infinity.
-- Landing principal: logo WORKTIC AI visible en el menú móvil, igualando el patrón de Partners.
-- SEO y hero principal preservados.
+WorkticAI V27.13.1 — Partners Order Fix
+Build 2026-10-15
+Scope: public Partners page only
