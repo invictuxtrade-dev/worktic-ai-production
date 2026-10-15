@@ -1,0 +1,52 @@
+(function(){
+'use strict';
+var lang='es';
+var switcher=document.getElementById('partnerLang');
+function applyLang(){document.documentElement.lang=lang;if(switcher)switcher.textContent=lang==='es'?'EN':'ES';}
+if(switcher)switcher.addEventListener('click',function(){lang=lang==='es'?'en':'es';applyLang()});applyLang();
+
+// Mobile menu
+var mt=document.getElementById('partnerMobileToggle'),mp=document.getElementById('partnerMobilePanel'),mo=document.getElementById('partnerMobileOverlay'),mx=document.getElementById('partnerMobileClose');
+function setMenu(open){if(!mp||!mo)return;mp.classList.toggle('open',open);mo.style.display=open?'block':'none';document.body.classList.toggle('menu-lock',open);if(mt)mt.setAttribute('aria-expanded',String(open));mp.setAttribute('aria-hidden',String(!open));}
+if(mt)mt.addEventListener('click',function(){setMenu(true)});if(mx)mx.addEventListener('click',function(){setMenu(false)});if(mo)mo.addEventListener('click',function(){setMenu(false)});if(mp)mp.querySelectorAll('a').forEach(function(a){a.addEventListener('click',function(){setMenu(false)})});document.addEventListener('keydown',function(e){if(e.key==='Escape')setMenu(false)});
+
+// WhatsApp bubble
+var wa=document.getElementById('wtWaLauncher'),wap=document.getElementById('wtWaPanel');
+if(wa&&wap){wa.addEventListener('click',function(e){e.stopPropagation();wap.hidden=!wap.hidden;wa.setAttribute('aria-expanded',String(!wap.hidden))});document.addEventListener('click',function(e){if(wap.hidden||wap.contains(e.target)||wa.contains(e.target))return;wap.hidden=true;wa.setAttribute('aria-expanded','false')});}
+
+// Four ways interactive explainer
+var wayData={
+ share:{label:'SHARE',title:'Recomienda WorkticAI de forma simple',text:'Comparte tu enlace personalizado con contactos, clientes o comunidad. Si una venta elegible se completa, ganas la comisión directa correspondiente a tu rango.',benefits:['Enlace atribuido','Material comercial','No necesitas equipo','Comisión desde tu primera venta'],steps:[['🔗','Comparte','Tu enlace o página'],['👤','Llega un prospecto','Atribución automática'],['💳','Compra WorkticAI','Venta elegible'],['💰','Generas comisión','Según tu rango']]},
+ sell:{label:'SELL',title:'Construye una cartera recurrente',text:'Usa WorkticAI como tu sistema comercial: organiza prospectos, prepara demos, da seguimiento y cierra clientes que pueden permanecer contigo mes a mes.',benefits:['CRM de prospectos','Pipeline de ventas','Guiones y demos','Seguimiento recurrente'],steps:[['🎯','Captas','Prospectos interesados'],['📋','Organizas','CRM y etapas'],['🧠','Presentas','Demo + Copilot'],['✅','Cierras','Construyes cartera']]},
+ activate:{label:'ACTIVATE',title:'Certifícate y conviértete en especialista WorkticAI',text:'Aprende en Academy, aprueba una evaluación práctica y habilita tu perfil para oportunidades de implementación, adopción o ventas humanas con empresas que usan WorkticAI.',benefits:['Ruta Academy','Certificación práctica','Oportunidades con empresas','80% del pool comercial del especialista'],steps:[['🎓','Aprende','Academy + práctica'],['✅','Aprueba','Evaluación WorkticAI'],['🏅','Certifícate','Perfil especialista'],['🏢','Trabaja','Implementación o ventas']]},
+ lead:{label:'LEAD',title:'Desarrolla una comunidad comercial',text:'Acompaña a otros Partners, comparte buenas prácticas y crea una organización que vende y activa clientes. Los niveles se desbloquean por desempeño, no por comprar una membresía adicional.',benefits:['Mentoría comercial','N2 y N3 por rango','Crecimiento en equipo','Academia y soporte'],steps:[['👥','Acompañas','Nuevos Partners'],['📚','Formas','Proceso comercial'],['🚀','Escalan','Ventas y adopción'],['🌐','Creces','Comunidad recurrente']]}
+};
+var wayButtons=document.querySelectorAll('.way-tab'),wayLabel=document.getElementById('wayLabel'),wayTitle=document.getElementById('wayTitle'),wayText=document.getElementById('wayText'),wayBenefits=document.getElementById('wayBenefits'),wayDiagram=document.getElementById('wayDiagram');
+function renderWay(key){var d=wayData[key];if(!d)return;wayButtons.forEach(function(b){b.classList.toggle('active',b.dataset.way===key)});wayLabel.textContent=d.label;wayTitle.textContent=d.title;wayText.textContent=d.text;wayBenefits.innerHTML=d.benefits.map(function(x){return '<div>✓ '+x+'</div>'}).join('');wayDiagram.innerHTML=d.steps.map(function(x){return '<div class="diagram-step"><i>'+x[0]+'</i><b>'+x[1]+'</b><small>'+x[2]+'</small></div>'}).join('');}
+wayButtons.forEach(function(b){b.addEventListener('click',function(){renderWay(b.dataset.way)})});renderWay('share');
+
+// Partner Center tabs
+var autoData={prospectos:{title:'Tu CRM comercial automático',cards:[['Nuevos leads','12 por revisar'],['Seguimiento','7 pendientes'],['Demo agendada','3 esta semana']],note:'Organiza cada oportunidad desde el primer contacto hasta el cierre.'},copilot:{title:'Tu Copilot vendedor',cards:[['Guiones','Adaptados por sector'],['Objeciones','Respuestas sugeridas'],['Demos','Estructura paso a paso']],note:'Pídele ayuda para preparar mensajes, presentaciones y seguimientos.'},campanas:{title:'Campañas con IA para prospectar',cards:[['Contenido','Piezas listas'],['Captación','Landing + CTA'],['Seguimiento','Secuencia automática']],note:'Prepara campañas y contenido para atraer interesados a tu oferta.'},adopcion:{title:'Acompaña la adopción del cliente',cards:[['CRM','Actividad real'],['Canales','Conectados'],['Automatización','Operativa']],note:'Detecta qué clientes necesitan ayuda para sacar más valor de WorkticAI.'},ingresos:{title:'Visualiza tu crecimiento',cards:[['Ventas','Directas'],['Renovaciones','Cartera activa'],['Momentum','Progreso de rango']],note:'Consulta tus resultados y entiende qué actividad impulsa tu negocio.'}};
+var autoTitle=document.getElementById('autoTitle'),autoContent=document.getElementById('autoContent');function renderAuto(key){var d=autoData[key];document.querySelectorAll('.auto-tab').forEach(function(b){b.classList.toggle('active',b.dataset.auto===key)});autoTitle.textContent=d.title;autoContent.innerHTML='<div class="auto-cards">'+d.cards.map(function(c){return '<div><b>'+c[0]+'</b><small>'+c[1]+'</small></div>'}).join('')+'</div><p style="color:#c8c2d8;font-size:.78rem;line-height:1.55;margin:14px 0 0">'+d.note+'</p><div class="auto-metric"><i></i></div>';}
+document.querySelectorAll('.auto-tab').forEach(function(b){b.addEventListener('click',function(){renderAuto(b.dataset.auto)})});renderAuto('prospectos');
+
+// Copilot demo interaction
+var demo=document.getElementById('demoResult');document.querySelectorAll('[data-demo]').forEach(function(b){b.addEventListener('click',function(){var t=b.dataset.demo;demo.textContent=t==='messages'?'Mensaje 1: “Hola, estoy ayudando a restaurantes a automatizar reservas, seguimiento y WhatsApp con IA. ¿Te muestro cómo funcionaría en tu negocio?”':t==='landing'?'Propuesta: landing sectorial con beneficios, demo, casos de uso, CTA de WhatsApp y formulario atribuido a tu enlace Partner.':'Seguimiento: Día 1 presentación · Día 3 caso de uso · Día 5 demo · Día 7 cierre o reactivación.'})});
+
+// Earnings simulator
+var ranks=[{name:'Spark',direct:.25,n2:0,n3:0,minDirect:0,minAdopt:0},{name:'Pulse',direct:.28,n2:0,n3:0,minDirect:3,minAdopt:2},{name:'Orbit',direct:.30,n2:.03,n3:0,minDirect:8,minAdopt:6},{name:'Apex',direct:.32,n2:.04,n3:.02,minDirect:18,minAdopt:14},{name:'Infinity',direct:.34,n2:.05,n3:.03,minDirect:35,minAdopt:28}];
+var prices={personal:{m:25,y:240},business:{m:75,y:720},enterprise:{m:150,y:1440}};
+function n(id){var el=document.getElementById(id);return el?Math.max(0,Number(el.value||0)):0}function money(v){return new Intl.NumberFormat('es-CO',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(v)}function rankFor(d,a){var r=ranks[0];ranks.forEach(function(x){if(d>=x.minDirect&&a>=x.minAdopt)r=x});return r}
+function calc(){var plan=document.getElementById('simPlan').value,cycle=document.getElementById('simCycle').value,direct=n('simDirect'),adopt=Math.min(direct,n('simAdopt')),renew=Math.min(direct,n('simRenew')),n2v=n('simN2'),n3v=n('simN3'),rank=rankFor(direct,adopt),unit=cycle==='annual'?prices[plan].y/12:prices[plan].m,directPay=unit*direct*rank.direct,adoptPay=unit*adopt*.04,renewPay=unit*renew*.02,network=n2v*rank.n2+n3v*rank.n3,total=directPay+adoptPay+renewPay+network;document.getElementById('simDirectValue').textContent=direct;document.getElementById('simAdoptValue').textContent=adopt;document.getElementById('simRenewValue').textContent=renew;document.getElementById('outRank').textContent=rank.name;document.getElementById('outDirectRate').textContent=Math.round(rank.direct*100)+'%';document.getElementById('outMonthly').textContent=money(total);document.getElementById('outAnnual').textContent=money(total*12);document.getElementById('outDirect').textContent=money(directPay);document.getElementById('outAdoption').textContent=money(adoptPay);document.getElementById('outRenew').textContent=money(renewPay);document.getElementById('outNetwork').textContent=money(network);var max=Math.max(directPay,adoptPay,renewPay,network,1);[['barDirect',directPay],['barAdoption',adoptPay],['barRenew',renewPay],['barNetwork',network]].forEach(function(x){document.getElementById(x[0]).style.width=Math.max(4,(x[1]/max)*100)+'%'})}
+document.querySelectorAll('#partnerSimulator input,#partnerSimulator select').forEach(function(el){el.addEventListener('input',calc);el.addEventListener('change',calc)});calc();
+
+// Activate Certified calculator — 80/20 split of the commercial pool agreed with the business.
+function activateCalc(){
+  var sales=document.getElementById('activateSales'),rate=document.getElementById('activateRate'),pool=document.getElementById('activatePool'),agent=document.getElementById('activateAgent');
+  if(!sales||!rate||!pool||!agent)return;
+  var gross=Math.max(0,Number(sales.value||0)),pct=Math.max(0,Number(rate.value||0)),total=gross*pct,human=total*.80;
+  pool.textContent=new Intl.NumberFormat('es-CO',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(total);
+  agent.textContent=new Intl.NumberFormat('es-CO',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(human);
+}
+['activateSales','activateRate'].forEach(function(id){var el=document.getElementById(id);if(el){el.addEventListener('input',activateCalc);el.addEventListener('change',activateCalc)}});activateCalc();
+})();
