@@ -83,7 +83,7 @@
     state.tab = tab;
     qa('.wt-admin-tab', root).forEach(x => x.classList.toggle('active', x.dataset.adminTab === tab));
     qa('.wt-admin-panel', root).forEach(x => x.classList.toggle('active', x.dataset.adminPanel === tab));
-    ({users:loadUsers,plans:loadPlans,payments:loadPayments,licenses:loadLicenses})[tab]?.();
+    ({users:loadUsers,plans:loadPlans,payments:loadPayments,partners:()=>window.loadPartnerAdminV2715?.(),licenses:loadLicenses})[tab]?.();
   }
 
   function bindBase() {
