@@ -1,3 +1,4 @@
-WorkticAI V27.17 — Worktic Studio sobre V27.16.1
+WorkticAI V27.18 — Worktic Studio Pro
 Build 2026-10-21
-Base: V27.16.1 — 09e37d4; integración aditiva Worktic Studio sin revertir Worktic Partners.
+Base: V27.17 — Worktic Studio Integrado sobre producción V27.16.1.
+Cambios incrementales: workspace compacto/enfoque; presets por red; timeline drag, split, duplicate y zoom; auto montaje con recursos; audio instrumental sintetizado; narrador IA TTS y subtítulos estimados; ajustes y transiciones.

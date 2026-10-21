@@ -9,3 +9,56 @@
 @media(max-width:760px){#studio .wts-stagebar{height:auto;min-height:54px;flex-wrap:wrap;gap:7px}#studio .wts-stagebar select{flex:0 0 95px;width:95px}#studio .wts-stagebar .wts-grow{display:none}}
 
 @media(max-width:760px){#studio{margin:0;max-width:100%;min-width:0;overflow:hidden}}
+/* V27.18 Pro — large-screen workspace, focus, creator-specific controls */
+@media(min-width:761px){
+ body.studio-workspace #appSidebar{width:74px;padding:20px 8px;transition:width .2s ease,padding .2s ease}
+ body.studio-workspace #appSidebar .brand{justify-content:center;padding:4px 0 16px}
+ body.studio-workspace #appSidebar .brand div,body.studio-workspace #appSidebar nav button span:last-child,body.studio-workspace #appSidebar .foot #userLabel,body.studio-workspace #appSidebar .foot .docs-app-link,body.studio-workspace #appSidebar .foot [data-lang-switch]{display:none}
+ body.studio-workspace #appSidebar nav button{justify-content:center;padding:11px;border-left-width:2px}
+ body.studio-workspace #appSidebar .foot{justify-content:center}
+ body.studio-workspace #appSidebar #logoutBtn{font-size:0;width:38px;height:38px;position:relative}
+ body.studio-workspace #appSidebar #logoutBtn:after{content:'↪';font-size:17px}
+ body.studio-workspace main{margin-left:74px;max-width:none;width:auto;padding:14px 16px 40px;transition:margin-left .2s ease,padding .2s ease}
+ body.studio-workspace #studio{width:100%;min-width:0;margin:0}
+ body.studio-workspace #studio .wts-app{height:calc(100vh - 118px);min-height:690px}
+ body.studio-workspace.studio-expanded #appSidebar{width:var(--sidebar-w);padding:20px 14px}
+ body.studio-workspace.studio-expanded #appSidebar .brand{justify-content:flex-start;padding:4px 6px 18px}
+ body.studio-workspace.studio-expanded #appSidebar .brand div{display:flex}
+ body.studio-workspace.studio-expanded #appSidebar nav button{justify-content:flex-start;padding:9.5px 11px}
+ body.studio-workspace.studio-expanded #appSidebar nav button span:last-child{display:inline}
+ body.studio-workspace.studio-expanded #appSidebar .foot{justify-content:space-between}
+ body.studio-workspace.studio-expanded #appSidebar .foot #userLabel,body.studio-workspace.studio-expanded #appSidebar .foot .docs-app-link,body.studio-workspace.studio-expanded #appSidebar .foot [data-lang-switch]{display:initial}
+ body.studio-workspace.studio-expanded #appSidebar #logoutBtn{font-size:12px;width:auto;height:auto}
+ body.studio-workspace.studio-expanded #appSidebar #logoutBtn:after{display:none}
+ body.studio-workspace.studio-expanded main{margin-left:var(--sidebar-w)}
+ body.studio-workspace.studio-focus #appSidebar{transform:translateX(-110%);pointer-events:none}
+ body.studio-workspace.studio-focus main{margin-left:0;padding:8px 10px}
+ body.studio-workspace.studio-focus #studio .wts-app{height:calc(100vh - 90px)}
+}
+#studio .wts-head{gap:7px}#studio .wts-head>button{white-space:nowrap}#studio .wts-head input.wts-title{width:150px}#studio #wtsExpandCRM,#studio #wtsFocus{font-size:11px;border-color:#334b60}
+#studio .wts-main{grid-template-columns:minmax(220px,255px) minmax(0,1fr) minmax(225px,255px)}
+#studio .wts-tabbuttons{flex-wrap:wrap;gap:6px}#studio .wts-tabbuttons button{flex:1 1 44%;min-height:31px}
+#studio .wts-stagebar{height:auto;min-height:54px;flex-wrap:wrap;gap:6px;padding:8px 10px}
+#studio .wts-stagebar select#wtsPlatform{width:154px;max-width:35%}
+#studio .wts-stagebar .wts-tool-list{align-items:center;flex-wrap:wrap;gap:5px}
+#studio .wts-stagebar #wtsTimelineZoom{width:75px;min-width:75px}
+#studio .wts-stagebar #wtsVideoTools button{font-size:10px;padding:7px 8px}
+#studio .wts-format-note{font-size:10px;font-weight:650;background:#121e2e;color:#92b8cb;padding:7px 14px;border-bottom:1px solid #23364b;line-height:1.4}
+#studio .wts-stage-space{min-height:155px;padding:10px}
+#studio .wts-timeline{height:270px;overflow:auto;padding-bottom:14px;scrollbar-color:#53738c #102134}
+#studio .wts-video-track{overflow:visible}#studio .wts-video-track .wts-segment{flex:none;cursor:grab;position:relative;min-width:0}
+#studio .wts-video-track .wts-segment:active{cursor:grabbing}
+#studio .wts-overlay{cursor:grab;touch-action:none;user-select:none}
+#studio .wts-overlay:after{content:'⋮';position:absolute;right:1px;top:3px;opacity:.75;color:#fff;background:#47378a;padding:2px}
+#studio .wts-voice-row{min-height:51px;display:block}
+#studio .wts-voice-row .wts-track-label{height:17px}
+#studio .wts-voice-track{position:relative;height:34px;background:#382333;display:block;overflow:hidden}
+#studio .wts-voice-track button{background:linear-gradient(90deg,#b54e92,#8a3f94);border:1px solid #ed7bc4;position:absolute;top:1px;height:31px;min-height:0;padding:6px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;text-align:left}
+#studio .wts-music-track{background:#124d50}
+#studio .wts-pro-section{margin-top:12px;border-top:1px solid #314258;padding-top:12px}
+#studio .wts-pro-section h3{font-size:13px;margin-bottom:6px;color:#6befdb}
+#studio .wts-check span{display:flex;align-items:center;gap:7px;font-size:11px}#studio .wts-check input{width:auto;accent-color:#40e3d0}
+#studio .wts-ai-note{font-size:11px;line-height:1.5}
+@media(max-width:1450px) and (min-width:761px){#studio .wts-head .wts-brand{display:none}#studio .wts-main{grid-template-columns:220px minmax(0,1fr) 225px}#studio .wts-head input.wts-title{width:115px}}
+@media(max-width:1070px) and (min-width:761px){#studio .wts-main{grid-template-columns:210px minmax(0,1fr) 0}#studio .wts-stage{padding-right:225px}#studio .wts-right{width:225px}#studio .wts-stagebar #wtsPlatform{width:130px}}
+@media(max-width:760px){#studio #wtsExpandCRM,#studio #wtsFocus{display:none}#studio .wts-head{gap:6px}#studio .wts-main{display:flex}#studio .wts-stage{padding-right:0}#studio .wts-timeline{height:245px}#studio .wts-stagebar #wtsPlatform{max-width:100%;width:100%}#studio .wts-format-note{padding:6px 10px}#studio .wts-tabbuttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}

@@ -148,7 +148,7 @@ func (a *App) studioProjectsV2711Handler(w http.ResponseWriter, r *http.Request)
 
 func studioAILimit(plan string) int {
 	switch strings.ToLower(plan) {
-	case "enterprise":
+	case "enterprise", "empresa":
 		return 30
 	case "business", "negocio":
 		return 10

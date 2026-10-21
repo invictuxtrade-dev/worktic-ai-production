@@ -598,6 +598,7 @@ func main() {
 	mux.HandleFunc("/api/studio/projects", app.studioProjectsV2711Handler)
 	mux.HandleFunc("/api/studio/ai", app.studioAIV2711Handler)
 	mux.HandleFunc("/api/studio/upload", app.studioAudioUploadV2717Handler)
+	mux.HandleFunc("/api/studio/narration", app.studioNarrationV2718Handler)
 	mux.HandleFunc("/api/social/approvals", app.socialApprovalsV23Handler)
 	mux.HandleFunc("/api/social/repurpose", app.socialRepurposeV23Handler)
 	mux.HandleFunc("/api/social/community", app.socialCommunityV23Handler)
