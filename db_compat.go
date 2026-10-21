@@ -55,6 +55,7 @@ var postgresSerialTables = map[string]bool{
 	"partner_cosell_deals_v2715": true, "partner_certifications_v2715": true, "partner_academy_events_v2715": true, "partner_marketplace_jobs_v2715": true,
 	"partner_marketplace_applications_v2715": true, "partner_marketplace_sales_v2715": true, "partner_autopilot_plans_v2715": true, "partner_payment_reversals_v2715": true,
 	"partner_service_assignments_v2716": true,
+	"studio_projects_v2711":             true, "studio_ai_usage_v2711": true,
 }
 
 var insertTableRx = regexp.MustCompile(`(?is)^\s*INSERT\s+INTO\s+([a-zA-Z0-9_]+)\b`)

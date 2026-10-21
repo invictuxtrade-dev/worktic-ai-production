@@ -305,6 +305,9 @@ func main() {
 	if err = initSocialAdvancedV23Schema(db); err != nil {
 		log.Fatalf("social advanced v23 schema: %v", err)
 	}
+	if err = initStudioV2711Schema(db); err != nil {
+		log.Fatalf("studio schema: %v", err)
+	}
 	if err = initSocialGovernanceV231Schema(db); err != nil {
 		log.Fatalf("social governance v23.1 schema: %v", err)
 	}
@@ -592,6 +595,9 @@ func main() {
 	mux.HandleFunc("/api/social/oauth/callback/", app.socialOAuthCallbackHandler)
 	mux.HandleFunc("/api/social/test", app.socialConnectionTestHandler)
 	mux.HandleFunc("/api/social/media", app.socialMediaLibraryV23Handler)
+	mux.HandleFunc("/api/studio/projects", app.studioProjectsV2711Handler)
+	mux.HandleFunc("/api/studio/ai", app.studioAIV2711Handler)
+	mux.HandleFunc("/api/studio/upload", app.studioAudioUploadV2717Handler)
 	mux.HandleFunc("/api/social/approvals", app.socialApprovalsV23Handler)
 	mux.HandleFunc("/api/social/repurpose", app.socialRepurposeV23Handler)
 	mux.HandleFunc("/api/social/community", app.socialCommunityV23Handler)

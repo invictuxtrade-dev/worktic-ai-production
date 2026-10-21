@@ -1,2 +1,3 @@
-WorkticAI V27.16.1 — Partner Admin Loader Hotfix
-Build 2026-10-15
+WorkticAI V27.17 — Worktic Studio sobre V27.16.1
+Build 2026-10-21
+Base: V27.16.1 — 09e37d4; integración aditiva Worktic Studio sin revertir Worktic Partners.
