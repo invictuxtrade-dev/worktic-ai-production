@@ -308,6 +308,9 @@ func main() {
 	if err = initStudioV2711Schema(db); err != nil {
 		log.Fatalf("studio schema: %v", err)
 	}
+	if err = initStudioVideoV2719Schema(db); err != nil {
+		log.Fatalf("studio video v2719 schema: %v", err)
+	}
 	if err = initSocialGovernanceV231Schema(db); err != nil {
 		log.Fatalf("social governance v23.1 schema: %v", err)
 	}
@@ -599,6 +602,7 @@ func main() {
 	mux.HandleFunc("/api/studio/ai", app.studioAIV2711Handler)
 	mux.HandleFunc("/api/studio/upload", app.studioAudioUploadV2717Handler)
 	mux.HandleFunc("/api/studio/narration", app.studioNarrationV2718Handler)
+	mux.HandleFunc("/api/studio/video/generate", app.studioVideoV2719Handler)
 	mux.HandleFunc("/api/social/approvals", app.socialApprovalsV23Handler)
 	mux.HandleFunc("/api/social/repurpose", app.socialRepurposeV23Handler)
 	mux.HandleFunc("/api/social/community", app.socialCommunityV23Handler)

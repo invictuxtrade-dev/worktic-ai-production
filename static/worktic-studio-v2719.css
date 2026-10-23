@@ -1,0 +1,30 @@
+/* V27.19 · Studio scoped improvements (no other Worktic modules affected). */
+@media(min-width:761px){
+body.studio-workspace #studio .wts-app{height:max(880px,calc(100vh - 108px));min-height:880px}
+body.studio-workspace #studio .wts-app.wts-video-mode{height:max(890px,calc(100vh - 108px));min-height:890px}
+#studio .wts-app.wts-video-mode .wts-timeline{height:185px;min-height:95px}
+#studio .wts-app.wts-video-mode .wts-stagebar{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;min-height:56px;height:56px;scrollbar-width:thin;white-space:nowrap}
+#studio .wts-app.wts-video-mode .wts-stagebar .wts-tool-list{flex-wrap:nowrap}
+#studio .wts-app.wts-video-mode .wts-stagebar #wtsVideoTools{flex-shrink:0}
+#studio .wts-app.wts-video-mode .wts-stage-space{min-height:370px;padding:12px 15px}
+#studio .wts-app.wts-video-mode.wts-timeline-closed .wts-stage-space{min-height:500px}
+#studio .wts-app.wts-video-mode.wts-timeline-closed .wts-timeline{display:none!important}
+#studio .wts-app.wts-video-mode .wts-stage{min-height:0}
+#studio .wts-app.wts-video-mode .wts-playbar{gap:10px;padding:0 8px}
+#studio .wts-app.wts-video-mode .wts-playbar button{white-space:nowrap}
+}
+#studio .wts-app .wts-view-size{display:none;align-items:center;gap:7px;font-size:11px;color:#b5c8db}
+#studio .wts-app.wts-video-mode .wts-view-size{display:flex}
+#studio .wts-view-size input{width:78px}
+#studio #wtsTimelineToggle{display:none}
+#studio .wts-app.wts-video-mode #wtsTimelineToggle{display:inline-flex}
+#studio .wts-app.wts-video-mode .wts-stage-space canvas{transform:scale(var(--wts-preview-scale,1));transition:transform .15s ease}
+#studio .wts-gen-cols{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#studio .wts-gen-submit{width:100%;margin:8px 0 0}
+#studio .wts-gen-status{margin:10px 0;padding:10px;border-radius:10px;background:#15253b;border:1px solid #39516b;color:#d2e9fc;font-size:11px;line-height:1.55;min-height:36px;white-space:pre-wrap}
+#studio #wtsResumeVideoJob{width:100%}
+#studio #wtsSourceImageRow[hidden]{display:none}
+#studio .wts-tabbuttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+#studio .wts-tabbuttons button{min-width:0;font-size:10px}
+#studio .wts-app.wts-video-mode .wts-stage-space{min-width:0}
+@media(max-width:760px){#studio .wts-app.wts-video-mode .wts-stage-space{height:390px;min-height:390px}#studio .wts-app.wts-video-mode #wtsTimelineToggle{display:inline-flex}#studio .wts-app.wts-video-mode.wts-timeline-closed .wts-timeline{display:none!important}#studio .wts-view-size input{width:48px}#studio .wts-playbar{gap:6px;flex-wrap:wrap;height:auto;min-height:50px}#studio .wts-tabbuttons{grid-template-columns:repeat(3,minmax(0,1fr))}}
