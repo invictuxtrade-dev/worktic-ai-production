@@ -1,0 +1,16 @@
+/* V27.34.2: Partners navigation inherits the visual language of the main landing.
+   Content, navigation destinations, and partner interactions are unchanged. */
+.partner-nav{background:rgba(255,255,255,.94);border-bottom:1px solid #e8e2ff;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.partner-nav .nav-wrap{height:70px;width:100%;max-width:1450px;margin:auto;padding:0 clamp(20px,3vw,42px);display:flex;justify-content:flex-start;align-items:center;gap:clamp(17px,2.3vw,32px)}
+.partner-nav .brand{min-width:max-content;white-space:nowrap;flex:0 0 auto;gap:12px;position:relative;z-index:1}
+.partner-nav .brand img{height:34px;max-height:34px;object-fit:contain;flex-shrink:0}
+.partner-nav .brand span{font:800 1.08rem/1.2 'Bricolage Grotesque',sans-serif;letter-spacing:-.02em;background:linear-gradient(115deg,#18103a 30%,#9831d8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.partner-nav .navlinks{margin-left:auto;min-width:0;align-items:center;justify-content:flex-end;gap:clamp(12px,1.4vw,22px);white-space:nowrap}
+.partner-nav .navlinks>a:not(.btn){font-size:clamp(.79rem,.88vw,.88rem);font-weight:550;white-space:nowrap;color:#746b88;transition:color .18s ease}
+.partner-nav .navlinks>a:not(.btn):hover{color:#7d2fcb}
+.partner-nav .navlinks>.btn{border:0;background:linear-gradient(112deg,#2a0c45,#8920d4 62%,#d92dc6);color:#fff;border-radius:12px;box-shadow:0 12px 30px rgba(122,34,208,.20);font-size:.83rem;padding:13px clamp(14px,1.5vw,22px);font-weight:800;white-space:nowrap;transition:transform .2s,box-shadow .2s}
+.partner-nav .navlinks>.btn:hover{transform:translateY(-2px);box-shadow:0 15px 30px rgba(122,34,208,.25)}
+.partner-nav .navlinks>.lang{border:1px solid #e8e2ff;border-radius:999px;min-width:45px;padding:7px 12px;height:34px;background:white;color:#746b88;font-size:.75rem;font-weight:800;flex-shrink:0}
+.partner-nav .partner-mobile-toggle{margin-left:auto;border:1px solid #e8e2ff;border-radius:12px;background:white}
+@media(max-width:1220px){.partner-nav .navlinks{display:none}.partner-nav .partner-mobile-toggle{display:flex}}
+@media(max-width:560px){.partner-nav .nav-wrap{padding:0 17px}.partner-nav .brand{gap:10px}.partner-nav .brand img{height:30px}.partner-nav .brand span{font-size:1rem}}

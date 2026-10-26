@@ -1,3 +1,2 @@
-WorkticAI V27.34.1 — Web Comercial Studio Premium + Header + Creative Credits
-Base: WorkticAI V27.34 corregida 01, Git main 3744176.
-Solo rediseño de la web comercial. Sin cambios en planes, checkout ni backend.
+WorkticAI V27.34.2 — Website FAQ Expanded + Partners Header Unified
+Base: V27.34.1 Web Premium. Public website only; checkout and commercial controls unchanged.
