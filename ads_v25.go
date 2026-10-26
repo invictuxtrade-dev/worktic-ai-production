@@ -584,6 +584,9 @@ func (a *App) adsV25SyncHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) syncAdsV25Tenant(ctx context.Context, tid, connectionID int64, days int) (int, error) {
+	if err := a.reserveResourceMeterV2724(tid, "ads_syncs"); err != nil {
+		return 0, err
+	}
 	q := `SELECT id,provider,account_id,encrypted_credentials FROM ads_connections_v25 WHERE tenant_id=? AND status='connected'`
 	args := []any{tid}
 	if connectionID > 0 {

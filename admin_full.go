@@ -621,6 +621,34 @@ func (a *App) adminFullSubscriptionsHandler(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		defer tx.Rollback()
+		if billingLifecycleV2728Enabled() {
+			if tenantID <= 0 {
+				http.Error(w, "Empresa no válida para cambio de licencia", 409)
+				return
+			}
+			if e := lockConsumptionTenantV2723(tx, a.db.IsPostgres(), tenantID); e != nil {
+				http.Error(w, "No se pudo bloquear la suscripción", 503)
+				return
+			}
+			var currentPlan, currentEndStr, currentSource string
+			e := tx.QueryRow(`SELECT plan_code,ends_at,COALESCE(source,'') FROM billing_subscriptions WHERE user_id=? AND status='active' AND ends_at>? ORDER BY ends_at DESC LIMIT 1`, billingUserID, now.Format(time.RFC3339)).Scan(&currentPlan, &currentEndStr, &currentSource)
+			if e != nil && !errors.Is(e, sql.ErrNoRows) {
+				http.Error(w, "Error consultando derechos existentes", 503)
+				return
+			}
+			currentEnd := time.Time{}
+			if e == nil {
+				currentEnd, e = time.Parse(time.RFC3339, currentEndStr)
+				if e != nil {
+					http.Error(w, "Fecha existente incompatible", 409)
+					return
+				}
+			}
+			if e = billingCourtesyAllowedV2728(currentPlan, currentSource, currentEnd, q.PlanCode, end, now); e != nil {
+				http.Error(w, e.Error(), 409)
+				return
+			}
+		}
 		if _, err = tx.Exec(`UPDATE billing_subscriptions SET status='replaced' WHERE user_id=? AND status='active'`, billingUserID); err != nil {
 			writeError(w, err, 500)
 			return
@@ -660,7 +688,18 @@ func (a *App) adminFullSubscriptionsHandler(w http.ResponseWriter, r *http.Reque
 				return
 			}
 			var userID int64
-			var endsAt string
+			var endsAt, subSource string
+			if billingLifecycleV2728Enabled() {
+				e := a.db.QueryRow(`SELECT COALESCE(source,'') FROM billing_subscriptions WHERE id=?`, q.ID).Scan(&subSource)
+				if e != nil {
+					http.Error(w, "No se pudo comprobar el origen de la licencia", 503)
+					return
+				}
+				if subSource != "courtesy" {
+					http.Error(w, "Extensión manual de una suscripción pagada no permitida; debe renovarse por facturación verificada", 409)
+					return
+				}
+			}
 			if a.db.QueryRow(`SELECT user_id,ends_at FROM billing_subscriptions WHERE id=?`, q.ID).Scan(&userID, &endsAt) != nil {
 				writeError(w, errors.New("suscripción no encontrada"), 404)
 				return
@@ -680,6 +719,28 @@ func (a *App) adminFullSubscriptionsHandler(w http.ResponseWriter, r *http.Reque
 				return
 			}
 			defer tx.Rollback()
+			if billingLifecycleV2728Enabled() {
+				var tenantID int64
+				e := tx.QueryRow(`SELECT tenant_id FROM app_users WHERE id=?`, userID).Scan(&tenantID)
+				if e != nil || tenantID <= 0 {
+					http.Error(w, "Empresa de facturación no verificada", 409)
+					return
+				}
+				if e = lockConsumptionTenantV2723(tx, a.db.IsPostgres(), tenantID); e != nil {
+					http.Error(w, "No se pudo bloquear el titular", 503)
+					return
+				}
+				var activeID int64
+				e = tx.QueryRow(`SELECT id FROM billing_subscriptions WHERE user_id=? AND status='active' AND ends_at>? ORDER BY ends_at DESC LIMIT 1`, userID, time.Now().UTC().Format(time.RFC3339)).Scan(&activeID)
+				if e != nil && !errors.Is(e, sql.ErrNoRows) {
+					http.Error(w, "No se pudo validar la licencia activa", 503)
+					return
+				}
+				if e == nil && activeID != q.ID {
+					http.Error(w, "No se puede reactivar una licencia antigua sobre un plan vigente; requiere revisión", 409)
+					return
+				}
+			}
 			if _, err = tx.Exec(`UPDATE billing_subscriptions SET status='replaced' WHERE user_id=? AND status='active' AND id<>?`, userID, q.ID); err != nil {
 				writeError(w, err, 500)
 				return

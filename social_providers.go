@@ -553,7 +553,18 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	if p.ConnectionID == 0 || cstatus != "connected" {
 		return nil, errors.New("conecta una cuenta activa para esta red")
 	}
-	_, _ = a.db.Exec(`UPDATE social_posts SET status='publishing',updated_at=? WHERE id=? AND tenant_id=?`, now, id, tid)
+	if consumptionV2723Enabled() {
+		claim, claimErr := a.db.Exec(`UPDATE social_posts SET status='publishing',updated_at=? WHERE id=? AND tenant_id=? AND status NOT IN ('published','publishing')`, now, id, tid)
+		if claimErr != nil {
+			return nil, claimErr
+		}
+		claimed, _ := claim.RowsAffected()
+		if claimed != 1 {
+			return nil, errors.New("publicación ya iniciada o publicada; revisar antes de reintentar")
+		}
+	} else {
+		_, _ = a.db.Exec(`UPDATE social_posts SET status='publishing',updated_at=? WHERE id=? AND tenant_id=?`, now, id, tid)
+	}
 	if mode == "sandbox" {
 		external := fmt.Sprintf("sandbox-%s-%d", p.Platform, id)
 		u := fmt.Sprintf("https://social.worktic.local/%s/%s", p.Platform, external)
@@ -637,6 +648,12 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	pu, _ := result["url"].(string)
 	_, _ = a.db.Exec(`INSERT INTO social_publish_attempts(tenant_id,post_id,attempt_no,status,provider_response,created_at) VALUES(?,?,?,?,?,?)`, tid, id, attempt, "published", string(rb), now)
 	_, _ = a.db.Exec(`UPDATE social_posts SET status='published',published_at=?,external_post_id=?,published_url=?,error_message='',updated_at=? WHERE id=? AND tenant_id=?`, now, external, pu, now, id, tid)
+	// Observe a successful external publication, not an advertising spend.
+	ref := external
+	if ref == "" {
+		ref = fmt.Sprintf("worktic-post-%d", id)
+	}
+	_ = a.recordExternalUsageV2723(tid, "social_"+p.Platform, "publish", ref, "accepted")
 	return result, nil
 }
 

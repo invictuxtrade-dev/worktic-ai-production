@@ -1,0 +1,15 @@
+area,medicion_automatica,estimacion_si_tarifa_exacta,verificado_factura,estado
+OpenAI Core Agents y WhatsApp,Tokens si proveedor retorna usage,Si tarifa modelo configurada,No,Integrado parcial
+Worktic Copilot SSE,Tokens evento response.completed,Si tarifa modelo configurada,No,Integrado parcial
+Worktic Studio imagen,Operacion y resolucion,Si tarifa modelo resolucion configurada,No,Integrado parcial
+Worktic Studio texto,Tokens (sin doble cuota),Si tarifa modelo configurada,No,Integrado parcial
+Worktic Studio narracion,Caracteres,Estimacion por caracteres opcional,No,Integrado parcial
+Luma Video 720p,Segundos y estado,Si tarifa modelo duracion configurada,No,Integrado parcial
+Meta mensajes,Eventos existentes V27.23,No,No,Pendiente pais plantilla categoria
+Social Hub publicaciones,Eventos externos existentes segun ruta,No,No,Pendiente auditoria completa
+Ads Center gasto publicitario,No,No,No,Pendiente API de gasto por cuenta
+Analytics eventos,Cuota V27.24,No,No,Pendiente costos de infraestructura
+Workflows automatizaciones,Cuota V27.23,No,No,Pendiente costo por accion
+Render y PostgreSQL Redis,No,No,No,Pendiente facturas y prorrateo
+Partners comisiones,Historico separado,No,No,Pendiente auditoria financiera
+Ventas y recargas,Pagos V27.25,No,No,Pendiente conciliacion financiera

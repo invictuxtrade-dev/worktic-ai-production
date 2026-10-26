@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -158,7 +159,19 @@ func (a *App) agendaProfessionalsHandler(w http.ResponseWriter, r *http.Request)
 		active = 1
 	}
 	if r.Method == http.MethodPost {
-		res, e := a.db.Exec(`INSERT INTO agenda_professionals(tenant_id,name,email,phone,active,created_at) VALUES(?,?,?,?,?,?)`, tid, q.Name, q.Email, q.Phone, active, time.Now().UTC().Format(time.RFC3339))
+		query := `INSERT INTO agenda_professionals(tenant_id,name,email,phone,active,created_at) VALUES(?,?,?,?,?,?)`
+		args := []any{tid, q.Name, q.Email, q.Phone, active, time.Now().UTC().Format(time.RFC3339)}
+		var res sql.Result
+		var e error
+		if resourceGuardV2724Enabled() && u.Role != "superadmin" {
+			var cap int64
+			cap, e = a.resourcePlanCapV2724(tid, "professionals")
+			if e == nil {
+				res, e = a.resourceInsertV2724(tid, "professionals", cap, query, args...)
+			}
+		} else {
+			res, e = a.db.Exec(query, args...)
+		}
 		if e != nil {
 			writeError(w, e, 500)
 			return
@@ -231,7 +244,19 @@ func (a *App) agendaServicesHandler(w http.ResponseWriter, r *http.Request) {
 		active = 1
 	}
 	if r.Method == http.MethodPost {
-		res, e := a.db.Exec(`INSERT INTO agenda_services(tenant_id,name,duration_minutes,buffer_minutes,active,created_at) VALUES(?,?,?,?,?,?)`, tid, q.Name, q.Duration, q.Buffer, active, time.Now().UTC().Format(time.RFC3339))
+		query := `INSERT INTO agenda_services(tenant_id,name,duration_minutes,buffer_minutes,active,created_at) VALUES(?,?,?,?,?,?)`
+		args := []any{tid, q.Name, q.Duration, q.Buffer, active, time.Now().UTC().Format(time.RFC3339)}
+		var res sql.Result
+		var e error
+		if resourceGuardV2724Enabled() && u.Role != "superadmin" {
+			var cap int64
+			cap, e = a.resourcePlanCapV2724(tid, "services")
+			if e == nil {
+				res, e = a.resourceInsertV2724(tid, "services", cap, query, args...)
+			}
+		} else {
+			res, e = a.db.Exec(query, args...)
+		}
 		if e != nil {
 			writeError(w, e, 500)
 			return

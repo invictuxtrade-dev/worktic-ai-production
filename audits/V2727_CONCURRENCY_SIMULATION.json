@@ -1,0 +1,28 @@
+{
+  "test": "SQLite isolated transactional wallet model, NOT actual WorkticAI/PostgreSQL",
+  "requested": 48,
+  "allowed": 10,
+  "blocked": 38,
+  "tenants": 2,
+  "per_tenant_cap": 5,
+  "final_wallets": [
+    [
+      101,
+      5,
+      0,
+      5
+    ],
+    [
+      202,
+      5,
+      0,
+      5
+    ]
+  ],
+  "settlements": 10,
+  "repeat_settlement_blocked": true,
+  "duplicate_after_exhaustion": "no_balance",
+  "provider_calls": 0,
+  "passed": true,
+  "generated_utc": "2026-10-23T20:29:59.000088+00:00"
+}

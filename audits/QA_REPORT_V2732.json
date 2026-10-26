@@ -1,0 +1,187 @@
+{
+  "version": "V27.32",
+  "generated_utc": "2026-10-23T21:16:04.587530+00:00",
+  "base": "V27.31",
+  "environment": "OFFLINE; no GitHub/Render or vendor calls",
+  "tests": [
+    {
+      "id": "go_ast",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "exit=0; AST_VALID 70 Go files (NOT COMPILED)",
+      "elapsed_seconds": 0.16
+    },
+    {
+      "id": "javascript_syntax",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "37 scripts checked; failures: []",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "commercial_validation_tests",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "exit=0; validate.Tests.test_fx_warnings) ... ok test_historic_routes (test_validate.Tests.test_historic_routes) ... ok test_illustrative_margin (test_validate.Tests.test_illustrative_margin) ... ok test_launch_never_auto_approved (test_validate.Tests.test_launch_never_auto_approved) ... ok test_null_fx_no_fake_margin (test_validate.Tests.test_null_fx_no_fake_margin) ... ok test_report_contains_all_plans (test_validate.Tests.test_report_contains_all_plans) ... ok test_zero_partners_more_capacity (test_validate.Tests.test_zero_partners_more_capacity) ... ok ---------------------------------------------------------------------- Ran 14 tests in 0.004s OK",
+      "elapsed_seconds": 0.635
+    },
+    {
+      "id": "finance_preflight_tests",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "exit=0; test_duplicate_cost_group_rejected (test_financial_preflight.FinanceAuditV2731.test_duplicate_cost_group_rejected) ... ok test_inventory_is_unverified_until_source_evidence (test_financial_preflight.FinanceAuditV2731.test_inventory_is_unverified_until_source_evidence) ... ok test_no_implicit_verified_costs (test_financial_preflight.FinanceAuditV2731.test_no_implicit_verified_costs) ... ok ---------------------------------------------------------------------- Ran 3 tests in 0.001s OK",
+      "elapsed_seconds": 0.71
+    },
+    {
+      "id": "go_preflight_isolated",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "exit=0; === RUN TestProductionNeverConfusedWithStaging --- PASS: TestProductionNeverConfusedWithStaging (0.00s) === RUN TestCommercialDisabledAndQuotasOff --- PASS: TestCommercialDisabledAndQuotasOff (0.00s) === RUN TestFlagsRequireExternalEvidence --- PASS: TestFlagsRequireExternalEvidence (0.00s) PASS ok _/tmp/tmp.9De49qwBx4 0.003s",
+      "elapsed_seconds": 0.318
+    },
+    {
+      "id": "sql_sim_credit_reserve",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "exit=0; { \"test\": \"SQLite isolated transactional wallet model, NOT actual WorkticAI/PostgreSQL\", \"requested\": 48, \"allowed\": 10, \"blocked\": 38, \"tenants\": 2, \"per_tenant_cap\": 5, \"final_wallets\": [ [ 101, 5, 0, 5 ], [ 202, 5, 0, 5 ] ], \"settlements\": 10, \"repeat_settlement_blocked\": true, \"duplicate_after_exhaustion\": \"no_balance\", \"provider_calls\": 0, \"passed\": true, \"generated_utc\": \"2026-10-23T21:16:07.771922+00:00\" }",
+      "elapsed_seconds": 0.748
+    },
+    {
+      "id": "sql_sim_unique_payment",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "exit=0; OK: 48 solicitudes simultáneas, 1 aceptada, 47 rechazadas. Origen ganador: subscription Esta prueba utiliza una tabla SQLite simulada; PostgreSQL de staging queda pendiente.",
+      "elapsed_seconds": 0.723
+    },
+    {
+      "id": "sql_sim_channel_quota",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "exit=0; Canales simulated: 48 concurrent attempts, 10 allowed, 38 refused; 5 per tenant",
+      "elapsed_seconds": 0.709
+    },
+    {
+      "id": "source_billing_static",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "exit=0; OK integración estática: 7 archivos de código, 18 recorridos auditables. NO certifica producción.",
+      "elapsed_seconds": 0.749
+    },
+    {
+      "id": "cost_catalog_preflight",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "exit=0; {\"groups\": 31, \"not_verified\": 31, \"launch_approved\": false, \"output\": \"/mnt/data/worktic_v2733/worktic-ai-production/audits/COSTEO_COBERTURA_V2731.json\"}",
+      "elapsed_seconds": 0.74
+    },
+    {
+      "id": "critical_components_preserved",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "7 source files verified. This is a structural check, not runtime authorization.",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "routes_unique",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "212 literal routes, duplicate declarations=[]. Does not prove missing dynamic handlers are safe.",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "legacy_routes_preserved",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "197 historic route declarations; missing=[]",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "private_env_absent",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "Known private configuration files: []; example files allowed",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "pilot_flags_off",
+      "status": "PASS",
+      "scope": "offline",
+      "detail": "{'WORKTIC_MODULE_GATES_V2722': '0', 'WORKTIC_CONTRACT_ENTITLEMENTS_V2729': '0'}",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "go126_full_build",
+      "status": "BLOCKED",
+      "scope": "staging-required",
+      "detail": "Requires Go >= 1.26 + project dependencies, `go test ./...` and `go build ./...` on developer machine / CI.",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "postgresql_multiinstance",
+      "status": "BLOCKED",
+      "scope": "staging-required",
+      "detail": "Requires real independent PostgreSQL, multiple app instances and tenant A/B session credentials.",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "redis_workers",
+      "status": "BLOCKED",
+      "scope": "staging-required",
+      "detail": "Requires staging Redis and background workers with external calls mocked.",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "payment_chain_and_refunds",
+      "status": "BLOCKED",
+      "scope": "staging-required",
+      "detail": "Requires test transactions with real chain proofs, yearly renewals, refunds and Partners reversals.",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "ai_provider_billing",
+      "status": "BLOCKED",
+      "scope": "staging-required",
+      "detail": "Requires controlled OpenAI/Luma/Meta cost reconciliation with verified source documents.",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "infrastructure_capacity",
+      "status": "BLOCKED",
+      "scope": "staging-required",
+      "detail": "Requires independent staging hosting and 10/100/500/1000 tenant DATA scenarios; HTTP GET load != tenants.",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "legacy_rules_tenant_migration",
+      "status": "BLOCKED",
+      "scope": "staging-required",
+      "detail": "Requires verified ownership of historical global rules and E2E inbox/webhook tests.",
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "customer_acceptance_ui",
+      "status": "BLOCKED",
+      "scope": "staging-required",
+      "detail": "Requires full browser login and authorization journey for all plan roles and tenants.",
+      "elapsed_seconds": 0.0
+    }
+  ],
+  "counts": {
+    "PASS": 15,
+    "BLOCKED": 8
+  },
+  "offline_pass": true,
+  "unresolved_failures": [],
+  "mandatory_unverified": [
+    "go126_full_build",
+    "postgresql_multiinstance",
+    "redis_workers",
+    "payment_chain_and_refunds",
+    "ai_provider_billing",
+    "infrastructure_capacity",
+    "legacy_rules_tenant_migration",
+    "customer_acceptance_ui"
+  ],
+  "production_approved": false,
+  "assertion": "Passing SQLite/unit/source tests does NOT establish Go/PostgreSQL E2E functionality or real profitability."
+}

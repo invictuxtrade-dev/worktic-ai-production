@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -168,7 +169,19 @@ func (a *App) catalogProductsHandler(w http.ResponseWriter, r *http.Request) {
 		x.TenantID = tid
 		x.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 		gallery, _ := json.Marshal(x.Gallery)
-		res, e := a.db.Exec(`INSERT INTO crm_products(tenant_id,type,name,sku,category,description,price,promotional_price,promotion_starts,promotion_ends,currency,stock,unlimited_stock,image_url,gallery_json,payment_url,delivery_info,faq,variants,locations,featured,active,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, tid, x.Type, x.Name, x.SKU, x.Category, x.Description, x.Price, x.PromotionalPrice, x.PromotionStarts, x.PromotionEnds, x.Currency, x.Stock, catalogBoolInt(x.UnlimitedStock), x.ImageURL, string(gallery), x.PaymentURL, x.DeliveryInfo, x.FAQ, x.Variants, x.Locations, catalogBoolInt(x.Featured), catalogBoolInt(x.Active), x.UpdatedAt)
+		query := `INSERT INTO crm_products(tenant_id,type,name,sku,category,description,price,promotional_price,promotion_starts,promotion_ends,currency,stock,unlimited_stock,image_url,gallery_json,payment_url,delivery_info,faq,variants,locations,featured,active,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+		args := []any{tid, x.Type, x.Name, x.SKU, x.Category, x.Description, x.Price, x.PromotionalPrice, x.PromotionStarts, x.PromotionEnds, x.Currency, x.Stock, catalogBoolInt(x.UnlimitedStock), x.ImageURL, string(gallery), x.PaymentURL, x.DeliveryInfo, x.FAQ, x.Variants, x.Locations, catalogBoolInt(x.Featured), catalogBoolInt(x.Active), x.UpdatedAt}
+		var res sql.Result
+		var e error
+		if resourceGuardV2724Enabled() && u.Role != "superadmin" {
+			var cap int64
+			cap, e = a.resourcePlanCapV2724(tid, "products")
+			if e == nil {
+				res, e = a.resourceInsertV2724(tid, "products", cap, query, args...)
+			}
+		} else {
+			res, e = a.db.Exec(query, args...)
+		}
 		if e != nil {
 			writeError(w, e, 500)
 			return

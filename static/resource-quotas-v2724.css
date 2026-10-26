@@ -1,0 +1,11 @@
+/* V27.24 staging tenant quota overview */
+.wrq-panel{margin:20px 0;max-width:100%;border:1px solid var(--border,#dce4ee);border-radius:18px;padding:20px;background:var(--surface,#fff);overflow:hidden}
+.wrq-top{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.wrq-eyebrow{font-size:11px;letter-spacing:.12em;color:#64748b;font-weight:700}
+.wrq-top h3{margin:5px 0 12px;font-size:21px}
+.wrq-reload{border:1px solid #cbd5e1;border-radius:9px;padding:8px 15px;cursor:pointer;background:transparent;color:inherit;font:inherit;font-size:13px}
+.wrq-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.wrq-item{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px;border:1px solid var(--border,#e2e8f0);border-radius:11px;min-width:0;font-size:13px}
+.wrq-item strong{white-space:nowrap;font-size:13px}
+.wrq-note,.wrq-muted{grid-column:1/-1;font-size:12px;line-height:1.5;color:#64748b;margin:3px 0}
+@media(max-width:680px){.wrq-panel{padding:14px;margin:14px 0}.wrq-body{grid-template-columns:1fr}.wrq-item{font-size:12px;padding:10px}}

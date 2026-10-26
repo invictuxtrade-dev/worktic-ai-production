@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -144,7 +145,14 @@ func (a *App) recordAnalyticsEventV24(tid int64, eventKey, eventType string, fie
 	if eventKey != "" {
 		q = `INSERT OR IGNORE INTO analytics_attribution_events_v24(tenant_id,event_key,event_type,contact_id,lead_id,opportunity_id,appointment_id,campaign_id,social_post_id,agent_id,owner,channel,source,source_ref,value,metadata_json,occurred_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	}
-	_, _ = a.db.Exec(q, tid, eventKey, eventType, ival("contact_id"), ival("lead_id"), ival("opportunity_id"), ival("appointment_id"), ival("campaign_id"), ival("social_post_id"), ival("agent_id"), sval("owner"), sval("channel"), sval("source"), sval("source_ref"), fval("value"), string(meta), occurred, now)
+	args := []any{tid, eventKey, eventType, ival("contact_id"), ival("lead_id"), ival("opportunity_id"), ival("appointment_id"), ival("campaign_id"), ival("social_post_id"), ival("agent_id"), sval("owner"), sval("channel"), sval("source"), sval("source_ref"), fval("value"), string(meta), occurred, now}
+	if resourceGuardV2724Enabled() {
+		if err := a.storeAnalyticsEventV2724(tid, eventKey, q, args...); err != nil {
+			log.Printf("analytics v2724: event blocked or failed (tenant=%d, type=%s): %v", tid, eventType, err)
+		}
+		return
+	}
+	_, _ = a.db.Exec(q, args...)
 }
 
 func (a *App) ensureSocialTrackingURLV24(tid, postID int64) string {

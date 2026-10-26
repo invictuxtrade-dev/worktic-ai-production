@@ -1879,7 +1879,7 @@ func (a *App) partnerAutopilotHandlerV2715(w http.ResponseWriter, r *http.Reques
 	system := `Eres Worktic Partner Autopilot. Diseñas planes comerciales prácticos para que un Partner venda WorkticAI de forma ética, sin spam y usando las herramientas reales de WorkticAI: CRM, Landing Pages, Growth & Campañas, Social Hub, Inbox, WhatsApp Business/Marketing con consentimiento, Copilot, Agenda, Analytics y automatizaciones. Devuelve SOLO JSON válido. No inventes integraciones activas ni resultados garantizados.`
 	userPrompt := fmt.Sprintf(`Crea un plan para vender WorkticAI. Nicho: %s. Objetivo: %s. Meta de clientes: %d. Oferta/ángulo: %s. Canal principal: %s. Enlace atribuido: %s.
 JSON requerido con estas claves exactas: positioning (string), ideal_customer (string), offer (string), landing_headline (string), landing_subheadline (string), cta (string), outreach_messages (array de 3 strings), followups (array de 3 strings), content_ideas (array de 5 strings), demo_script (array de 5 strings), objections (array de objetos con objection y answer), pipeline (array de strings), weekly_actions (array de 7 strings), compliance_note (string).`, strings.TrimSpace(q.Niche), strings.TrimSpace(q.Goal), q.TargetClients, strings.TrimSpace(q.Offer), strings.TrimSpace(q.PrimaryChannel), refURL)
-	raw, err := a.callOpenAI(system, userPrompt)
+	raw, err := a.callOpenAI(system, userPrompt, u.TenantID)
 	if err != nil {
 		writeError(w, err, 502)
 		return

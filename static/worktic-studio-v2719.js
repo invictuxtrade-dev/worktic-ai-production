@@ -38,7 +38,7 @@ async function startNative(){const a=api(),p=currentProject();if(!p){state('Prim
  const image=$('wtsVideoSource').value==='image'?$('wtsVideoImage').value:'';
  if($('wtsVideoSource').value==='image'&&!image){state('Selecciona una imagen de tu Galería.');return}
  let confirmText=`Generar un video IA de ${$('wtsVideoDuration').value} s con Luma Agents puede consumir créditos de pago. ¿Autorizar esta generación?`;
- if(!window.confirm(confirmText))return;
+ if(window.WorkticCostConfirm){if(!(await window.WorkticCostConfirm('video',{duration:Number($('wtsVideoDuration').value)})))return;}else if(!window.confirm(confirmText))return;
  const btn=$('wtsNativeVideoGenerate');btn.disabled=true;state('Enviando solicitud de video al proveedor…');try{
  const result=await a.request('/api/studio/video/generate',{method:'POST',body:JSON.stringify({prompt,ratio:ratio(),duration:Number($('wtsVideoDuration').value),image_url:image})});lastJob=result.id;pollCount=0;
  try{sessionStorage.setItem('workticStudioVideoJob',lastJob)}catch{}

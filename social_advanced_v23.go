@@ -157,6 +157,24 @@ func (a *App) socialMediaLibraryV23Handler(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+		var url, source string
+		if e := a.db.QueryRow(`SELECT url,source FROM social_media_assets WHERE id=? AND tenant_id=?`, id, tid).Scan(&url, &source); e != nil {
+			http.Error(w, "Recurso no encontrado", 404)
+			return
+		}
+		// Physical deletion prevents syncSocialAssetFolder from reimporting deleted
+		// files and restores the user's quota. Never delete external URLs.
+		prefix := "/uploads/social/" + strconv.FormatInt(tid, 10) + "/"
+		if source != "external" && strings.HasPrefix(url, prefix) {
+			filename := strings.TrimPrefix(url, prefix)
+			if filename != "" && filename == filepath.Base(filename) && !strings.Contains(filename, "\\") {
+				path := filepath.Join(a.cfg.DataDir, "social_uploads", strconv.FormatInt(tid, 10), filename)
+				if e := os.Remove(path); e != nil && !os.IsNotExist(e) {
+					http.Error(w, "No se pudo eliminar el archivo del disco", 500)
+					return
+				}
+			}
+		}
 		_, e := a.db.Exec(`DELETE FROM social_media_assets WHERE id=? AND tenant_id=?`, id, tid)
 		if e != nil {
 			http.Error(w, e.Error(), 500)
@@ -352,7 +370,7 @@ func (a *App) socialRepurposeV23Handler(w http.ResponseWriter, r *http.Request) 
 	}
 	sys := `Eres un estratega senior de social media. Reutiliza el contenido fuente sin inventar métricas, testimonios, resultados ni hechos. Devuelve SOLO JSON válido con la forma {"variants":[{"platform":"instagram","format":"reel","title":"...","content":"...","cta":"...","hashtags":["#..."]}]}. Crea una variante diferenciada por red/formato, breve y lista para revisión humana.`
 	user := fmt.Sprintf("Contenido fuente:\n%s\n\nPlataformas: %s\nFormatos: %s\nObjetivo: %s\nTono: %s", q.Content, strings.Join(ps, ","), strings.Join(q.Formats, ","), q.Objective, q.Tone)
-	raw, e := a.callOpenAI(sys, user)
+	raw, e := a.callOpenAI(sys, user, tid)
 	if e != nil {
 		http.Error(w, e.Error(), 502)
 		return
@@ -624,7 +642,7 @@ func (a *App) socialCommunityV23Handler(w http.ResponseWriter, r *http.Request) 
 			}
 			sys := `Eres community manager profesional. Redacta una respuesta breve, útil y humana al comentario. No inventes hechos, precios ni promesas. Si hay una queja, reconoce el problema sin admitir responsabilidad legal y propone continuar por canal privado cuando corresponda. Devuelve solo el texto de respuesta.`
 			user := fmt.Sprintf("Red: %s\nAutor: %s\nComentario: %s\nTono: %s", platform, author, body, q.Tone)
-			ans, e := a.callOpenAI(sys, user)
+			ans, e := a.callOpenAI(sys, user, tid)
 			if e != nil {
 				http.Error(w, e.Error(), 502)
 				return

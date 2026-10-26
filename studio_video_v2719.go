@@ -133,7 +133,7 @@ func (a *App) studioVideoV2719Handler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "No se pudo calcular el límite", 500)
 			return
 		}
-		if used >= lim {
+		if !commercialEnabled() && used >= lim {
 			http.Error(w, "Límite diario de videos IA alcanzado para este plan", 429)
 			return
 		}
@@ -203,8 +203,22 @@ func (a *App) studioVideoV2719Handler(w http.ResponseWriter, r *http.Request) {
 		payload, _ := json.Marshal(map[string]any{"type": "video", "model": "ray-3.2", "prompt": in.Prompt, "aspect_ratio": in.Ratio, "video": settings, "user_id": fmt.Sprintf("t%d_u%d", tid, u.ID)})
 		ctx, cancel := context.WithTimeout(r.Context(), 42*time.Second)
 		defer cancel()
+		hold, allowed := a.creativeReserveForStudio(w, tid, u.ID, plan.Code, "video", "luma_agents", creativeQuote("video", in.Duration, 0), in.Duration, 0)
+		if !allowed {
+			return
+		}
+		// Once submitted to a vendor, keep a conservative estimated cost even
+		// on ambiguous failures; admins reconcile later against the invoice.
+		defer func() {
+			if err := a.creativeSettle(hold, true); err != nil {
+				fmt.Printf("creative video settlement: %v\n", err)
+			}
+		}()
 		result, err := studioProviderRequest(ctx, http.MethodPost, "", payload)
 		if err != nil {
+			a.meterRecordV2726(meterEventV2726{Key: meterKeyV2726("studio_video", hold),
+				HoldID: meterHoldV2726(hold), TenantID: tid, Provider: "luma", Operation: "studio_video",
+				Model: "ray-3.2", Status: "submission_uncertain", Units: int64(in.Duration), UnitKind: "seconds_720p"})
 			http.Error(w, "No se pudo solicitar el video: "+err.Error(), 502)
 			return
 		}
@@ -218,10 +232,15 @@ func (a *App) studioVideoV2719Handler(w http.ResponseWriter, r *http.Request) {
 			state = "queued"
 		}
 		now := time.Now().UTC().Format(time.RFC3339)
-		if _, err = a.db.Exec(`INSERT INTO studio_video_jobs_v2719(id,tenant_id,user_id,prompt,source_kind,duration,state,asset_url,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)`, id, tid, u.ID, in.Prompt, kind, in.Duration, state, "", now, now); err != nil {
+		if _, err = a.db.Exec(`INSERT INTO studio_video_jobs_v2719(id,tenant_id,user_id,prompt,source_kind,duration,state,asset_url,created_at,updated_at,creative_hold_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, id, tid, u.ID, in.Prompt, kind, in.Duration, state, "", now, now, hold.ID); err != nil {
 			http.Error(w, "Solicitud enviada, pero no se pudo guardar el seguimiento; contacta al administrador", 500)
 			return
 		}
+		ev := meterEventV2726{Key: meterKeyV2726("studio_video", hold), HoldID: meterHoldV2726(hold),
+			TenantID: tid, Provider: "luma", Operation: "studio_video", Model: "ray-3.2",
+			Status: "submitted", ProviderRef: id, Units: int64(in.Duration), UnitKind: "seconds_720p"}
+		ev.EstimatedMicroUSD = meterFlatPriceV2726("studio_video", "ray-3.2", "720p", int64(in.Duration))
+		a.meterRecordV2726(ev)
 		writeJSON(w, map[string]any{"ok": true, "id": id, "state": state, "duration": in.Duration, "kind": kind})
 		return
 	}
@@ -230,9 +249,9 @@ func (a *App) studioVideoV2719Handler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "ID inválido", 400)
 		return
 	}
-	var state, assetURL string
+	var state, assetURL, holdID string
 	var duration int
-	if err = a.db.QueryRow(`SELECT state,asset_url,duration FROM studio_video_jobs_v2719 WHERE id=? AND tenant_id=? AND user_id=?`, id, tid, u.ID).Scan(&state, &assetURL, &duration); err != nil {
+	if err = a.db.QueryRow(`SELECT state,asset_url,duration,COALESCE(creative_hold_id,'') FROM studio_video_jobs_v2719 WHERE id=? AND tenant_id=? AND user_id=?`, id, tid, u.ID).Scan(&state, &assetURL, &duration, &holdID); err != nil {
 		http.Error(w, "Video no encontrado", 404)
 		return
 	}
@@ -280,11 +299,21 @@ func (a *App) studioVideoV2719Handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	_, _ = a.db.Exec(`UPDATE studio_video_jobs_v2719 SET state=?,asset_url=?,updated_at=? WHERE id=? AND tenant_id=? AND user_id=?`, state, assetURL, time.Now().UTC().Format(time.RFC3339), id, tid, u.ID)
+	a.meterVideoStateV2726(tid, id, state)
 	response := map[string]any{"ok": true, "id": id, "state": state, "duration": duration}
 	if assetURL != "" {
 		response["url"] = assetURL
 	}
 	if state == "failed" {
+		failure := studioVideoString(result, "failure_code")
+		if failure == "content_moderated" || failure == "generation_failed" || failure == "output_not_found" {
+			// Multiple browser polls cannot return the same credits twice.
+			if e := a.creativeRefundByHoldID(tid, holdID); e == nil {
+				response["credits_refunded"] = true
+			} else {
+				response["refund_pending_review"] = true
+			}
+		}
 		response["error"] = "El proveedor no pudo generar este clip"
 	}
 	writeJSON(w, response)

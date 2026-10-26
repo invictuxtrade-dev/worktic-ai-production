@@ -510,6 +510,9 @@ func (a *App) sendMetaLeadWhatsAppTemplate(r *http.Request, p MetaLeadProfile, t
 	if len(out.Messages) > 0 {
 		mid = out.Messages[0].ID
 	}
+	if mid != "" {
+		_ = a.recordExternalUsageV2723(p.TenantID, "meta_whatsapp", "template_lead_followup", mid, "accepted")
+	}
 	_, _ = a.db.Exec(`INSERT INTO whatsapp_business_events(tenant_id,connection_id,event_type,external_id,status,payload_json,created_at) VALUES(?,?,?,?,?,?,?)`, p.TenantID, p.WhatsAppConnectionID, "lead_followup", mid, "sent", mustJSON(body), time.Now().UTC().Format(time.RFC3339))
 	return nil
 }

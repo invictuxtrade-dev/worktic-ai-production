@@ -21,7 +21,7 @@ type socialGeneratedContent struct {
 }
 
 func (a *App) socialGenerateContentHandler(w http.ResponseWriter, r *http.Request) {
-	_, u, err := a.tenantFor(r)
+	tid, u, err := a.tenantFor(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
@@ -68,7 +68,7 @@ func (a *App) socialGenerateContentHandler(w http.ResponseWriter, r *http.Reques
 
 	system := `Eres un estratega senior de contenido para redes sociales. Crea textos profesionales, claros, persuasivos y naturales. No inventes testimonios, cifras, urgencia, premios ni resultados. Evita afirmaciones engañosas. Devuelve exclusivamente JSON válido, sin markdown, con esta estructura exacta: {"name":"nombre interno breve","content":"texto principal listo para publicar","cta":"llamado a la acción breve","tags":["#Etiqueta1","#Etiqueta2"]}. El contenido debe tener un gancho fuerte, beneficio central, explicación concreta y cierre. Los tags deben ser relevantes, buscables, sin espacios y entre 5 y 10.`
 	user := fmt.Sprintf("Instrucciones del usuario: %s\nObjetivo: %s\nProducto o tema: %s\nPúblico: %s\nFormato: %s\nRedes: %s\nTono: %s\nIdioma: %s\nEnlace: %s", q.Prompt, q.Objective, q.Product, q.Audience, q.Format, strings.Join(platforms, ", "), q.Tone, q.Language, q.LinkURL)
-	raw, err := a.callOpenAI(system, user)
+	raw, err := a.callOpenAI(system, user, tid)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
@@ -156,6 +156,12 @@ func (a *App) socialMediaUploadHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no fue posible leer el archivo o supera 50 MB", 400)
 		return
 	}
+	tx, err := a.commercialAssetWriteTx(tid, int64(len(data)))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	defer tx.Rollback()
 	dir := filepath.Join(a.cfg.DataDir, "social_uploads", strconv.FormatInt(tid, 10))
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		http.Error(w, err.Error(), 500)
@@ -167,7 +173,17 @@ func (a *App) socialMediaUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	assetURL := "/uploads/social/" + strconv.FormatInt(tid, 10) + "/" + name
-	_, _ = a.db.Exec(`INSERT OR IGNORE INTO social_media_assets(tenant_id,name,url,media_type,mime,size_bytes,source,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)`, tid, header.Filename, assetURL, strings.Split(mime, "/")[0], mime, len(data), "upload", u.ID, time.Now().UTC().Format(time.RFC3339))
+	_, err = tx.Exec(`INSERT OR IGNORE INTO social_media_assets(tenant_id,name,url,media_type,mime,size_bytes,source,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)`, tid, header.Filename, assetURL, strings.Split(mime, "/")[0], mime, len(data), "upload", u.ID, time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		_ = os.Remove(filepath.Join(dir, name))
+		http.Error(w, "No se pudo registrar el archivo", 500)
+		return
+	}
+	if err = tx.Commit(); err != nil {
+		_ = os.Remove(filepath.Join(dir, name))
+		http.Error(w, "No se pudo confirmar el archivo", 500)
+		return
+	}
 	writeJSON(w, map[string]any{"url": assetURL, "type": strings.Split(mime, "/")[0], "mime": mime, "size": len(data), "name": header.Filename})
 }
 

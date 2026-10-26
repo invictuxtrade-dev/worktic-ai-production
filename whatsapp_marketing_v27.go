@@ -536,6 +536,9 @@ func (a *App) sendWhatsAppMarketingTemplateV27(campaignID, recipientID int64) er
 		return errors.New("Meta no devolvió ID del mensaje")
 	}
 	mid := out.Messages[0].ID
+	if e := a.recordExternalUsageV2723(tid, "meta_whatsapp", "template_marketing", mid, "accepted"); e != nil {
+		fmt.Printf("V27.23: WhatsApp template metering failed (tenant %d): %v\n", tid, e)
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, _ = a.db.Exec(`UPDATE whatsapp_marketing_recipients_v27 SET status='sent',meta_message_id=?,sent_at=?,error_message='' WHERE id=?`, mid, now, recipientID)
 	_, _ = a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, tid, connID, "whatsapp_cloud", mid, "wacloud:"+phone, phone, "out", "template", "[Campaña WhatsApp: "+templateName+"]", "sent", now)
@@ -545,7 +548,7 @@ func (a *App) sendWhatsAppMarketingTemplateV27(campaignID, recipientID int64) er
 
 func (a *App) refreshWhatsAppMarketingCountsV27(tid, campaignID int64) {
 	var total, sent, delivered, read, replied, failed, queued int
-	_ = a.db.QueryRow(`SELECT COUNT(*),COALESCE(SUM(CASE WHEN status IN ('sent','delivered','read','replied') THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN status IN ('delivered','read','replied') THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN status IN ('read','replied') THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN status='replied' THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN status='queued' THEN 1 ELSE 0 END),0) FROM whatsapp_marketing_recipients_v27 WHERE tenant_id=? AND campaign_id=?`, tid, campaignID).Scan(&total, &sent, &delivered, &read, &replied, &failed, &queued)
+	_ = a.db.QueryRow(`SELECT COUNT(*),COALESCE(SUM(CASE WHEN status IN ('sent','delivered','read','replied') THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN status IN ('delivered','read','replied') THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN status IN ('read','replied') THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN status='replied' THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END),0),COALESCE(SUM(CASE WHEN status IN ('queued','sending') THEN 1 ELSE 0 END),0) FROM whatsapp_marketing_recipients_v27 WHERE tenant_id=? AND campaign_id=?`, tid, campaignID).Scan(&total, &sent, &delivered, &read, &replied, &failed, &queued)
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, _ = a.db.Exec(`UPDATE whatsapp_marketing_campaigns_v27 SET total_recipients=?,sent_count=?,delivered_count=?,read_count=?,replied_count=?,failed_count=?,updated_at=? WHERE id=? AND tenant_id=?`, total, sent, delivered, read, replied, failed, now, campaignID, tid)
 	if queued == 0 {
@@ -603,8 +606,20 @@ func (a *App) processWhatsAppMarketingV27() {
 		}
 		rr.Close()
 		for _, rid := range ids {
+			if consumptionV2723Enabled() {
+				// Atomic claim across worker instances. A crash while sending remains
+				// 'sending' and must be reconciled manually, NEVER retried blindly.
+				res, claimErr := a.db.Exec(`UPDATE whatsapp_marketing_recipients_v27 SET status='sending' WHERE id=? AND tenant_id=? AND campaign_id=? AND status='queued'`, rid, c.tid, c.id)
+				if claimErr != nil {
+					continue
+				}
+				n, _ := res.RowsAffected()
+				if n != 1 {
+					continue
+				}
+			}
 			if err := a.sendWhatsAppMarketingTemplateV27(c.id, rid); err != nil {
-				_, _ = a.db.Exec(`UPDATE whatsapp_marketing_recipients_v27 SET status='failed',error_message=? WHERE id=?`, err.Error(), rid)
+				_, _ = a.db.Exec(`UPDATE whatsapp_marketing_recipients_v27 SET status='failed',error_message=? WHERE id=? AND tenant_id=?`, err.Error(), rid, c.tid)
 			}
 		}
 		a.refreshWhatsAppMarketingCountsV27(c.tid, c.id)

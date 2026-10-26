@@ -362,7 +362,7 @@ func (a *App) landingGenerateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	prompt := fmt.Sprintf(`Crea el contenido de una landing page premium en español para: %s. Producto/servicio: %s. Público: %s. Objetivo: %s. Tono: %s. Devuelve SOLO JSON válido con estas claves: headline, subheadline, badge, primary_cta, benefits (array de 3 textos breves), features (array de 6 objetos con title y text), testimonials (array de 3 objetos con quote y author), faq (array de 5 objetos con question y answer), stats (array de 3 objetos con value y label), trust_text. No prometas resultados garantizados.`, q.Name, q.Product, q.Audience, q.Objective, q.Tone)
-	reply, e := a.aiResponse(prompt, "")
+	reply, e := a.aiResponse(prompt, "", t)
 	if e != nil {
 		writeJSON(w, map[string]any{"headline": "Convierte más oportunidades con " + q.Product, "subheadline": "Una propuesta clara, profesional y diseñada para que tus visitantes den el siguiente paso.", "badge": "Solución profesional", "primary_cta": "Solicitar información", "benefits": []string{"Atención rápida", "Experiencia sencilla", "Acompañamiento personalizado"}, "features": []map[string]string{{"title": "Diseñado para tu objetivo", "text": "Comunica el valor de tu oferta de forma clara."}, {"title": "Captura integrada", "text": "Los datos llegan directamente a Worktic."}, {"title": "Seguimiento comercial", "text": "Conecta cada registro con tu CRM."}}, "testimonials": []any{}, "faq": []any{}, "stats": []map[string]string{{"value": "24/7", "label": "Atención disponible"}, {"value": "1 solo lugar", "label": "Canales centralizados"}, {"value": "Automático", "label": "Seguimiento comercial"}}, "trust_text": "Atención rápida, segura y personalizada"})
 		return

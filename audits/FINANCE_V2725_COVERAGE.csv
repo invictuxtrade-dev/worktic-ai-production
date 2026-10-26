@@ -1,0 +1,12 @@
+modulo,fuente_metrica,importe_verificado,asignacion_empresa,limitacion
+Studio,creative_cost_ledger_v2720,solo_importacion_manual,manual_con_referencia,await real vendor usage and reconcile hold ids
+Copilot,usage_monthly_and_cost_guards,solo_importacion_manual,manual_con_evidencia,token count per model still missing
+WhatsApp_Meta,external_usage_v2723,solo_importacion_manual,manual_con_evidencia,pricing per market/category must be confirmed
+Automatizaciones,consumption_guard_v2723,solo_importacion_manual,manual_con_evidencia,external actions not fully metered
+CRM_Catalog_Agenda,resource_guard_v2724,solo_importacion_manual,manual_con_evidencia,import paths and resources need complete audit
+Analytics,resource_meter_v2724,solo_importacion_manual,manual_con_evidencia,event retention and DB cost attribution pending
+Ads_Center,resource_meter_v2724,solo_importacion_manual,manual_con_evidencia,ad budget is normally customer paid and must stay separate
+Partners,partner_commission_ledger_v2715,manual_audit,indirect,partner payouts reversals and annuality unverified
+Suscripciones,billing_payments,approved_USDT_not_USD,billing_owner,FX and annual accrual still needed
+Topups,commercial_topups_v2721,manual_review,tenant,live payment verification and spend/refund tests missing
+Infraestructura,finance_invoices_v2725,manual_evidence,unallocated_default,missing measured allocation drivers

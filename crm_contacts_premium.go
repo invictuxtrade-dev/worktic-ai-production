@@ -150,11 +150,24 @@ func (a *App) syncCRMContactAt(tenant int64, name, phone, email, channel, source
 		return nil
 	}
 
+	maxContacts := 0
+	if tenantHardeningV2730Enabled() {
+		p, e := a.tenantEffectivePlanV2730(tenant)
+		if e != nil {
+			return e
+		}
+		maxContacts = p.MaxContacts
+	}
 	tx, err := a.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	if tenantHardeningV2730Enabled() {
+		if e := lockConsumptionTenantV2723(tx, a.db.IsPostgres(), tenant); e != nil {
+			return e
+		}
+	}
 
 	var id int64
 	var deletedAt string
@@ -167,6 +180,11 @@ func (a *App) syncCRMContactAt(tenant int64, name, phone, email, channel, source
 		tenant, externalID, externalID, phone, phone, email, email,
 		externalID, externalID, phone, phone).Scan(&id, &deletedAt)
 	if err == sql.ErrNoRows {
+		if tenantHardeningV2730Enabled() {
+			if e := crmTenantQuotaTxV2730(tx, tenant, maxContacts); e != nil {
+				return e
+			}
+		}
 		_, err = tx.Exec(`INSERT INTO crm_contacts(
 			tenant_id,name,phone,email,channel,source,external_id,stage,tags,notes,
 			first_seen_at,last_activity_at,created_at,updated_at
@@ -185,6 +203,11 @@ func (a *App) syncCRMContactAt(tenant int64, name, phone, email, channel, source
 	// Solo una interacción realmente posterior vuelve a activarlo.
 	if deletedAt != "" && activityAt <= deletedAt {
 		return nil
+	}
+	if deletedAt != "" && tenantHardeningV2730Enabled() {
+		if e := crmTenantQuotaTxV2730(tx, tenant, maxContacts); e != nil {
+			return e
+		}
 	}
 	_, err = tx.Exec(`UPDATE crm_contacts SET
 		name=CASE WHEN ?<>'' AND (identity_locked=0 OR name='') THEN ? ELSE name END,
@@ -338,6 +361,17 @@ func (a *App) crmContactsPremiumHandler(w http.ResponseWriter, r *http.Request) 
 		}
 		if x.Source == "" {
 			x.Source = "manual"
+		}
+
+		if resourceGuardV2724Enabled() && user != nil && user.Role != "superadmin" {
+			id, merged, e := a.crmManualUpsertV2724(tenant, x)
+			if e != nil {
+				writeError(w, e, http.StatusForbidden)
+				return
+			}
+			_ = a.syncOpportunityFromContactStage(tenant, id, x.Stage)
+			writeJSON(w, map[string]any{"ok": true, "id": id, "merged": merged})
+			return
 		}
 
 		existingID, findErr := findCRMContactID(a.db, tenant, x.Phone, x.Email, x.ExternalID, 0)

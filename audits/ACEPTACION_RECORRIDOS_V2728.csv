@@ -1,0 +1,19 @@
+flujo,escenario,resultado_esperado,estado_en_este_entorno,evidencia_pendiente
+checkout,Plan nuevo con ciclo mensual,Pedido pendiente sin acreditación,unitario_puro,PostgreSQL E2E y pago blockchain
+checkout,Ciclo anual explícito,Precio anual visible sin inferir por monto,unitario_puro,PostgreSQL E2E y descuentos
+checkout,Intento de cambio de plan con días pagados,Bloqueado hasta política de prorrateo,unitario_puro,PostgreSQL E2E
+checkout,Usuario del equipo no titular,Bloqueado 403,implementado_no_verificado,Prueba autenticada staging
+renovacion,Mismo plan sin vencer,Extender vencimiento desde fecha pagada,unitario_puro,PostgreSQL E2E
+renovacion,Mismo plan vencido,Calcular desde fecha actual,unitario_puro,PostgreSQL E2E
+renovacion,Pago antiguo sin ciclo,No activar automáticamente,implementado_no_verificado,PostgreSQL E2E
+hash,Reutilización dentro de suscripciones,Rechazado,simulacion_SQLite,PostgreSQL multiworker
+hash,Reutilización entre suscripción y recarga,Rechazado,simulacion_SQLite,PostgreSQL multiworker
+hash,Reutilización mayúsculas/minúsculas,Rechazado,implementado_no_verificado,PostgreSQL multiworker
+cortesias,Cortesía sobre plan pagado vigente,Bloqueada,unitario_puro,PostgreSQL E2E
+cortesias,Extensión de cortesía existente,Permitida solo con política y sin solapar pago,implementado_no_verificado,PostgreSQL E2E
+reembolsos,Pago anual parcialmente consumido,Conciliar duración y Partners,pendiente,Política comercial y E2E
+studio,Recarga aprobada manualmente,Saldo real tras verificación,pendiente,PostgreSQL E2E
+studio,Recarga reembolsada tras uso,No permitir saldo negativo,implementado_no_verificado,PostgreSQL E2E
+permisos,Editan límites del plan vigente,Aplicar versión contractual correcta,pendiente,Definir versionado derechos
+multiempresa,Dos tenants concurrentes,Sin fuga ni doble gasto,pendiente,PostgreSQL multiinstancia
+integracion,31 grupos costeables,costo registrado y derecho aplicado en cada ruta,pendiente,Metrología y facturas reales

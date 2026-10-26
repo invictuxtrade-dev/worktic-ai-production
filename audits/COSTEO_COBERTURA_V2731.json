@@ -1,0 +1,195 @@
+{
+  "release": "V27.31",
+  "module_groups": 31,
+  "provider_costs_not_verified": 31,
+  "gaps": [
+    {
+      "module": "account",
+      "cost_driver": "password hashing, sessions, team email",
+      "evidence": "partial",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "admin",
+      "cost_driver": "database queries, customer operations",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "ads",
+      "cost_driver": "external Ads API sync + ad spend",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "agenda",
+      "cost_driver": "DB/notification transport",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "agent_legacy",
+      "cost_driver": "OpenAI tokens legacy",
+      "evidence": "partial",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "agents",
+      "cost_driver": "OpenAI token input/output + retrieval",
+      "evidence": "estimated",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "analytics",
+      "cost_driver": "events, Postgres storage, retention, export",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "automations",
+      "cost_driver": "jobs, events, external webhook, AI",
+      "evidence": "partial",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "billing",
+      "cost_driver": "processor fees, FX, refunds, USDT",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "catalog",
+      "cost_driver": "disk+transfer+image storage",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "channels",
+      "cost_driver": "external provider API, WhatsApp templates",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "commercial",
+      "cost_driver": "credits, package transactions, wallet ledger",
+      "evidence": "estimated",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "copilot",
+      "cost_driver": "OpenAI token billing",
+      "evidence": "estimated",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "crm",
+      "cost_driver": "DB requests/contact/attachments",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "dashboard",
+      "cost_driver": "DB analytical queries/cache",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "groups",
+      "cost_driver": "messages/network/AI if used",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "inbox",
+      "cost_driver": "DB, messages; per-provider messaging",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "infra",
+      "cost_driver": "Render Go web, PG, Redis, disk, transfer",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "landings",
+      "cost_driver": "hosting, bandwidth and uploads",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "legacy_channels",
+      "cost_driver": "legacy messaging/session maintenance",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "legacy_inbox",
+      "cost_driver": "legacy message DB/network",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "legacy_rules",
+      "cost_driver": "global rule table, old background engine",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "marketing",
+      "cost_driver": "campaign requests, content, AI",
+      "evidence": "partial",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "meta_leads",
+      "cost_driver": "Graph API sync, storage, follow-ups",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "partners",
+      "cost_driver": "commission ledger, payouts, autopilot AI",
+      "evidence": "partial",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "public_callbacks",
+      "cost_driver": "webhook requests, landing visits, bot callbacks",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "social",
+      "cost_driver": "social upload, publish API, retry queue",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "social_governance",
+      "cost_driver": "moderation/sync jobs/API + AI",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "studio",
+      "cost_driver": "OpenAI image/text/speech; Luma video",
+      "evidence": "estimated",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "whatsapp",
+      "cost_driver": "WhatsApp Cloud templates/media",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    },
+    {
+      "module": "whatsapp_marketing",
+      "cost_driver": "Meta message pricing country/template",
+      "evidence": "no",
+      "status": "provider_cost_not_verified"
+    }
+  ],
+  "public_launch_approved": false,
+  "pricing_profit_statement": "NOT VERIFIED: provider invoice, measured infrastructure, settlement and actual FX missing"
+}

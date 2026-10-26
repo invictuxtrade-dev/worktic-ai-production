@@ -1,0 +1,199 @@
+﻿path,handler,source,module,gate_status,risk_or_cost_unverified
+/api/auth/login,loginHandler,main.go:469,account,session/roles,Seats + auth cost TBD
+/api/auth/register,registerHandler,main.go:470,account,session/roles,Seats + auth cost TBD
+/api/auth/logout,authLogoutHandler,main.go:471,account,session/roles,Seats + auth cost TBD
+/api/auth/me,meHandler,main.go:472,account,session/roles,Seats + auth cost TBD
+/api/account/profile,accountProfileHandler,main.go:473,account,session/roles,Seats + auth cost TBD
+/api/partners/me,partnerMeHandlerV2715,main.go:474,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/overview,partnerOverviewHandlerV2715,main.go:475,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/ranks,partnerRanksHandlerV2714,main.go:476,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/customers,partnerCustomersHandlerV2714,main.go:477,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/network,partnerNetworkHandlerV2714,main.go:478,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/network/tree,partnerNetworkTreeHandlerV2715,main.go:479,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/ledger,partnerLedgerHandlerV2715,main.go:480,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/cosell,partnerCosellHandlerV2715,main.go:481,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/certification,partnerCertificationHandlerV2715,main.go:482,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/assignments,partnerAssignmentsHandlerV2716,main.go:483,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/marketplace/jobs,partnerMarketplaceJobsHandlerV2715,main.go:484,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/marketplace/applications,partnerMarketplaceApplicationsHandlerV2715,main.go:485,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/marketplace/sales,partnerMarketplaceSalesHandlerV2715,main.go:486,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/payouts,partnerPayoutsHandlerV2715,main.go:487,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/autopilot,partnerAutopilotHandlerV2715,main.go:488,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/partners/autopilot/activate,partnerAutopilotActivateHandlerV2715,main.go:489,partners,partner-program-owned,Commission liabilities + payments TBD
+/api/admin/partners,adminPartnersHandlerV2714,main.go:490,admin,role-check-in-handler,Review each admin mutation
+/api/admin/partners/dashboard,adminPartnerDashboardV2715,main.go:491,admin,role-check-in-handler,Review each admin mutation
+/api/admin/partners/adoption,adminPartnerAdoptionHandlerV2714,main.go:492,admin,role-check-in-handler,Review each admin mutation
+/api/admin/partners/ledger,adminPartnerLedgerHandlerV2714,main.go:493,admin,role-check-in-handler,Review each admin mutation
+/api/admin/partners/cosell,adminPartnerCosellHandlerV2715,main.go:494,admin,role-check-in-handler,Review each admin mutation
+/api/admin/partners/payouts,adminPartnerPayoutsHandlerV2715,main.go:495,admin,role-check-in-handler,Review each admin mutation
+/api/admin/partners/certifications,adminPartnerCertificationsHandlerV2715,main.go:496,admin,role-check-in-handler,Review each admin mutation
+/api/admin/partners/assignments,adminPartnerAssignmentsHandlerV2716,main.go:497,admin,role-check-in-handler,Review each admin mutation
+/api/admin/partners/marketplace,adminPartnerMarketplaceHandlerV2715,main.go:498,admin,role-check-in-handler,Review each admin mutation
+/api/admin/partners/settings,adminPartnerSettingsHandlerV2715,main.go:499,admin,role-check-in-handler,Review each admin mutation
+/api/admin/partners/ranks,adminPartnerRanksHandlerV2715,main.go:500,admin,role-check-in-handler,Review each admin mutation
+$partnerAcademyWebhookPathV2715,academyPartnerCertificationWebhookV2715,main.go:501,public_callbacks,public/webhook-specific,Signatures/tenant isolation TBD
+/api/admin/users,usersHandler,main.go:502,admin,role-check-in-handler,Review each admin mutation
+/api/team/invitations,teamInvitationsHandler,main.go:503,account,session/roles,Seats + auth cost TBD
+/api/team/invitations/accept,acceptTeamInvitationHandler,main.go:504,account,session/roles,Seats + auth cost TBD
+/api/products,catalogProductsHandler,main.go:505,catalog,plan-gate-opt-in + historic count,Uploads/storage TBD
+/api/catalog/upload,catalogImageUploadHandler,main.go:506,catalog,plan-gate-opt-in + historic count,Uploads/storage TBD
+/uploads/catalog/,catalogUploadFileHandler,main.go:507,public_callbacks,public/webhook-specific,Signatures/tenant isolation TBD
+/api/appointments,appointmentsHandler,main.go:508,agenda,plan-gate-opt-in,Appointments rate cap TBD
+/api/agenda/settings,agendaSettingsHandler,main.go:509,agenda,plan-gate-opt-in,Appointments rate cap TBD
+/api/agenda/professionals,agendaProfessionalsHandler,main.go:510,agenda,plan-gate-opt-in,Appointments rate cap TBD
+/api/agenda/services,agendaServicesHandler,main.go:511,agenda,plan-gate-opt-in,Appointments rate cap TBD
+/api/agenda/hours,agendaHoursHandler,main.go:512,agenda,plan-gate-opt-in,Appointments rate cap TBD
+/api/agenda/availability,agendaAvailabilityHandler,main.go:513,agenda,plan-gate-opt-in,Appointments rate cap TBD
+/healthz,healthHandler,main.go:514,infra,health/static,Render/DB/Redis allocation TBD
+/readyz,readyHandler,main.go:515,infra,health/static,Render/DB/Redis allocation TBD
+/api/status,statusHandler,main.go:516,infra,health/static,Render/DB/Redis allocation TBD
+/api/channels/connections,channelConnectionsHandler,main.go:517,channels,plan-gate-opt-in + historic count,Meta fees/templates TBD
+/api/channels/action,channelActionHandler,main.go:518,channels,plan-gate-opt-in + historic count,Meta fees/templates TBD
+/api/channels/qr,channelQRHandler,main.go:519,channels,plan-gate-opt-in + historic count,Meta fees/templates TBD
+/api/channels/health,channelHealthHandler,main.go:520,channels,plan-gate-opt-in + historic count,Meta fees/templates TBD
+/api/connect,connectHandler,main.go:521,legacy_channels,historic-flow,Legacy tenant and vendor billable calls require validation
+/api/disconnect,disconnectHandler,main.go:522,legacy_channels,historic-flow,Legacy tenant and vendor billable calls require validation
+/api/logout,logoutHandler,main.go:523,legacy_channels,historic-flow,Legacy tenant and vendor billable calls require validation
+/api/qr,qrHandler,main.go:524,legacy_channels,historic-flow,Legacy tenant and vendor billable calls require validation
+/api/conversations,conversationsHandler,main.go:525,legacy_inbox,historic-flow,"Legacy tenancy, message metering and security review"
+/api/inbox/overview,inboxOverviewHandler,main.go:526,inbox,plan-gate-opt-in,Message retention TBD
+/api/inbox/conversation,inboxConversationHandler,main.go:527,inbox,plan-gate-opt-in,Message retention TBD
+/api/inbox/notes,inboxNotesHandler,main.go:528,inbox,plan-gate-opt-in,Message retention TBD
+/api/inbox/team,inboxTeamHandler,main.go:529,inbox,plan-gate-opt-in,Message retention TBD
+/api/messages,messagesHandler,main.go:530,legacy_inbox,historic-flow,"Legacy tenancy, message metering and security review"
+/api/read,readHandler,main.go:531,legacy_inbox,historic-flow,"Legacy tenancy, message metering and security review"
+/api/contact,contactHandler,main.go:532,legacy_inbox,historic-flow,"Legacy tenancy, message metering and security review"
+/api/send,sendHandler,main.go:533,legacy_inbox,historic-flow,"Legacy tenancy, message metering and security review"
+/api/rules,rulesHandler,main.go:534,legacy_rules,GLOBAL legacy table; blocking finding,Not tenant-scoped: do not advertise per-company rule quotas
+/api/automations/workflows,automationWorkflowsHandler,main.go:535,automations,plan-gate-opt-in + workflow create limit,Fanout and concurrency TBD
+/api/automations/executions,automationExecutionsHandler,main.go:536,automations,plan-gate-opt-in + workflow create limit,Fanout and concurrency TBD
+/api/automations/run,automationRunHandler,main.go:537,automations,plan-gate-opt-in + workflow create limit,Fanout and concurrency TBD
+/api/telegram,telegramHandler,main.go:538,legacy_channels,historic-flow,Legacy tenant and vendor billable calls require validation
+/webhooks/telegram/,telegramWebhookHandler,main.go:539,public_callbacks,public/webhook-specific,Signatures/tenant isolation TBD
+/api/messenger,messengerHandler,main.go:540,legacy_channels,historic-flow,Legacy tenant and vendor billable calls require validation
+/webhooks/meta/messenger,messengerWebhookHandler,main.go:541,public_callbacks,public/webhook-specific,Signatures/tenant isolation TBD
+/webhooks/meta/whatsapp,whatsappCloudWebhookHandler,main.go:542,public_callbacks,public/webhook-specific,Signatures/tenant isolation TBD
+/api/whatsapp/templates,whatsappTemplatesHandler,main.go:543,whatsapp,historic-flow,Legacy tenant+fees TBD
+/api/whatsapp/embedded/config,whatsappEmbeddedConfigHandler,main.go:544,whatsapp,historic-flow,Legacy tenant+fees TBD
+/api/whatsapp/embedded/complete,whatsappEmbeddedCompleteHandler,main.go:545,whatsapp,historic-flow,Legacy tenant+fees TBD
+/api/whatsapp/business/overview,whatsappBusinessOverviewHandler,main.go:546,channels,plan-gate-opt-in + historic count,Meta fees/templates TBD
+/api/whatsapp/business/contacts,whatsappBusinessContactsHandler,main.go:547,channels,plan-gate-opt-in + historic count,Meta fees/templates TBD
+/api/whatsapp/business/analytics,whatsappBusinessAnalyticsHandler,main.go:548,channels,plan-gate-opt-in + historic count,Meta fees/templates TBD
+/api/whatsapp/templates/drafts,whatsappTemplateDraftsHandler,main.go:549,channels,plan-gate-opt-in + historic count,Meta fees/templates TBD
+/api/whatsapp/templates/submit,whatsappTemplateSubmitHandler,main.go:550,channels,plan-gate-opt-in + historic count,Meta fees/templates TBD
+/api/whatsapp/templates/send-test,whatsappTemplateSendTestHandler,main.go:551,channels,plan-gate-opt-in + historic count,Meta fees/templates TBD
+/api/whatsapp/templates/delete,whatsappTemplateDeleteMetaHandler,main.go:552,channels,plan-gate-opt-in + historic count,Meta fees/templates TBD
+/api/whatsapp/templates/preview,whatsappTemplatePreviewHandler,main.go:553,channels,plan-gate-opt-in + historic count,Meta fees/templates TBD
+/api/whatsapp-marketing/v27/overview,whatsappMarketingOverviewV27Handler,main.go:554,whatsapp_marketing,plan-gate-opt-in,Meta message fees/country TBD
+/api/whatsapp-marketing/v27/campaigns,whatsappMarketingCampaignsV27Handler,main.go:555,whatsapp_marketing,plan-gate-opt-in,Meta message fees/country TBD
+/api/whatsapp-marketing/v27/audience-preview,whatsappMarketingAudiencePreviewV27Handler,main.go:556,whatsapp_marketing,plan-gate-opt-in,Meta message fees/country TBD
+/api/whatsapp-marketing/v27/action,whatsappMarketingActionV27Handler,main.go:557,whatsapp_marketing,plan-gate-opt-in,Meta message fees/country TBD
+/api/whatsapp-marketing/v27/recipients,whatsappMarketingRecipientsV27Handler,main.go:558,whatsapp_marketing,plan-gate-opt-in,Meta message fees/country TBD
+/api/dashboard/v27,dashboardV27Handler,main.go:559,dashboard,session/tenant,Dashboard response shape & DB cost TBD
+/api/dashboard/v27/activity,dashboardActivityV27Handler,main.go:560,dashboard,session/tenant,Dashboard response shape & DB cost TBD
+/api/copilot/v27,copilotV27Handler,main.go:561,copilot,core AI quota V27.21,Actual token cost/model/retries TBD
+/api/copilot/v27/stream,copilotV275StreamHandler,main.go:562,copilot,core AI quota V27.21,Actual token cost/model/retries TBD
+/webhooks/messenger/,messengerTenantWebhookHandler,main.go:563,public_callbacks,public/webhook-specific,Signatures/tenant isolation TBD
+/api/agent,agentHandler,main.go:564,agent_legacy,historic-flow,Core quota coverage TBD
+/api/agent/test,agentTestHandler,main.go:565,agent_legacy,historic-flow,Core quota coverage TBD
+/api/agents,agentsHandler,main.go:566,agent_legacy,historic-flow,Core quota coverage TBD
+/api/agents/test,agentInstanceTestHandler,main.go:567,agents,plan-gate-opt-in + core AI quota,Agents cross-route fallback TBD
+/api/agents/routes,agentRoutesHandler,main.go:568,agents,plan-gate-opt-in + core AI quota,Agents cross-route fallback TBD
+/api/agents/metrics,agentMetricsHandler,main.go:569,agents,plan-gate-opt-in + core AI quota,Agents cross-route fallback TBD
+/api/agents/permissions,agentPermissionsHandler,main.go:570,agents,plan-gate-opt-in + core AI quota,Agents cross-route fallback TBD
+/api/agents/v22/overview,agentV22OverviewHandler,main.go:571,agents,plan-gate-opt-in + core AI quota,Agents cross-route fallback TBD
+/api/agents/v22/profile,agentV22ProfileHandler,main.go:572,agents,plan-gate-opt-in + core AI quota,Agents cross-route fallback TBD
+/api/agents/v22/knowledge,agentV22KnowledgeHandler,main.go:573,agents,plan-gate-opt-in + core AI quota,Agents cross-route fallback TBD
+/api/agents/v22/memory,agentV22MemoryHandler,main.go:574,agents,plan-gate-opt-in + core AI quota,Agents cross-route fallback TBD
+/api/crm/contacts,crmContactsPremiumHandler,main.go:575,crm,plan-gate-opt-in + historic count,Concurrent inserts TBD
+/api/crm/opportunities,opportunitiesPremiumHandler,main.go:576,crm,plan-gate-opt-in + historic count,Concurrent inserts TBD
+/api/dashboard,dashboardHandler,main.go:577,dashboard,session/tenant,Dashboard response shape & DB cost TBD
+/api/plans,plansHandler,main.go:578,billing,payments/subscription-module,Payment confirmation + discounts TBD
+/api/billing/entitlements,entitlementsHandler,main.go:579,billing,payments/subscription-module,Payment confirmation + discounts TBD
+/api/billing/config,billingConfigHandler,main.go:580,billing,payments/subscription-module,Payment confirmation + discounts TBD
+/api/billing/checkout,checkoutHandler,main.go:581,billing,payments/subscription-module,Payment confirmation + discounts TBD
+/api/billing/promo/validate,promoValidateHandler,main.go:582,billing,payments/subscription-module,Payment confirmation + discounts TBD
+/api/billing/payments,paymentsHandler,main.go:583,billing,payments/subscription-module,Payment confirmation + discounts TBD
+/api/admin/overview,adminOverviewHandler,main.go:584,admin,role-check-in-handler,Review each admin mutation
+/api/admin/payments,adminPaymentsHandler,main.go:585,admin,role-check-in-handler,Review each admin mutation
+/api/admin/subscriptions,adminSubscriptionsHandler,main.go:586,admin,role-check-in-handler,Review each admin mutation
+/api/admin/plans,adminPlansHandler,main.go:587,admin,role-check-in-handler,Review each admin mutation
+/api/admin/full/overview,adminFullOverviewHandler,main.go:588,admin,role-check-in-handler,Review each admin mutation
+/api/admin/full/users,adminFullUsersHandler,main.go:589,admin,role-check-in-handler,Review each admin mutation
+/api/admin/full/plans,adminFullPlansHandler,main.go:590,admin,role-check-in-handler,Review each admin mutation
+/api/admin/full/payments,adminFullPaymentsHandler,main.go:591,admin,role-check-in-handler,Review each admin mutation
+/api/admin/full/subscriptions,adminFullSubscriptionsHandler,main.go:592,admin,role-check-in-handler,Review each admin mutation
+/api/admin/promo-codes,adminPromoCodesHandler,main.go:593,admin,role-check-in-handler,Review each admin mutation
+/api/social/overview,socialOverviewHandler,main.go:594,social,plan-gate-opt-in,API publish quotas TBD
+/api/social/analytics,socialAnalyticsHandler,main.go:595,social,plan-gate-opt-in,API publish quotas TBD
+/api/social/metrics/ingest,socialMetricsIngestHandler,main.go:596,social,plan-gate-opt-in,API publish quotas TBD
+/api/social/connections,socialConnectionsHandler,main.go:597,social,plan-gate-opt-in,API publish quotas TBD
+/api/social/posts,socialPostsHandler,main.go:598,social,plan-gate-opt-in,API publish quotas TBD
+/api/social/generate,socialGenerateContentHandler,main.go:599,social,plan-gate-opt-in,API publish quotas TBD
+/api/social/upload,socialMediaUploadHandler,main.go:600,social,plan-gate-opt-in,API publish quotas TBD
+/uploads/social/,socialMediaFileHandler,main.go:601,public_callbacks,public/webhook-specific,Signatures/tenant isolation TBD
+/api/social/publish,socialPublishHandler,main.go:602,social,plan-gate-opt-in,API publish quotas TBD
+/api/social/oauth/start,socialOAuthStartHandler,main.go:603,social,plan-gate-opt-in,API publish quotas TBD
+/api/social/oauth/callback/,socialOAuthCallbackHandler,main.go:604,social,plan-gate-opt-in,API publish quotas TBD
+/api/social/test,socialConnectionTestHandler,main.go:605,social,plan-gate-opt-in,API publish quotas TBD
+/api/social/media,socialMediaLibraryV23Handler,main.go:606,social,plan-gate-opt-in,API publish quotas TBD
+/api/studio/projects,studioProjectsV2711Handler,main.go:607,studio,plan-gate-opt-in + creative credits,OpenAI/Luma cost reconciliation TBD
+/api/studio/ai,studioAIV2711Handler,main.go:608,studio,plan-gate-opt-in + creative credits,OpenAI/Luma cost reconciliation TBD
+/api/studio/upload,studioAudioUploadV2717Handler,main.go:609,studio,plan-gate-opt-in + creative credits,OpenAI/Luma cost reconciliation TBD
+/api/studio/narration,studioNarrationV2718Handler,main.go:610,studio,plan-gate-opt-in + creative credits,OpenAI/Luma cost reconciliation TBD
+/api/studio/video/generate,studioVideoV2719Handler,main.go:611,studio,plan-gate-opt-in + creative credits,OpenAI/Luma cost reconciliation TBD
+/api/studio/cost/status,creativeCostStatusV2720Handler,main.go:612,studio,plan-gate-opt-in + creative credits,OpenAI/Luma cost reconciliation TBD
+/api/studio/cost/quote,creativeQuoteV2720Handler,main.go:613,studio,plan-gate-opt-in + creative credits,OpenAI/Luma cost reconciliation TBD
+/api/commercial/catalog,commercialCatalogV2721Handler,main.go:614,commercial,wallet/entitlements-module,Price + allotment validation TBD
+/api/commercial/full-entitlements,commercialFullEntitlementsV2722Handler,main.go:615,commercial,wallet/entitlements-module,Price + allotment validation TBD
+/api/commercial/wallet,commercialWalletV2721Handler,main.go:616,commercial,wallet/entitlements-module,Price + allotment validation TBD
+/api/commercial/quote,commercialQuoteV2721Handler,main.go:617,commercial,wallet/entitlements-module,Price + allotment validation TBD
+/api/commercial/topups,commercialTopupV2721Handler,main.go:618,commercial,wallet/entitlements-module,Price + allotment validation TBD
+/api/admin/commercial/topups,commercialAdminV2721Handler,main.go:619,admin,role-check-in-handler,Review each admin mutation
+/api/admin/commercial/rules,commercialRulesAdminV2721Handler,main.go:620,admin,role-check-in-handler,Review each admin mutation
+/api/admin/cost-intelligence,creativeAdminCostsV2720Handler,main.go:621,admin,role-check-in-handler,Review each admin mutation
+/api/social/approvals,socialApprovalsV23Handler,main.go:622,social_governance,plan-gate-opt-in,Community calls + concurrency TBD
+/api/social/repurpose,socialRepurposeV23Handler,main.go:623,social_governance,plan-gate-opt-in,Community calls + concurrency TBD
+/api/social/community,socialCommunityV23Handler,main.go:624,social_governance,plan-gate-opt-in,Community calls + concurrency TBD
+/api/social/governance,socialGovernanceV231Handler,main.go:625,social_governance,plan-gate-opt-in,Community calls + concurrency TBD
+/api/analytics/v24/overview,analyticsV24OverviewHandler,main.go:626,analytics,plan-gate-opt-in,Analytics DB/retention costs TBD
+/api/analytics/v24/settings,analyticsV24SettingsHandler,main.go:627,analytics,plan-gate-opt-in,Analytics DB/retention costs TBD
+/api/analytics/v24/journeys,analyticsV24JourneysHandler,main.go:628,analytics,plan-gate-opt-in,Analytics DB/retention costs TBD
+/api/analytics/v24/export.csv,analyticsV24ExportHandler,main.go:629,analytics,plan-gate-opt-in,Analytics DB/retention costs TBD
+/api/ads/v25/config,adsV25ConfigHandler,main.go:630,ads,plan-gate-opt-in,Ads provider quota + sync costs TBD
+/api/ads/v25/connections,adsV25ConnectionsHandler,main.go:631,ads,plan-gate-opt-in,Ads provider quota + sync costs TBD
+/api/ads/v25/oauth/start,adsV25OAuthStartHandler,main.go:632,ads,plan-gate-opt-in,Ads provider quota + sync costs TBD
+/api/ads/v25/oauth/callback/,adsV25OAuthCallbackHandler,main.go:633,ads,plan-gate-opt-in,Ads provider quota + sync costs TBD
+/api/ads/v25/sync,adsV25SyncHandler,main.go:634,ads,plan-gate-opt-in,Ads provider quota + sync costs TBD
+/api/ads/v25/campaigns,adsV25CampaignsHandler,main.go:635,ads,plan-gate-opt-in,Ads provider quota + sync costs TBD
+/api/ads/v25/entities,adsV25EntitiesHandler,main.go:636,ads,plan-gate-opt-in,Ads provider quota + sync costs TBD
+/api/ads/v25/overview,adsV25OverviewHandler,main.go:637,ads,plan-gate-opt-in,Ads provider quota + sync costs TBD
+/api/ads/v25/mapping,adsV25MappingHandler,main.go:638,ads,plan-gate-opt-in,Ads provider quota + sync costs TBD
+/api/ads/v25/campaign-status,adsV25CampaignStatusHandler,main.go:639,ads,plan-gate-opt-in,Ads provider quota + sync costs TBD
+/api/ads/v25/internal-campaigns,adsV25InternalCampaignsHandler,main.go:640,ads,plan-gate-opt-in,Ads provider quota + sync costs TBD
+/t/,analyticsTrackingRedirectHandler,main.go:641,public_callbacks,public/webhook-specific,Signatures/tenant isolation TBD
+/api/marketing/overview,marketingOverviewHandler,main.go:642,marketing,plan-gate-opt-in + historic limits,Campaign creation quota/AI TBD
+/api/marketing/limits,marketingLimitsHandler,main.go:643,marketing,plan-gate-opt-in + historic limits,Campaign creation quota/AI TBD
+/api/marketing/campaigns,marketingCampaignsHandler,main.go:644,marketing,plan-gate-opt-in + historic limits,Campaign creation quota/AI TBD
+/api/marketing/generate,marketingGenerateHandler,main.go:645,marketing,plan-gate-opt-in + historic limits,Campaign creation quota/AI TBD
+/api/marketing/content,marketingContentHandler,main.go:646,marketing,plan-gate-opt-in + historic limits,Campaign creation quota/AI TBD
+/api/marketing/forms,marketingFormsHandler,main.go:647,marketing,plan-gate-opt-in + historic limits,Campaign creation quota/AI TBD
+/api/marketing/leads,marketingLeadsHandler,main.go:648,marketing,plan-gate-opt-in + historic limits,Campaign creation quota/AI TBD
+/api/marketing/meta-leads/pages,metaLeadPagesHandler,main.go:649,meta_leads,plan-gate-opt-in,Lead APIs/retention TBD
+/api/marketing/meta-leads/forms,metaLeadFormsHandler,main.go:650,meta_leads,plan-gate-opt-in,Lead APIs/retention TBD
+/api/marketing/meta-leads/events,metaLeadEventsHandler,main.go:651,meta_leads,plan-gate-opt-in,Lead APIs/retention TBD
+/webhooks/meta/leads,metaLeadWebhookHandler,main.go:652,public_callbacks,public/webhook-specific,Signatures/tenant isolation TBD
+/api/marketing/creatives,marketingCreativesHandler,main.go:653,marketing,plan-gate-opt-in + historic limits,Campaign creation quota/AI TBD
+/api/marketing/landings,landingsHandler,main.go:654,landings,plan-gate-opt-in,Bandwidth/storage TBD
+/api/marketing/landings/generate,landingGenerateHandler,main.go:655,landings,plan-gate-opt-in,Bandwidth/storage TBD
+/api/marketing/landings/channels,landingChannelsHandler,main.go:656,landings,plan-gate-opt-in,Bandwidth/storage TBD
+/api/marketing/landings/upload,landingImageUploadHandler,main.go:657,landings,plan-gate-opt-in,Bandwidth/storage TBD
+/uploads/landings/,landingUploadFileHandler,main.go:658,public_callbacks,public/webhook-specific,Signatures/tenant isolation TBD
+/api/groups/limits,groupLimitsHandler,main.go:659,groups,plan-gate-opt-in,Group sends must be costed
+/api/groups,groupsHandler,main.go:660,groups,plan-gate-opt-in,Group sends must be costed
+/api/groups/send,groupSendHandler,main.go:661,groups,plan-gate-opt-in,Group sends must be costed
+/api/groups/discovery,groupDiscoveryHandler,main.go:662,groups,plan-gate-opt-in,Group sends must be costed
+/api/groups/prospects,groupProspectsHandler,main.go:663,groups,plan-gate-opt-in,Group sends must be costed
+/f/,publicLeadFormHandler,main.go:664,public_callbacks,public/webhook-specific,Signatures/tenant isolation TBD
+/l/,publicLandingHandler,main.go:665,public_callbacks,public/webhook-specific,Signatures/tenant isolation TBD
+/r/,partnerReferralRedirectHandlerV2714,main.go:666,public_callbacks,public/webhook-specific,Signatures/tenant isolation TBD

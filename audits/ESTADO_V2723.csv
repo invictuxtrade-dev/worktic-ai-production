@@ -1,0 +1,13 @@
+modulo,alcance_v2723,estado,verificacion_pendiente
+Reglas legacy,"nueva tabla tenant_id, CRUD con control rol y transacciones",PILOTO,"migración manual y ejecución tenant-aware por canal; no auto-responde al activar"
+Automatizaciones,"cuota mensual de intentos y concurrencia, worker CAS",PILOTO,"PostgreSQL multi-instancia y contabilidad monetaria por nodo"
+WhatsApp Cloud,"uso aceptado por Meta (texto y plantillas) sin PII",PARCIAL,"cargos por país/categoría, delivery webhook, más rutas"
+WhatsApp Marketing,"reclamo atómico de receptor y metering",PILOTO,"conciliar status sending tras caídas, facturas Meta"
+Social Hub,"CAS preventivo de publicación duplicada y metering éxito",PILOTO,"status publishing colgado, reintentos, límites por tenant"
+Meta Leads,"follow-up template aceptado registrado",PARCIAL,"costo, delivery, reintentos y políticas"
+OpenAI Copilot/agentes,"contadores de V27.21 conservados",SIN_CAMBIOS,"tokens reales por tenant, costes completos"
+Studio Luma/OpenAI,"billetera y Cost Guard V27.20-V27.21 conservados",SIN_CAMBIOS,"costos y reembolsos conciliados"
+CRM/Catálogo/Agenda,"controles V27.22 conservados",PENDIENTE,"cuotas de alta transaccionales, GB, exportaciones"
+Ads/Analytics,"inventario y puertas V27.22 conservados",PENDIENTE,"eventos/cargas/sync y costo por tenant"
+Partners y facturación,"módulos sin cambios",PENDIENTE,"comisiones, anualidades, reembolsos y casos de concurrencia"
+Infraestructura,"matriz V27.22 conservada",PENDIENTE,"Render/Postgres/Redis GB/RAM/egress facturado"

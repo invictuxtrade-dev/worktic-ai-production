@@ -4,6 +4,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -66,10 +67,20 @@ func (a *App) studioNarrationV2718Handler(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Error verificando créditos", 500)
 		return
 	}
-	if used >= limit {
+	if !commercialEnabled() && used >= limit {
 		http.Error(w, "Límite diario de generación IA alcanzado", 429)
 		return
 	}
+	hold, reserveAllowed := a.creativeReserveForStudio(w, tid, u.ID, plan.Code, "narration", "openai_tts", creativeQuote("narration", 0, len([]rune(q.Text))), 0, len([]rune(q.Text)))
+	if !reserveAllowed {
+		return
+	}
+	providerAttempted := false
+	defer func() {
+		if err := a.creativeSettle(hold, providerAttempted); err != nil {
+			fmt.Printf("creative narration settlement: %v\n", err)
+		}
+	}()
 	body, _ := json.Marshal(map[string]any{"model": env("WORKTIC_STUDIO_TTS_MODEL", "gpt-4o-mini-tts"), "input": q.Text, "voice": q.Voice, "speed": q.Speed, "response_format": "mp3"})
 	ctxRequest, err := http.NewRequestWithContext(r.Context(), http.MethodPost, "https://api.openai.com/v1/audio/speech", bytes.NewReader(body))
 	if err != nil {
@@ -79,6 +90,7 @@ func (a *App) studioNarrationV2718Handler(w http.ResponseWriter, r *http.Request
 	ctxRequest.Header.Set("Authorization", "Bearer "+a.openAIKey())
 	ctxRequest.Header.Set("Content-Type", "application/json")
 	client := &http.Client{Timeout: 48 * time.Second}
+	providerAttempted = true
 	resp, err := client.Do(ctxRequest)
 	if err != nil {
 		http.Error(w, "Proveedor de voz no disponible", 502)
@@ -86,11 +98,24 @@ func (a *App) studioNarrationV2718Handler(w http.ResponseWriter, r *http.Request
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
+		a.meterRecordV2726(meterEventV2726{Key: meterKeyV2726("studio_tts", hold),
+			HoldID: meterHoldV2726(hold), TenantID: tid, Provider: "openai", Operation: "studio_tts",
+			Model: env("WORKTIC_STUDIO_TTS_MODEL", "gpt-4o-mini-tts"), Status: "vendor_error",
+			Units: int64(len([]rune(q.Text))), UnitKind: "characters"})
 		io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
 		http.Error(w, "Proveedor de voz rechazó la solicitud", 502)
 		return
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, (15<<20)+1))
+	if err == nil && len(data) > 0 && len(data) <= 15<<20 {
+		model := env("WORKTIC_STUDIO_TTS_MODEL", "gpt-4o-mini-tts")
+		chars := int64(len([]rune(q.Text)))
+		ev := meterEventV2726{Key: meterKeyV2726("studio_tts", hold), HoldID: meterHoldV2726(hold),
+			TenantID: tid, Provider: "openai", Operation: "studio_tts", Model: model, Status: "completed",
+			Units: chars, UnitKind: "characters"}
+		ev.EstimatedMicroUSD = meterFlatPriceV2726("studio_tts", model, "", chars)
+		a.meterRecordV2726(ev)
+	}
 	if err != nil || len(data) == 0 || len(data) > 15<<20 {
 		http.Error(w, "Audio recibido inválido", 502)
 		return

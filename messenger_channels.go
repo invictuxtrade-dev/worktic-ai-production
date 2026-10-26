@@ -1326,7 +1326,7 @@ func (a *App) maybeMessengerAIReply(c ChannelConnection, psid, chat, text string
 		}
 		system = fmt.Sprintf("Eres %s, asistente principal de %s. Objetivo: %s. Tono: %s. Instrucciones: %s. Conocimiento: %s. Historial:\n%s", ag.Name, ag.Company, ag.Objective, ag.Tone, ag.Instructions, ag.Knowledge, history)
 	}
-	reply, err := a.callOpenAI(system, text)
+	reply, err := a.callOpenAI(system, text, c.TenantID)
 	if err == nil && agentID > 0 {
 		a.agentV22Remember(c.TenantID, agentID, chat, text, reply)
 	}

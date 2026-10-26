@@ -437,7 +437,7 @@ func (cm *ChannelManager) maybeTenantAIReply(rt *channelRuntime, recipient types
 		system = fmt.Sprintf("Eres %s, asistente principal de %s. Objetivo: %s. Tono: %s. Instrucciones: %s. Conocimiento verificado: %s. No inventes datos y responde de forma humana, clara y breve. Historial reciente:\n%s", legacy.Name, legacy.Company, legacy.Objective, legacy.Tone, legacy.Instructions, legacy.Knowledge, history)
 	}
 	log.Printf("[WA-AI] generando respuesta tenant=%d conexion=%d agente=%d", rt.conn.TenantID, rt.conn.ID, agentID)
-	reply, err := cm.app.callOpenAI(system, text)
+	reply, err := cm.app.callOpenAI(system, text, rt.conn.TenantID)
 	if err == nil && agentID > 0 {
 		cm.app.agentV22Remember(rt.conn.TenantID, agentID, storedChat, text, reply)
 	}
@@ -519,6 +519,13 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 			out = append(out, c)
 		}
 		p, _, _ := a.activePlan(a.billingAccountUserID(u))
+		if tenantHardeningV2730Enabled() {
+			p, err = a.tenantEffectivePlanV2730(tid)
+			if err != nil {
+				writeError(w, errors.New("contrato no verificable"), 503)
+				return
+			}
+		}
 		writeJSON(w, map[string]any{"connections": out, "max_total": p.MaxChannels, "limits": map[string]int{"whatsapp_qr": a.channelTypeLimitForPlan(p, "whatsapp_qr"), "whatsapp_cloud": a.channelTypeLimitForPlan(p, "whatsapp_cloud"), "telegram": a.channelTypeLimitForPlan(p, "telegram"), "messenger": a.channelTypeLimitForPlan(p, "messenger")}})
 	case http.MethodPost:
 		if u.Role != "owner" && u.Role != "admin" && u.Role != "superadmin" {
@@ -533,6 +540,25 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		p, _, _ := a.activePlan(a.billingAccountUserID(u))
+		if tenantHardeningV2730Enabled() {
+			p, err = a.tenantEffectivePlanV2730(tid)
+			if err != nil {
+				writeError(w, errors.New("no se pudo validar tu contrato de canales"), 503)
+				return
+			}
+			now := time.Now().UTC().Format(time.RFC3339)
+			pub := randomToken(12)
+			if q.Name == "" {
+				q.Name = map[string]string{"whatsapp_qr": "WhatsApp QR", "whatsapp_cloud": "WhatsApp Business Cloud", "telegram": "Telegram", "messenger": "Messenger"}[q.Type]
+			}
+			id, e := a.createTenantChannelV2730(tid, u.ID, q.Type, q.Name, firstNonEmpty(q.ConfigJSON, "{}"), pub, q.AssignedAgentID, p.MaxChannels, a.channelTypeLimitForPlan(p, q.Type), now)
+			if e != nil {
+				writeError(w, e, 403)
+				return
+			}
+			writeJSON(w, map[string]any{"ok": true, "id": id, "public_id": pub})
+			return
+		}
 		var total, byType int
 		_ = a.db.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE tenant_id=? AND status<>'deleted'`, tid).Scan(&total)
 		_ = a.db.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE tenant_id=? AND type=? AND status<>'deleted'`, tid, q.Type).Scan(&byType)

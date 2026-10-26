@@ -1,4 +1,3 @@
-WorkticAI V27.19 — Worktic Studio Video Creator
-Build: 2026-10-21
-Base: V27.18 Studio Pro sobre V27.17 producción.
-Alcance: previsualización de video ampliada, timeline contraíble, video animado local desde texto e imágenes (WebM), generación nativa MP4 desde texto o imagen mediante API Luma Agents opcional y guardado de resultados en Galería del tenant. Sin modificar otros módulos.
+WorkticAI V27.34 — Web Comercial Studio + Planes Verificables + Checkout Unificado
+Base: WorkticAI V27.33 Production Candidate (sin desplegar).
+Desarrollo local; NO activar comercial sin staging.

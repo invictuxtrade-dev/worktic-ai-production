@@ -8,6 +8,14 @@
 "use strict";
 
 var I18N = {
+"lp.v2734_price_note":{"es":"Importes de suscripción en USDT. El checkout calcula el total antes de pagar; promociones, permisos externos, impuestos y cargos aplicables se gestionan por separado. Los créditos IA solo se incluyen cuando el servicio comercial está activo.","en":"Subscription prices in USDT. Checkout calculates the payable total; promotions, third-party permissions, taxes and other fees are handled separately. AI credits are included only when commercial service is active."},
+"lp.v2734_credits_desc":{"es":"Además de los créditos de los planes que tengan el servicio activo, podrás comprar recargas para imágenes, clips IA y narraciones. Cada generación muestra sus créditos antes de ejecutarse.","en":"In addition to credits included in eligible active plans, you can buy top-ups for images, AI clips and voiceovers. Every generation shows its credit cost before running."},
+"lp.v2734_credits_title":{"es":"Crea más cuando tu negocio lo necesite","en":"Create more when your business needs it"},
+"lp.v2734_studio_cta":{"es":"Conocer planes y créditos →","en":"Explore plans and credits →"},
+"lp.v2734_studio_caveat":{"es":"El editor manual está disponible según tu plan. Las generaciones de imágenes, voz y video con IA necesitan créditos, activación y permisos del proveedor. No ofrecemos video IA ilimitado.","en":"The manual editor depends on your plan. AI image, voice and video generations require credits, service activation and provider permissions. Unlimited AI video is not offered."},
+"lp.v2734_studio_desc":{"es":"Diseña anuncios, prepara contenido vertical, edita clips en una línea de tiempo y convierte texto e imágenes en escenas animadas. Guarda recursos en Galería Multimedia para reutilizarlos en Social Hub.","en":"Design ads, produce vertical content, edit clips on a timeline, and transform text and images into animated scenes. Save assets in your Media Gallery for Social Hub."},
+"lp.v2734_studio_title":{"es":"Crea imágenes y videos para tus redes sociales con Worktic Studio.","en":"Create images and videos for social media with Worktic Studio."},
+"lp.v2734_studio_kicker":{"es":"WORKTIC STUDIO · ESPACIO CREATIVO","en":"WORKTIC STUDIO · CREATIVE WORKSPACE"},
 "social.js.connected":{es:"Redes conectadas",en:"Connected networks"},
 "social.js.scheduled":{es:"Programadas",en:"Scheduled"},
 "social.js.published":{es:"Publicadas",en:"Published"},
@@ -639,7 +647,7 @@ var I18N = {
 
 "lp.plans_eyebrow":{es:"Planes transparentes",en:"Transparent pricing"},
 "lp.plans_title":{es:"Elige la capacidad que necesita tu operación",en:"Choose the capacity your operation needs"},
-"lp.plans_desc":{es:"Todos los planes incluyen aislamiento por tenant y límites validados desde el backend.",en:"Every plan includes tenant isolation and backend-validated limits."},
+"lp.plans_desc":{"es":"Compara usuarios, canales, CRM, automatizaciones y Worktic Studio. Los beneficios definitivos se muestran según la configuración del plan vigente.","en":"Compare users, channels, CRM, automations and Worktic Studio. Final entitlements reflect the active plan configuration."},
 "lp.plan_free_name":{es:"Free",en:"Free"},
 "lp.plan_free_cta":{es:"Probar gratis",en:"Try for free"},
 "lp.plan_personal_name":{es:"Personal",en:"Personal"},

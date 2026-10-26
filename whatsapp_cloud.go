@@ -184,6 +184,9 @@ func (a *App) sendWhatsAppCloudText(ctx context.Context, c ChannelConnection, to
 	if len(out.Messages) == 0 || out.Messages[0].ID == "" {
 		return "", errors.New("Meta no devolvió ID del mensaje")
 	}
+	if e := a.recordExternalUsageV2723(c.TenantID, "meta_whatsapp", "text", out.Messages[0].ID, "accepted"); e != nil {
+		fmt.Printf("V27.23: WhatsApp metering failed (tenant %d): %v\n", c.TenantID, e)
+	}
 	return out.Messages[0].ID, nil
 }
 

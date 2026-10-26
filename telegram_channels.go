@@ -475,7 +475,7 @@ func (a *App) maybeTenantTelegramAIReply(c ChannelConnection, token, telegramCha
 		system = fmt.Sprintf("Eres %s, asistente principal de %s. Objetivo: %s. Tono: %s. Instrucciones: %s. Conocimiento verificado: %s. No inventes datos y responde de forma humana, clara y breve. Historial reciente:\n%s", legacy.Name, legacy.Company, legacy.Objective, legacy.Tone, legacy.Instructions, legacy.Knowledge, history)
 	}
 	log.Printf("[TG-AI] generando tenant=%d conexion=%d agente=%d", c.TenantID, c.ID, agentID)
-	reply, err := a.callOpenAI(system, text)
+	reply, err := a.callOpenAI(system, text, c.TenantID)
 	if err == nil && agentID > 0 {
 		a.agentV22Remember(c.TenantID, agentID, storedChat, text, reply)
 	}

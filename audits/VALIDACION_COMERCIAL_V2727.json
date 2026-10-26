@@ -1,0 +1,433 @@
+{
+  "version": "V27.27",
+  "generated_utc": "2026-10-23T20:29:58.132534+00:00",
+  "data_classification": "Offline code inspection and scenarios; not measured bills or actual customer data",
+  "routes_in_prior_inventory": 198,
+  "cost_groups_in_prior_inventory": 31,
+  "newly_missing_routes": [],
+  "checks": [
+    {
+      "key": "core_reserve_db_cap",
+      "status": "pass",
+      "detail": "Reservation checks both plan billing cap and pilot cap"
+    },
+    {
+      "key": "read_only_admin_preflight",
+      "status": "pass",
+      "detail": "Server exposes superadmin-only read-only preflight, public sale never asserted"
+    },
+    {
+      "key": "preflight_route",
+      "status": "pass",
+      "detail": "Endpoint registered"
+    },
+    {
+      "key": "finance_meter_route",
+      "status": "pass",
+      "detail": "V27.26 meter route preserved"
+    },
+    {
+      "key": "partners_engine_preserved",
+      "status": "pass",
+      "detail": "Worktic Partners code retained"
+    },
+    {
+      "key": "commercial_wallet",
+      "status": "pass",
+      "detail": "Credit ledger retained"
+    },
+    {
+      "key": "guards_exist",
+      "status": "pass",
+      "detail": "Guards retained"
+    },
+    {
+      "key": "routes_inventory",
+      "status": "pass",
+      "detail": "Inventory from V27.22 includes at least 198 routes"
+    },
+    {
+      "key": "cost_groups",
+      "status": "pass",
+      "detail": "31+ cost drivers inventoried, NOT fully verified"
+    },
+    {
+      "key": "routing_regression",
+      "status": "pass",
+      "detail": "Historic registered routes still present in main.go; missing: "
+    },
+    {
+      "key": "postgresql_e2e",
+      "status": "manual",
+      "detail": "Test actual PG isolation, concurrent quotas, migration, repayment and cancellation"
+    },
+    {
+      "key": "provider_invoices",
+      "status": "manual",
+      "detail": "OpenAI/Luma/Meta/Render invoice and actual cost alignment"
+    },
+    {
+      "key": "payments_partners",
+      "status": "manual",
+      "detail": "USDT chain verification, coupons, renewals, Partner payouts/reversals"
+    },
+    {
+      "key": "legacy_global_rules",
+      "status": "manual",
+      "detail": "Audit remaining global worktic_auto_rules routes without guessing tenant owners"
+    },
+    {
+      "key": "public_sale",
+      "status": "block",
+      "detail": "No approval for public commercialization without staging evidence and measured operational costs"
+    },
+    {
+      "key": "credit_ceiling_image",
+      "status": "pass",
+      "detail": "image estimated provider cents 8 / 4 credits respects <= US$0.025/credit"
+    },
+    {
+      "key": "credit_ceiling_copy",
+      "status": "pass",
+      "detail": "copy estimated provider cents 5 / 2 credits respects <= US$0.025/credit"
+    },
+    {
+      "key": "credit_ceiling_video5",
+      "status": "pass",
+      "detail": "video5 estimated provider cents 36 / 15 credits respects <= US$0.025/credit"
+    },
+    {
+      "key": "credit_ceiling_video10",
+      "status": "pass",
+      "detail": "video10 estimated provider cents 99 / 45 credits respects <= US$0.025/credit"
+    },
+    {
+      "key": "credit_ceiling_voice1000",
+      "status": "pass",
+      "detail": "voice1000 estimated provider cents 10 / 5 credits respects <= US$0.025/credit"
+    },
+    {
+      "key": "included_cost_free",
+      "status": "pass",
+      "detail": "Budget Studio+Core does not exceed monthly price in USDT under numeric comparison only; FX/other costs unknown"
+    },
+    {
+      "key": "included_cost_personal",
+      "status": "pass",
+      "detail": "Budget Studio+Core does not exceed monthly price in USDT under numeric comparison only; FX/other costs unknown"
+    },
+    {
+      "key": "included_cost_business",
+      "status": "pass",
+      "detail": "Budget Studio+Core does not exceed monthly price in USDT under numeric comparison only; FX/other costs unknown"
+    },
+    {
+      "key": "included_cost_enterprise",
+      "status": "pass",
+      "detail": "Budget Studio+Core does not exceed monthly price in USDT under numeric comparison only; FX/other costs unknown"
+    }
+  ],
+  "hard_blockers": [
+    "public_sale"
+  ],
+  "credit_quotes": [
+    {
+      "action": "image",
+      "credits": 4,
+      "reserved_cost_cents": 8,
+      "pass": true
+    },
+    {
+      "action": "copy",
+      "credits": 2,
+      "reserved_cost_cents": 5,
+      "pass": true
+    },
+    {
+      "action": "video5",
+      "credits": 15,
+      "reserved_cost_cents": 36,
+      "pass": true
+    },
+    {
+      "action": "video10",
+      "credits": 45,
+      "reserved_cost_cents": 99,
+      "pass": true
+    },
+    {
+      "action": "voice1000",
+      "credits": 5,
+      "reserved_cost_cents": 10,
+      "pass": true
+    }
+  ],
+  "scenarios": [
+    {
+      "plan": "free",
+      "gross_monthly_equivalent_usdt": "0.00",
+      "partners_usdt": "0.00",
+      "studio_budget_usd": "0.00",
+      "core_ai_budget_usd": "0.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "free",
+      "gross_monthly_equivalent_usdt": "0.00",
+      "partners_usdt": "0.00",
+      "studio_budget_usd": "0.00",
+      "core_ai_budget_usd": "0.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "free",
+      "gross_monthly_equivalent_usdt": "0.00",
+      "partners_usdt": "0.00",
+      "studio_budget_usd": "0.00",
+      "core_ai_budget_usd": "0.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "free",
+      "gross_monthly_equivalent_usdt": "0.00",
+      "partners_usdt": "0.00",
+      "studio_budget_usd": "0.00",
+      "core_ai_budget_usd": "0.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "free",
+      "gross_monthly_equivalent_usdt": "0.00",
+      "partners_usdt": "0.00",
+      "studio_budget_usd": "0.00",
+      "core_ai_budget_usd": "0.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "free",
+      "gross_monthly_equivalent_usdt": "0.00",
+      "partners_usdt": "0.00",
+      "studio_budget_usd": "0.00",
+      "core_ai_budget_usd": "0.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "personal",
+      "gross_monthly_equivalent_usdt": "25.00",
+      "partners_usdt": "0.00",
+      "studio_budget_usd": "0.75",
+      "core_ai_budget_usd": "1.50",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "personal",
+      "gross_monthly_equivalent_usdt": "25.00",
+      "partners_usdt": "2.50",
+      "studio_budget_usd": "0.75",
+      "core_ai_budget_usd": "1.50",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "personal",
+      "gross_monthly_equivalent_usdt": "25.00",
+      "partners_usdt": "12.50",
+      "studio_budget_usd": "0.75",
+      "core_ai_budget_usd": "1.50",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "personal",
+      "gross_monthly_equivalent_usdt": "20.00",
+      "partners_usdt": "0.00",
+      "studio_budget_usd": "0.75",
+      "core_ai_budget_usd": "1.50",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "personal",
+      "gross_monthly_equivalent_usdt": "20.00",
+      "partners_usdt": "2.00",
+      "studio_budget_usd": "0.75",
+      "core_ai_budget_usd": "1.50",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "personal",
+      "gross_monthly_equivalent_usdt": "20.00",
+      "partners_usdt": "10.00",
+      "studio_budget_usd": "0.75",
+      "core_ai_budget_usd": "1.50",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "business",
+      "gross_monthly_equivalent_usdt": "75.00",
+      "partners_usdt": "0.00",
+      "studio_budget_usd": "3.00",
+      "core_ai_budget_usd": "5.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "business",
+      "gross_monthly_equivalent_usdt": "75.00",
+      "partners_usdt": "7.50",
+      "studio_budget_usd": "3.00",
+      "core_ai_budget_usd": "5.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "business",
+      "gross_monthly_equivalent_usdt": "75.00",
+      "partners_usdt": "37.50",
+      "studio_budget_usd": "3.00",
+      "core_ai_budget_usd": "5.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "business",
+      "gross_monthly_equivalent_usdt": "60.00",
+      "partners_usdt": "0.00",
+      "studio_budget_usd": "3.00",
+      "core_ai_budget_usd": "5.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "business",
+      "gross_monthly_equivalent_usdt": "60.00",
+      "partners_usdt": "6.00",
+      "studio_budget_usd": "3.00",
+      "core_ai_budget_usd": "5.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "business",
+      "gross_monthly_equivalent_usdt": "60.00",
+      "partners_usdt": "30.00",
+      "studio_budget_usd": "3.00",
+      "core_ai_budget_usd": "5.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "enterprise",
+      "gross_monthly_equivalent_usdt": "150.00",
+      "partners_usdt": "0.00",
+      "studio_budget_usd": "7.50",
+      "core_ai_budget_usd": "15.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "enterprise",
+      "gross_monthly_equivalent_usdt": "150.00",
+      "partners_usdt": "15.00",
+      "studio_budget_usd": "7.50",
+      "core_ai_budget_usd": "15.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "enterprise",
+      "gross_monthly_equivalent_usdt": "150.00",
+      "partners_usdt": "75.00",
+      "studio_budget_usd": "7.50",
+      "core_ai_budget_usd": "15.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "enterprise",
+      "gross_monthly_equivalent_usdt": "120.00",
+      "partners_usdt": "0.00",
+      "studio_budget_usd": "7.50",
+      "core_ai_budget_usd": "15.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "enterprise",
+      "gross_monthly_equivalent_usdt": "120.00",
+      "partners_usdt": "12.00",
+      "studio_budget_usd": "7.50",
+      "core_ai_budget_usd": "15.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    },
+    {
+      "plan": "enterprise",
+      "gross_monthly_equivalent_usdt": "120.00",
+      "partners_usdt": "60.00",
+      "studio_budget_usd": "7.50",
+      "core_ai_budget_usd": "15.00",
+      "fx_rate_usd_per_usdt": null,
+      "remaining_usd": null,
+      "contribution_usd": null,
+      "status": "INCOMPLETE: FX, processing, infrastructure, messages, support and tax unverified"
+    }
+  ],
+  "public_launch_approved": false,
+  "network_access": false
+}

@@ -371,7 +371,7 @@ func (a *App) agentInstanceTestHandler(w http.ResponseWriter, r *http.Request) {
 	if ctxV22 := a.agentV22Context(tenant, ag.ID, "simulator"); ctxV22 != "" {
 		system += "\n\n" + ctxV22
 	}
-	reply, e := a.callOpenAI(system, q.Text)
+	reply, e := a.callOpenAI(system, q.Text, tenant)
 	if e == nil {
 		a.agentV22Remember(tenant, ag.ID, "simulator", q.Text, reply)
 	}
@@ -566,21 +566,57 @@ func (a *App) resolveAgent(tenant int64, channel, intent, text string, campaign,
 	return id, e
 }
 
-func (a *App) callOpenAI(system, user string) (string, error) {
-	payload := map[string]any{"model": a.cfg.OpenAIModel, "input": system + "\n\nMensaje del usuario: " + user, "store": false}
+func (a *App) callOpenAI(system, user string, tenantIDs ...int64) (string, error) {
+	var hold *creativeHold
+	attempted := false
+	if commercialEnabled() {
+		if len(tenantIDs) == 0 || tenantIDs[0] == 0 {
+			return "", errors.New("empresa requerida para consumo IA; operación bloqueada")
+		}
+		if tenantIDs[0] > 0 {
+			var err error
+			hold, err = a.commercialCoreBegin(tenantIDs[0])
+			if err != nil {
+				return "", err
+			}
+			defer func() {
+				if e := a.creativeSettle(hold, attempted); e != nil {
+					a.setError(e)
+				}
+			}()
+			_, _, err = commercialCoreInput(system, user)
+			if err != nil {
+				return "", err
+			}
+		}
+	}
+	payload := map[string]any{"model": commercialCoreModel(a.cfg.OpenAIModel), "input": system + "\n\nMensaje del usuario: " + user, "store": false}
+	if commercialEnabled() {
+		payload["max_output_tokens"] = commercialCoreMaxOutput()
+	}
 	b, _ := json.Marshal(payload)
 	req, _ := http.NewRequest(http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(b))
 	req.Header.Set("Authorization", "Bearer "+a.openAIKey())
 	req.Header.Set("Content-Type", "application/json")
+	attempted = true
 	resp, err := (&http.Client{Timeout: 60 * time.Second}).Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(resp.Body)
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	meterTenant := int64(0)
+	if len(tenantIDs) > 0 {
+		meterTenant = tenantIDs[0]
+		if meterTenant < 0 {
+			meterTenant = -meterTenant
+		}
+	}
 	if resp.StatusCode >= 300 {
+		a.meterCoreV2726(meterTenant, hold, raw, "vendor_error")
 		return "", fmt.Errorf("OpenAI: %s", strings.TrimSpace(string(raw)))
 	}
+	a.meterCoreV2726(meterTenant, hold, raw, "completed")
 	var x struct {
 		Output []struct {
 			Content []struct {

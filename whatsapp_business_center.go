@@ -278,6 +278,9 @@ func (a *App) whatsappTemplateSendTestHandler(w http.ResponseWriter, r *http.Req
 	if len(out.Messages) > 0 {
 		id = out.Messages[0].ID
 	}
+	if id != "" {
+		_ = a.recordExternalUsageV2723(tid, "meta_whatsapp", "template_test", id, "accepted")
+	}
 	_, _ = a.db.Exec(`INSERT INTO whatsapp_business_events(tenant_id,connection_id,event_type,external_id,status,payload_json,created_at) VALUES(?,?,?,?,?,?,?)`, tid, q.ConnectionID, "template_test", id, "sent", mustJSON(body), time.Now().UTC().Format(time.RFC3339))
 	writeJSON(w, map[string]any{"ok": true, "message_id": id})
 }

@@ -1,0 +1,32 @@
+﻿group,registered_endpoints,cost_driver,who_pays_or_invoicing,measurement,provider_cost_verified,commercial_status
+account,7,"password hashing, sessions, team email",Worktic,"active seats, login/registration, invites",partial,PILOT ESTIMATE ONLY
+admin,25,"database queries, customer operations",Worktic,requests and audit events,no,BLOCKED UNTIL MEASURED
+ads,11,external Ads API sync + ad spend,ad spend customer; integration Worktic,"API requests, data sync, dollars passed through",no,BLOCKED UNTIL MEASURED
+agenda,6,DB/notification transport,Worktic; external SMS if used,appointments + SMS sent,no,BLOCKED UNTIL MEASURED
+agent_legacy,3,OpenAI tokens legacy,Worktic,tokens and legacy tenant isolation,partial,PILOT ESTIMATE ONLY
+agents,8,OpenAI token input/output + retrieval,Worktic,tokens/tenant/month,estimated,PILOT ESTIMATE ONLY
+analytics,4,"events, Postgres storage, retention, export",Worktic,"events ingested, reads, export bytes",no,BLOCKED UNTIL MEASURED
+automations,3,"jobs, events, external webhook, AI",Worktic + external customer accounts,"runs, actions, retries, tokens",partial,PILOT ESTIMATE ONLY
+billing,6,"processor fees, FX, refunds, USDT",Worktic; transaction fees,"successful charges, refunds, chain fees",no,BLOCKED UNTIL MEASURED
+catalog,2,disk+transfer+image storage,Worktic,products/images/tenant,no,BLOCKED UNTIL MEASURED
+channels,12,"external provider API, WhatsApp templates",customer pass-through OR Worktic variable,channel counts; provider conversations by geography,no,BLOCKED UNTIL MEASURED
+commercial,5,"credits, package transactions, wallet ledger",Worktic,"topups, holds, expired credits",estimated,PILOT ESTIMATE ONLY
+copilot,2,OpenAI token billing,Worktic,"input/output tokens, retries, cache",estimated,PILOT ESTIMATE ONLY
+crm,2,DB requests/contact/attachments,Worktic,contacts active/tenant; bytes,no,BLOCKED UNTIL MEASURED
+dashboard,3,DB analytical queries/cache,Worktic,"queries per request, latency and RAM",no,BLOCKED UNTIL MEASURED
+groups,5,messages/network/AI if used,Worktic or external channels,"group sends, members, leads",no,BLOCKED UNTIL MEASURED
+inbox,4,"DB, messages; per-provider messaging",shared + customer variable,conversation/messages/retention,no,BLOCKED UNTIL MEASURED
+infra,3,"Render Go web, PG, Redis, disk, transfer",Worktic,"CPU, RAM, DB size, egress",no,BLOCKED UNTIL MEASURED
+landings,4,"hosting, bandwidth and uploads",Worktic,page hits/leads/month and bytes,no,BLOCKED UNTIL MEASURED
+legacy_channels,6,legacy messaging/session maintenance,Worktic,"connects, send calls, session GB",no,BLOCKED UNTIL MEASURED
+legacy_inbox,5,legacy message DB/network,Worktic,messages + GB + tenant scoping,no,BLOCKED UNTIL MEASURED
+legacy_rules,1,"global rule table, old background engine",Worktic,"rules, fires, recipients; TENANT ISSUE",no,BLOCKED UNTIL MEASURED
+marketing,8,"campaign requests, content, AI",Worktic + ads budget customer,campaigns/forms/generations,partial,PILOT ESTIMATE ONLY
+meta_leads,3,"Graph API sync, storage, follow-ups","Worktic, outbound messaging variable",leads + API requests + retention,no,BLOCKED UNTIL MEASURED
+partners,16,"commission ledger, payouts, autopilot AI",Worktic; commercial commission,"approved revenue, partner payouts, AI tokens",partial,PILOT ESTIMATE ONLY
+public_callbacks,13,"webhook requests, landing visits, bot callbacks",Worktic,"requests/tenant, bandwidth, storage",no,BLOCKED UNTIL MEASURED
+social,12,"social upload, publish API, retry queue",Worktic + external account,posts/syncs/GB,no,BLOCKED UNTIL MEASURED
+social_governance,4,moderation/sync jobs/API + AI,Worktic,"approvals, comments, AI tokens",no,BLOCKED UNTIL MEASURED
+studio,7,OpenAI image/text/speech; Luma video,Worktic,job cost estimate/credits + vendor invoice,estimated,PILOT ESTIMATE ONLY
+whatsapp,3,WhatsApp Cloud templates/media,customer variable unless Worktic subsidizes,sent/delivered per category/region,no,BLOCKED UNTIL MEASURED
+whatsapp_marketing,5,Meta message pricing country/template,client pass-through recommended,messages successfully delivered by country/category,no,BLOCKED UNTIL MEASURED

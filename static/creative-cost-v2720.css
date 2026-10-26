@@ -1,0 +1,10 @@
+/* V27.20 scoped UI: does not change existing Worktic views. */
+#wccStudioStatus{padding:9px 15px;margin:0 0 8px;color:#b8e4d8;background:#143028;border:1px solid #28614c;border-radius:12px;font:500 12px/1.5 'Instrument Sans',sans-serif}
+#wccStudioStatus.wcc-empty{color:#f6dcac;background:#30251b;border-color:#776038}
+.wcc-admin{margin-top:22px;padding:24px;border:1px solid rgba(128,142,183,.22);border-radius:18px;background:linear-gradient(140deg,rgba(33,41,71,.85),rgba(20,25,44,.9));color:#ecf0fa}
+.wcc-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+.wcc-head h2{margin:4px 0 6px;color:#f0f5ff;font-size:24px}.wcc-head p{margin:0;color:#c0cadd}.wcc-eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;color:#74dfb5}
+.wcc-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.wcc-kpi{padding:18px;background:#232d46;border-radius:12px;display:flex;flex-direction:column;gap:9px}.wcc-kpi span{font-size:12px;color:#b9c7dc}.wcc-kpi b{font-size:22px;color:#f5faff;font-variant-numeric:tabular-nums}
+.wcc-note{font-size:13px;color:#c4cede;margin:17px 0}.wcc-table{width:100%;border-collapse:collapse;font-size:13px;color:#dfe7f4}.wcc-table th,.wcc-table td{padding:11px 8px;text-align:left;border-bottom:1px solid #41506a}.wcc-table th{color:#a6b9d3}
+@media(max-width:900px){.wcc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:530px){.wcc-grid{grid-template-columns:1fr}.wcc-admin{padding:14px}.wcc-table{display:block;overflow-x:auto}.wcc-head h2{font-size:20px}}

@@ -146,7 +146,13 @@ func marketingLimitsFor(plan string) MarketingLimits {
 	}
 }
 func (a *App) marketingLimits(r *http.Request, tenant int64) MarketingLimits {
-	p, _, e := a.activePlan(tenant)
+	// The billing account is the tenant owner, NOT the numeric tenant id.
+	// IDs can differ; using tenant as user id assigned wrong plan limits.
+	u := a.currentUser(r)
+	if u == nil || u.TenantID != tenant {
+		return marketingLimitsFor("free")
+	}
+	p, _, e := a.activePlan(a.billingAccountUserID(u))
 	if e != nil {
 		return marketingLimitsFor("free")
 	}
@@ -252,7 +258,7 @@ func (a *App) marketingGenerateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	prompt := fmt.Sprintf("Crea una estrategia de campaña %s para %s. Producto: %s. Público: %s. Plataformas: %s. Destino: %s. Tono: %s. Duración: %d días. Devuelve en español: concepto, oferta, 3 copies, 3 títulos, CTA, calendario de 7 contenidos, preguntas de formulario y flujo del bot. No prometas resultados.", q.Mode, q.Objective, q.Product, q.Audience, q.Platforms, q.Destination, q.Tone, q.Days)
-	reply, e := a.aiResponse(prompt, "")
+	reply, e := a.aiResponse(prompt, "", t)
 	if e != nil {
 		reply = "ESTRATEGIA PROPUESTA\n\nObjetivo: " + q.Objective + "\nOferta: presenta " + q.Product + " con un beneficio claro y una llamada a la acción hacia " + q.Destination + ".\n\nContenido sugerido:\n1. Publicación educativa.\n2. Caso de uso o demostración.\n3. Preguntas frecuentes.\n4. Oferta con límite real.\n5. Invitación a conversar.\n\nRevisa y aprueba todos los textos antes de publicar."
 	}

@@ -311,6 +311,12 @@ func main() {
 	if err = initStudioVideoV2719Schema(db); err != nil {
 		log.Fatalf("studio video v2719 schema: %v", err)
 	}
+	if err = initCreativeCostV2720Schema(db); err != nil {
+		log.Fatalf("creative cost guard v2720 schema: %v", err)
+	}
+	if err = initCommercialV2721Schema(db); err != nil {
+		log.Fatalf("commercial v2721 schema: %v", err)
+	}
 	if err = initSocialGovernanceV231Schema(db); err != nil {
 		log.Fatalf("social governance v23.1 schema: %v", err)
 	}
@@ -328,6 +334,24 @@ func main() {
 	}
 	if err = initAutomationV20Schema(db); err != nil {
 		log.Fatalf("automation v20 schema: %v", err)
+	}
+	if err = initConsumptionGuardV2723Schema(db); err != nil {
+		log.Fatalf("consumption v2723 schema: %v", err)
+	}
+	if err = initResourceGuardV2724Schema(db); err != nil {
+		log.Fatalf("resource v2724 schema: %v", err)
+	}
+	if err = initFinanceV2725Schema(db); err != nil {
+		log.Fatalf("finance v2725 schema: %v", err)
+	}
+	if err = initBillingLifecycleV2728Schema(db); err != nil {
+		log.Fatalf("billing lifecycle v2728 schema: %v", err)
+	}
+	if err = initContractV2729Schema(db); err != nil {
+		log.Fatalf("contract entitlements v2729 schema: %v", err)
+	}
+	if err = initMeterV2726Schema(db); err != nil {
+		log.Fatalf("finance v2726 metering schema: %v", err)
 	}
 	if err = initLandingSchema(db); err != nil {
 		log.Fatal(err)
@@ -526,6 +550,8 @@ func main() {
 	mux.HandleFunc("/api/contact", app.contactHandler)
 	mux.HandleFunc("/api/send", app.sendHandler)
 	mux.HandleFunc("/api/rules", app.rulesHandler)
+	mux.HandleFunc("/api/consumption/v2723/summary", app.consumptionSummaryV2723Handler)
+	mux.HandleFunc("/api/consumption/v2723/legacy-rules", app.legacyRulesInventoryV2723Handler)
 	mux.HandleFunc("/api/automations/workflows", app.automationWorkflowsHandler)
 	mux.HandleFunc("/api/automations/executions", app.automationExecutionsHandler)
 	mux.HandleFunc("/api/automations/run", app.automationRunHandler)
@@ -573,6 +599,10 @@ func main() {
 	mux.HandleFunc("/api/billing/entitlements", app.entitlementsHandler)
 	mux.HandleFunc("/api/billing/config", app.billingConfigHandler)
 	mux.HandleFunc("/api/billing/checkout", app.checkoutHandler)
+	mux.HandleFunc("/api/billing/v2728/preview", app.billingPreviewV2728Handler)
+	mux.HandleFunc("/api/billing/v2729/contract", app.contractV2729Handler)
+	mux.HandleFunc("/api/admin/billing/v2729/audit", app.contractAuditV2729Handler)
+	mux.HandleFunc("/api/admin/billing/v2728/audit", app.billingLifecycleAuditV2728Handler)
 	mux.HandleFunc("/api/billing/promo/validate", app.promoValidateHandler)
 	mux.HandleFunc("/api/billing/payments", app.paymentsHandler)
 	mux.HandleFunc("/api/admin/overview", app.adminOverviewHandler)
@@ -603,6 +633,25 @@ func main() {
 	mux.HandleFunc("/api/studio/upload", app.studioAudioUploadV2717Handler)
 	mux.HandleFunc("/api/studio/narration", app.studioNarrationV2718Handler)
 	mux.HandleFunc("/api/studio/video/generate", app.studioVideoV2719Handler)
+	mux.HandleFunc("/api/studio/cost/status", app.creativeCostStatusV2720Handler)
+	mux.HandleFunc("/api/studio/cost/quote", app.creativeQuoteV2720Handler)
+	mux.HandleFunc("/api/commercial/catalog", app.commercialCatalogV2721Handler)
+	mux.HandleFunc("/api/public/offer/v2734", app.publicCommercialOfferV2734Handler)
+	mux.HandleFunc("/api/commercial/full-entitlements", app.commercialFullEntitlementsV2722Handler)
+	mux.HandleFunc("/api/admin/commercial/v2730/coverage", app.tenantGuardReportV2730Handler)
+	mux.HandleFunc("/api/commercial/wallet", app.commercialWalletV2721Handler)
+	mux.HandleFunc("/api/commercial/quote", app.commercialQuoteV2721Handler)
+	mux.HandleFunc("/api/commercial/topups", app.commercialTopupV2721Handler)
+	mux.HandleFunc("/api/admin/commercial/topups", app.commercialAdminV2721Handler)
+	mux.HandleFunc("/api/admin/commercial/rules", app.commercialRulesAdminV2721Handler)
+	mux.HandleFunc("/api/admin/cost-intelligence", app.creativeAdminCostsV2720Handler)
+	mux.HandleFunc("/api/admin/finance/v2725/summary", app.financeSummaryV2725Handler)
+	mux.HandleFunc("/api/admin/finance/v2726/metering", app.meterAdminV2726Handler)
+	mux.HandleFunc("/api/admin/finance/v2731/unit-economics", app.unitEconomicsV2731Handler)
+	mux.HandleFunc("/api/admin/commercial/v2727/preflight", app.commercialPreflightV2727Handler)
+	mux.HandleFunc("/api/admin/finance/v2725/invoices", app.financeInvoicesV2725Handler)
+	mux.HandleFunc("/api/admin/finance/v2725/actuals", app.financeActualsV2725Handler)
+	mux.HandleFunc("/api/billing/v2725/statement", app.financeTenantStatementV2725Handler)
 	mux.HandleFunc("/api/social/approvals", app.socialApprovalsV23Handler)
 	mux.HandleFunc("/api/social/repurpose", app.socialRepurposeV23Handler)
 	mux.HandleFunc("/api/social/community", app.socialCommunityV23Handler)
@@ -616,6 +665,7 @@ func main() {
 	mux.HandleFunc("/api/ads/v25/oauth/start", app.adsV25OAuthStartHandler)
 	mux.HandleFunc("/api/ads/v25/oauth/callback/", app.adsV25OAuthCallbackHandler)
 	mux.HandleFunc("/api/ads/v25/sync", app.adsV25SyncHandler)
+	mux.HandleFunc("/api/consumption/v2724/resources", app.resourceSummaryV2724Handler)
 	mux.HandleFunc("/api/ads/v25/campaigns", app.adsV25CampaignsHandler)
 	mux.HandleFunc("/api/ads/v25/entities", app.adsV25EntitiesHandler)
 	mux.HandleFunc("/api/ads/v25/overview", app.adsV25OverviewHandler)
@@ -965,6 +1015,11 @@ func (a *App) reconnectWithBackoff() {
 }
 
 func (a *App) maybeAutoReply(channel, chat, text string) {
+	// Never dispatch unowned historical rules when tenant hardening is enabled.
+	// Tenant-routed handlers remain independent of this global function.
+	if tenantRulesV2723Enabled() || tenantHardeningV2730Enabled() {
+		return
+	}
 	a.mu.Lock()
 	if t, ok := a.autoLast[chat]; ok && time.Since(t) < time.Duration(a.cfg.AutoReplyCooldownSeconds)*time.Second {
 		a.mu.Unlock()
@@ -1255,6 +1310,13 @@ func (a *App) sendHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("destinatario y mensaje son obligatorios"), 400)
 		return
 	}
+	// Preserve tenant-scoped Cloud/Messenger sending from the existing Inbox.
+	// Bare JID, QR and global Telegram still use the legacy global connection
+	// and are therefore rejected ONLY in multiempresa hardening mode.
+	if tenantHardeningV2730Enabled() && !strings.HasPrefix(target, "wacloud:") && !strings.HasPrefix(target, "messenger:") {
+		writeError(w, errors.New("envío con sesión global no permitido; selecciona una conexión empresarial"), http.StatusForbidden)
+		return
+	}
 	var resp string
 	var err error
 	if strings.HasPrefix(target, "wacloud:") {
@@ -1342,6 +1404,14 @@ func (a *App) sendText(ctx context.Context, chat, text, source string) (string, 
 }
 
 func (a *App) rulesHandler(w http.ResponseWriter, r *http.Request) {
+	if tenantHardeningV2730Enabled() && !tenantRulesV2723Enabled() {
+		writeError(w, errors.New("habilita primero las reglas aisladas por empresa"), http.StatusServiceUnavailable)
+		return
+	}
+	if tenantRulesV2723Enabled() {
+		a.tenantRulesHandlerV2723(w, r)
+		return
+	}
 	switch r.Method {
 	case http.MethodGet:
 		rows, err := a.db.Query(`SELECT id,name,match_type,keyword,response,enabled FROM worktic_auto_rules ORDER BY id DESC`)
@@ -1698,7 +1768,12 @@ func (a *App) agentTestHandler(w http.ResponseWriter, r *http.Request) {
 		Text string `json:"text"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&q)
-	out, err := a.aiResponse(q.Text, "")
+	u := a.currentUser(r)
+	if u == nil {
+		writeError(w, errors.New("sesión requerida"), 401)
+		return
+	}
+	out, err := a.aiResponse(q.Text, "", u.TenantID)
 	if err != nil {
 		writeError(w, err, 502)
 		return
@@ -1718,7 +1793,7 @@ func (a *App) maybeAIReply(channel, chat, text string) {
 	a.autoLast["ai:"+chat] = time.Now()
 	a.mu.Unlock()
 	history := a.recentHistory(chat, 8)
-	reply, err := a.aiResponse(text, history)
+	reply, err := a.aiResponse(text, history, 0)
 	if err != nil {
 		a.setError(err)
 		return
@@ -1750,15 +1825,25 @@ func (a *App) recentHistory(chat string, n int) string {
 	}
 	return strings.Join(lines, "\n")
 }
-func (a *App) aiResponse(userText, history string) (string, error) {
+func (a *App) aiResponse(userText, history string, tenantID int64) (string, error) {
 	key := a.openAIKey()
 	if key == "" {
 		return "", errors.New("falta OPENAI_API_KEY")
 	}
 	ag := a.loadAgent()
 	products := []string{}
-	tid := int64(0)
-	_ = a.db.QueryRow(`SELECT id FROM tenants ORDER BY id LIMIT 1`).Scan(&tid)
+	tid := tenantID
+	if tid <= 0 {
+		var total int
+		if commercialEnabled() {
+			// Legacy WhatsApp message does not carry a tenant identity.
+			// Refuse to cross-charge or cross-read in multi-tenant mode.
+			if e := a.db.QueryRow(`SELECT COUNT(*) FROM tenants`).Scan(&total); e != nil || total != 1 {
+				return "", errors.New("IA WhatsApp legacy requiere tenant explícito con múltiples empresas")
+			}
+		}
+		_ = a.db.QueryRow(`SELECT id FROM tenants ORDER BY id LIMIT 1`).Scan(&tid)
+	}
 	if rows, err := a.db.Query(`SELECT name,description,CASE WHEN promotional_price>0 THEN promotional_price ELSE price END,currency,stock FROM crm_products WHERE tenant_id=? AND active=1 ORDER BY featured DESC,name`, tid); err == nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -1772,39 +1857,7 @@ func (a *App) aiResponse(userText, history string) (string, error) {
 	}
 	catalog := strings.Join(products, "\n")
 	prompt := fmt.Sprintf("Eres %s, asistente de %s. Objetivo: %s. Tono: %s. Reglas: %s. Información verificada del negocio: %s. Catálogo vigente:\n%s\nResponde de forma humana, clara y breve. No inventes precios, stock, horarios ni disponibilidad. Cuando falte información, dilo y ofrece transferir a una persona. Historial reciente:\n%s\nMensaje actual del cliente: %s", ag.Name, ag.Company, ag.Objective, ag.Tone, ag.Instructions, ag.Knowledge, catalog, history, userText)
-	payload := map[string]any{"model": a.cfg.OpenAIModel, "input": prompt, "store": false}
-	b, _ := json.Marshal(payload)
-	req, _ := http.NewRequest(http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(b))
-	req.Header.Set("Authorization", "Bearer "+key)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 60 * time.Second}).Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode >= 300 {
-		return "", fmt.Errorf("OpenAI: %s", strings.TrimSpace(string(raw)))
-	}
-	var x struct {
-		Output []struct {
-			Content []struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"content"`
-		} `json:"output"`
-	}
-	if json.Unmarshal(raw, &x) != nil {
-		return "", errors.New("respuesta OpenAI inválida")
-	}
-	for _, o := range x.Output {
-		for _, c := range o.Content {
-			if c.Type == "output_text" && c.Text != "" {
-				return strings.TrimSpace(c.Text), nil
-			}
-		}
-	}
-	return "", errors.New("OpenAI no devolvió texto")
+	return a.callOpenAI("Asistente comercial para WhatsApp; no inventes datos.", prompt, tid)
 }
 
 func (a *App) crmContactsHandler(w http.ResponseWriter, r *http.Request) {
@@ -2050,7 +2103,14 @@ func (a *App) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		u.Active = true
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userContextKey, &u)))
+		authenticated := r.WithContext(context.WithValue(r.Context(), userContextKey, &u))
+		if !a.tenantRouteGuardV2730(w, authenticated) {
+			return
+		}
+		if !a.commercialModuleGuardV2722(w, authenticated) {
+			return
+		}
+		next.ServeHTTP(w, authenticated)
 	})
 }
 func (a *App) createSession(w http.ResponseWriter, userID int64) error {
@@ -2281,6 +2341,9 @@ func (a *App) accountProfileHandler(w http.ResponseWriter, r *http.Request) {
 
 	billingID := a.billingAccountUserID(u)
 	p, sub, err := a.activePlan(billingID)
+	if commercialEnabled() {
+		p.MaxAIResponses = int(commercialCoreCapForPlan(p.Code, int64(p.MaxAIResponses)))
+	}
 	if err != nil {
 		writeError(w, err, 500)
 		return
@@ -2680,7 +2743,7 @@ func (a *App) legacyProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (a *App) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
-	tid, _, err := a.tenantForRequest(r)
+	tid, u, err := a.tenantForRequest(r)
 	if err != nil {
 		writeError(w, err, 401)
 		return
@@ -2730,7 +2793,19 @@ func (a *App) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		q.CreatedAt = time.Now().UTC().Format(time.RFC3339)
-		res, e := a.db.Exec(`INSERT INTO crm_appointments(tenant_id,contact_name,contact_phone,service,starts_at,duration_minutes,status,notes,created_at,professional_id,service_id,timezone) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, tid, q.ContactName, q.ContactPhone, q.Service, q.StartsAt, q.DurationMinutes, q.Status, q.Notes, q.CreatedAt, q.ProfessionalID, q.ServiceID, q.Timezone)
+		query := `INSERT INTO crm_appointments(tenant_id,contact_name,contact_phone,service,starts_at,duration_minutes,status,notes,created_at,professional_id,service_id,timezone) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`
+		args := []any{tid, q.ContactName, q.ContactPhone, q.Service, q.StartsAt, q.DurationMinutes, q.Status, q.Notes, q.CreatedAt, q.ProfessionalID, q.ServiceID, q.Timezone}
+		var res sql.Result
+		var e error
+		if resourceGuardV2724Enabled() && u.Role != "superadmin" {
+			var cap int64
+			cap, e = a.resourcePlanCapV2724(tid, "appointments")
+			if e == nil {
+				res, e = a.resourceInsertV2724(tid, "appointments", cap, query, args...)
+			}
+		} else {
+			res, e = a.db.Exec(query, args...)
+		}
 		if e != nil {
 			writeError(w, e, 500)
 			return
@@ -2965,21 +3040,17 @@ func (a *App) quotaAllowed(r *http.Request, kind string) error {
 		_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_products WHERE tenant_id=?`, tid).Scan(&used)
 	case "rules":
 		max = p.MaxRules
-		_ = a.db.QueryRow(`SELECT COUNT(*) FROM worktic_auto_rules`).Scan(&used)
+		if tenantRulesV2723Enabled() {
+			_ = a.db.QueryRow(`SELECT (SELECT COUNT(*) FROM worktic_auto_rules_v2723 WHERE tenant_id=?) + (SELECT COUNT(*) FROM automation_workflows WHERE tenant_id=?)`, u.TenantID, u.TenantID).Scan(&used)
+		} else {
+			_ = a.db.QueryRow(`SELECT COUNT(*) FROM worktic_auto_rules`).Scan(&used)
+		}
 	case "contacts":
 		max = p.MaxContacts
-		_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_contacts`).Scan(&used)
+		_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_contacts WHERE tenant_id=? AND COALESCE(deleted_at,'')=''`, u.TenantID).Scan(&used)
 	case "channels":
 		max = p.MaxChannels
-		if a.client != nil && a.client.Store.ID != nil {
-			used++
-		}
-		if a.telegramToken() != "" {
-			used++
-		}
-		if a.messengerPageToken() != "" {
-			used++
-		}
+		_ = a.db.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE tenant_id=? AND status NOT IN ('revoked','deleted')`, u.TenantID).Scan(&used)
 	default:
 		return nil
 	}
@@ -3019,6 +3090,16 @@ func (a *App) activePlan(userID int64) (Plan, Subscription, error) {
 		&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceUSDT, &p.BillingDays, &p.MaxUsers, &p.MaxChannels, &p.MaxContacts, &p.MaxAIResponses, &p.MaxProducts, &p.MaxRules, &active,
 		&sub.ID, &sub.UserID, &sub.PlanCode, &sub.Status, &sub.StartsAt, &sub.EndsAt, &sub.CreatedAt)
 	p.Active = active == 1
+	if err == nil && contractV2729Enabled() && p.Code != "free" {
+		contract, _, e := a.contractReadV2729(sub.ID)
+		if e != nil {
+			return p, sub, fmt.Errorf("contrato vigente sin snapshot verificado: %w", e)
+		}
+		if contract.Plan.Code != p.Code {
+			return p, sub, errors.New("plan contractual no coincide con la suscripción")
+		}
+		p = contract.Plan
+	}
 	if err == sql.ErrNoRows {
 		now := time.Now().UTC()
 		_, _ = a.db.Exec(`INSERT INTO billing_subscriptions(user_id,plan_code,status,starts_at,ends_at,created_at) VALUES(?,'free','active',?,?,?)`, userID, now.Format(time.RFC3339), now.AddDate(10, 0, 0).Format(time.RFC3339), now.Format(time.RFC3339))
@@ -3035,15 +3116,22 @@ func (a *App) entitlementsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	billingID := a.billingAccountUserID(u)
 	p, sub, err := a.activePlan(billingID)
+	if commercialEnabled() {
+		p.MaxAIResponses = int(commercialCoreCapForPlan(p.Code, int64(p.MaxAIResponses)))
+	}
 	if err != nil {
 		writeError(w, err, 500)
 		return
 	}
 	e := Entitlements{PlanCode: p.Code, PlanName: p.Name, Subscription: sub.Status, EndsAt: sub.EndsAt, MaxUsers: p.MaxUsers, MaxChannels: p.MaxChannels, MaxContacts: p.MaxContacts, MaxAIResponses: p.MaxAIResponses, MaxProducts: p.MaxProducts, MaxRules: p.MaxRules}
 	_ = a.db.QueryRow(`SELECT COUNT(*) FROM app_users WHERE tenant_id=? AND active=1`, u.TenantID).Scan(&e.UsersUsed)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_contacts`).Scan(&e.ContactsUsed)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_products`).Scan(&e.ProductsUsed)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM worktic_auto_rules`).Scan(&e.RulesUsed)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_contacts WHERE tenant_id=? AND COALESCE(deleted_at,'')=''`, u.TenantID).Scan(&e.ContactsUsed)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM crm_products WHERE tenant_id=? AND active=1`, u.TenantID).Scan(&e.ProductsUsed)
+	if tenantRulesV2723Enabled() {
+		_ = a.db.QueryRow(`SELECT (SELECT COUNT(*) FROM worktic_auto_rules_v2723 WHERE tenant_id=?) + (SELECT COUNT(*) FROM automation_workflows WHERE tenant_id=?)`, u.TenantID, u.TenantID).Scan(&e.RulesUsed)
+	} else {
+		_ = a.db.QueryRow(`SELECT COUNT(*) FROM worktic_auto_rules`).Scan(&e.RulesUsed)
+	}
 	_ = a.db.QueryRow(`SELECT COALESCE(ai_responses,0) FROM usage_monthly WHERE user_id=? AND period=?`, billingID, time.Now().UTC().Format("2006-01")).Scan(&e.AIUsed)
 	writeJSON(w, e)
 }
@@ -3069,7 +3157,13 @@ func (a *App) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 		PromoCode    string `json:"promo_code"`
 		BillingCycle string `json:"billing_cycle"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&q)
+	if billingLifecycleV2728Enabled() {
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	}
+	if err := json.NewDecoder(r.Body).Decode(&q); err != nil {
+		http.Error(w, "Solicitud de pago inválida", 400)
+		return
+	}
 	q.PlanCode = strings.ToLower(strings.TrimSpace(q.PlanCode))
 	q.Network = strings.ToUpper(strings.TrimSpace(q.Network))
 	q.TxHash = strings.TrimSpace(q.TxHash)
@@ -3083,6 +3177,30 @@ func (a *App) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 	if a.db.QueryRow(`SELECT id,code,name,description,price_usdt,billing_days,max_users,max_channels,max_contacts,max_ai_responses,max_products,max_rules,active FROM billing_plans WHERE code=? AND active=1`, q.PlanCode).Scan(&p.ID, &p.Code, &p.Name, &p.Description, &p.PriceUSDT, &p.BillingDays, &p.MaxUsers, &p.MaxChannels, &p.MaxContacts, &p.MaxAIResponses, &p.MaxProducts, &p.MaxRules, &active) != nil {
 		writeError(w, errors.New("plan inválido"), 400)
 		return
+	}
+	if billingLifecycleV2728Enabled() {
+		owner, e := a.billingOwnerV2728(u)
+		if e != nil {
+			http.Error(w, e.Error(), 403)
+			return
+		}
+		if owner != a.billingAccountUserID(u) {
+			http.Error(w, "Titular de facturación inconsistente", 409)
+			return
+		}
+		oldCode, oldEnd, e := a.billingActiveSnapshotV2728(owner)
+		if e != nil {
+			http.Error(w, "No se pudo verificar la suscripción", 503)
+			return
+		}
+		if _, e = billingTransitionV2728(oldCode, oldEnd, p.Code, q.BillingCycle, time.Now().UTC()); e != nil {
+			http.Error(w, e.Error(), 409)
+			return
+		}
+		if e = a.contractPreflightV2729(owner, p.Code); e != nil {
+			http.Error(w, "Pago bloqueado por contrato: "+e.Error(), 409)
+			return
+		}
 	}
 	wallet := ""
 	if q.Network == "BEP20" {
@@ -3101,6 +3219,16 @@ func (a *App) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("ingresa un hash de transacción válido"), 400)
 		return
 	}
+	if billingLifecycleV2728Enabled() && !commercialTxHash(q.Network, q.TxHash) {
+		http.Error(w, "Hash de blockchain inválido para la red seleccionada", 400)
+		return
+	}
+
+	var usedInStudio int
+	if err := a.db.QueryRow(`SELECT COUNT(*) FROM commercial_topups_v2721 WHERE LOWER(tx_hash)=LOWER(?)`, q.TxHash).Scan(&usedInStudio); err != nil || usedInStudio != 0 {
+		writeError(w, errors.New("este hash ya fue utilizado para una recarga de Worktic Studio"), 409)
+		return
+	}
 	baseAmount, billingCycle := billingCyclePrice(p, q.BillingCycle)
 	promo, finalAmount, promoErr := a.promoCodeForAmount(q.PromoCode, baseAmount)
 	if promoErr != nil {
@@ -3113,10 +3241,37 @@ func (a *App) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 		promoCode = promo.Code
 		discount = promo.DiscountPercent
 	}
-	res, err := a.db.Exec(`INSERT INTO billing_payments(user_id,plan_code,network,wallet,amount_usdt,tx_hash,status,created_at,promo_code,discount_percent,original_amount_usdt) VALUES(?,?,?,?,?,?,'pending',?,?,?,?)`, a.billingAccountUserID(u), p.Code, q.Network, wallet, finalAmount, q.TxHash, time.Now().UTC().Format(time.RFC3339), promoCode, discount, baseAmount)
-	if err != nil {
-		writeError(w, errors.New("esa transacción ya fue registrada"), 400)
-		return
+	now := time.Now().UTC().Format(time.RFC3339)
+	var res sql.Result
+	var err error
+	if billingLifecycleV2728Enabled() {
+		tx, e := a.db.Begin()
+		if e != nil {
+			http.Error(w, "No se pudo iniciar la transacción", 503)
+			return
+		}
+		defer tx.Rollback()
+		// A shared claim prevents reusing one blockchain transaction for
+		// a subscription AND a credit purchase, including concurrent requests.
+		if e = billingClaimTxV2728(tx, q.Network, q.TxHash, "subscription", q.TxHash, u.TenantID); e != nil {
+			http.Error(w, e.Error(), 409)
+			return
+		}
+		res, e = tx.Exec(`INSERT INTO billing_payments(user_id,plan_code,network,wallet,amount_usdt,tx_hash,status,created_at,promo_code,discount_percent,original_amount_usdt,billing_cycle) VALUES(?,?,?,?,?,?,'pending',?,?,?,?,?)`, a.billingAccountUserID(u), p.Code, q.Network, wallet, finalAmount, q.TxHash, now, promoCode, discount, baseAmount, billingCycle)
+		if e != nil {
+			http.Error(w, "No se pudo registrar el pago", 409)
+			return
+		}
+		if e = tx.Commit(); e != nil {
+			http.Error(w, "No se pudo confirmar el pago pendiente", 503)
+			return
+		}
+	} else {
+		res, err = a.db.Exec(`INSERT INTO billing_payments(user_id,plan_code,network,wallet,amount_usdt,tx_hash,status,created_at,promo_code,discount_percent,original_amount_usdt,billing_cycle) VALUES(?,?,?,?,?,?,'pending',?,?,?,?,?)`, a.billingAccountUserID(u), p.Code, q.Network, wallet, finalAmount, q.TxHash, now, promoCode, discount, baseAmount, billingCycle)
+		if err != nil {
+			writeError(w, errors.New("esa transacción ya fue registrada"), 400)
+			return
+		}
 	}
 	id, _ := res.LastInsertId()
 	writeJSON(w, map[string]any{"ok": true, "payment_id": id, "status": "pending", "amount_usdt": finalAmount, "promo_code": promoCode, "discount_percent": discount, "billing_cycle": billingCycle, "message": "Pago registrado. Worktic lo verificará antes de activar el plan."})
@@ -3193,15 +3348,24 @@ func (a *App) adminPaymentsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var q struct {
-		ID     int64  `json:"id"`
-		Action string `json:"action"`
-		Note   string `json:"note"`
+		ID              int64  `json:"id"`
+		Action          string `json:"action"`
+		Note            string `json:"note"`
+		VerifiedOnChain bool   `json:"verified_on_chain"`
 	}
 	if json.NewDecoder(r.Body).Decode(&q) != nil || q.ID == 0 {
 		writeError(w, errors.New("pago inválido"), 400)
 		return
 	}
 	q.Action = strings.ToLower(strings.TrimSpace(q.Action))
+	if financeV2725BillingEnabled() && (q.Action == "approve" || q.Action == "reject") {
+		if q.Action == "approve" && !q.VerifiedOnChain {
+			http.Error(w, "Confirma revisión independiente del pago en blockchain", 400)
+			return
+		}
+		a.financePaymentReviewV2725(w, r, admin, q.ID, q.Action, q.Note)
+		return
+	}
 	var userID, subscriptionID int64
 	var planCode, status string
 	var originalAmount float64

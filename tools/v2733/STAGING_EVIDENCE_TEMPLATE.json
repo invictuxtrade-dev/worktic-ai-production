@@ -1,0 +1,113 @@
+{
+  "release": "V27.33",
+  "source_manifest_sha256": "",
+  "staging_environment": {
+    "host": "",
+    "isolated_db": false,
+    "isolated_redis": false,
+    "real_customer_data": false
+  },
+  "reviewed_utc": "",
+  "reviewers": {
+    "technical": "",
+    "commercial": ""
+  },
+  "tests": [
+    {
+      "id": "QA-01",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-02",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-03",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-04",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-05",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-06",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-07",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-08",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-09",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-10",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-11",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-12",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-13",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-14",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-15",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    },
+    {
+      "id": "QA-16",
+      "status": "PENDING",
+      "evidence_path": "",
+      "sha256": ""
+    }
+  ]
+}

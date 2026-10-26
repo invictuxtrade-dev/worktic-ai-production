@@ -39,6 +39,16 @@ func (a *App) studioProjectsV2711Handler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	perms := socialPermissionsFor(u)
+	plan, _, planErr := a.activePlan(a.billingAccountUserID(u))
+	if planErr != nil {
+		http.Error(w, "No se pudo verificar el plan", 503)
+		return
+	}
+	commercialRule, ruleErr := a.contractStudioRuleV2729(tid, plan.Code)
+	if ruleErr != nil || !commercialRule.Editor {
+		http.Error(w, "Editor no incluido en tu plan", 403)
+		return
+	}
 	if !perms.View {
 		http.Error(w, "Sin permiso para usar Worktic Studio", 403)
 		return
@@ -119,12 +129,35 @@ func (a *App) studioProjectsV2711Handler(w http.ResponseWriter, r *http.Request)
 			writeJSON(w, map[string]any{"ok": true, "id": q.ID, "updated_at": now})
 			return
 		}
-		res, err := a.db.Exec(`INSERT INTO studio_projects_v2711(tenant_id,name,kind,data_json,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?)`, tid, q.Name, q.Kind, string(q.Data), u.ID, now, now)
+		tx, err := a.db.Begin()
 		if err != nil {
-			http.Error(w, "Error al crear proyecto", 500)
+			http.Error(w, "Error al iniciar el proyecto", 503)
+			return
+		}
+		defer tx.Rollback()
+		if err = commercialLockTenantTx(tx, tid); err != nil {
+			http.Error(w, "No se pudo bloquear proyectos", 503)
+			return
+		}
+		var existing int64
+		if err = tx.QueryRow(`SELECT COUNT(*) FROM studio_projects_v2711 WHERE tenant_id=?`, tid).Scan(&existing); err != nil {
+			http.Error(w, "No se pudieron consultar proyectos", 503)
+			return
+		}
+		if existing >= commercialRule.MaxProjects {
+			http.Error(w, "Has alcanzado el máximo de proyectos del plan", 429)
+			return
+		}
+		res, err := tx.Exec(`INSERT INTO studio_projects_v2711(tenant_id,name,kind,data_json,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?)`, tid, q.Name, q.Kind, string(q.Data), u.ID, now, now)
+		if err != nil {
+			http.Error(w, "Error guardando proyecto", 500)
 			return
 		}
 		newID, _ := res.LastInsertId()
+		if err = tx.Commit(); err != nil {
+			http.Error(w, "Error confirmando proyecto", 500)
+			return
+		}
 		writeJSON(w, map[string]any{"ok": true, "id": newID, "updated_at": now})
 	case http.MethodDelete:
 		if !perms.DeleteContent {
@@ -193,7 +226,7 @@ func (a *App) studioAIV2711Handler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error de límites", 500)
 		return
 	}
-	if used >= limit {
+	if !commercialEnabled() && used >= limit {
 		http.Error(w, "Límite diario de IA alcanzado en tu plan", 429)
 		return
 	}
@@ -216,6 +249,20 @@ func (a *App) studioAIV2711Handler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Acción inválida", 400)
 		return
 	}
+	provider := "openai_text"
+	if q.Action == "image" {
+		provider = "openai_image"
+	}
+	hold, allowed := a.creativeReserveForStudio(w, tid, u.ID, plan.Code, q.Action, provider, creativeQuote(q.Action, 0, len([]rune(q.Prompt))), 0, len([]rune(q.Prompt)))
+	if !allowed {
+		return
+	}
+	providerAttempted := false
+	defer func() {
+		if err := a.creativeSettle(hold, providerAttempted); err != nil {
+			fmt.Printf("creative guard settlement error: %v\n", err)
+		}
+	}()
 	var output any
 	if q.Action == "image" {
 		size := "1024x1024"
@@ -226,11 +273,12 @@ func (a *App) studioAIV2711Handler(w http.ResponseWriter, r *http.Request) {
 			size = "1024x1536"
 		}
 		// Generation is server-side: the key never reaches the tenant browser.
-		payload, _ := json.Marshal(map[string]any{"model": env("WORKTIC_STUDIO_IMAGE_MODEL", "gpt-image-1"), "prompt": q.Prompt, "size": size, "n": 1})
+		payload, _ := json.Marshal(map[string]any{"model": env("WORKTIC_STUDIO_IMAGE_MODEL", "gpt-image-1"), "quality": "medium", "prompt": q.Prompt, "size": size, "n": 1})
 		client := &http.Client{Timeout: 52 * time.Second}
 		request, _ := http.NewRequestWithContext(r.Context(), http.MethodPost, "https://api.openai.com/v1/images/generations", bytes.NewReader(payload))
 		request.Header.Set("Authorization", "Bearer "+a.openAIKey())
 		request.Header.Set("Content-Type", "application/json")
+		providerAttempted = true
 		response, err := client.Do(request)
 		if err != nil {
 			http.Error(w, "Servicio de imágenes IA no disponible", 502)
@@ -238,6 +286,18 @@ func (a *App) studioAIV2711Handler(w http.ResponseWriter, r *http.Request) {
 		}
 		defer response.Body.Close()
 		body, _ := io.ReadAll(io.LimitReader(response.Body, 18<<20))
+		model := env("WORKTIC_STUDIO_IMAGE_MODEL", "gpt-image-1")
+		status := "completed"
+		if response.StatusCode >= 300 {
+			status = "vendor_error"
+		}
+		ev := meterEventV2726{Key: meterKeyV2726("studio_image", hold), HoldID: meterHoldV2726(hold),
+			TenantID: tid, Provider: "openai", Operation: "studio_image", Model: model, Status: status,
+			Units: 1, UnitKind: size}
+		if status == "completed" {
+			ev.EstimatedMicroUSD = meterFlatPriceV2726("studio_image", model, size, 1)
+		}
+		a.meterRecordV2726(ev)
 		if response.StatusCode >= 300 {
 			http.Error(w, fmt.Sprintf("Servicio de imágenes IA: %s", studioAIError(body)), 502)
 			return
@@ -269,7 +329,10 @@ func (a *App) studioAIV2711Handler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			system += ` Formato obligatorio: {"headline":"máximo 60 caracteres","subheadline":"máximo 120 caracteres","cta":"máximo 35 caracteres"}.`
 		}
-		txt, err := a.callOpenAI(system, q.Prompt)
+		providerAttempted = true
+		// Negative tenant marker: Studio has ALREADY reserved its own creative credits.
+		// Keep tenant attribution for metering without double debit of Core AI.
+		txt, err := a.callOpenAI(system, q.Prompt, -tid)
 		if err != nil {
 			http.Error(w, "No se pudo generar el texto IA", 502)
 			return
@@ -334,6 +397,11 @@ func (a *App) studioWriteAsset(tid, uid int64, name, mime string, b []byte, sour
 	if mime == "audio/mp4" {
 		ext = ".m4a"
 	}
+	tx, err := a.commercialAssetWriteTx(tid, int64(len(b)))
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
 	dir := filepath.Join(a.cfg.DataDir, "social_uploads", strconv.FormatInt(tid, 10))
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return "", err
@@ -350,8 +418,12 @@ func (a *App) studioWriteAsset(tid, uid int64, name, mime string, b []byte, sour
 	if strings.HasPrefix(mime, "audio/") {
 		typ = "audio"
 	}
-	_, err := a.db.Exec(`INSERT INTO social_media_assets(tenant_id,name,url,media_type,mime,size_bytes,source,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)`, tid, name, url, typ, mime, len(b), source, uid, time.Now().UTC().Format(time.RFC3339))
+	_, err = tx.Exec(`INSERT INTO social_media_assets(tenant_id,name,url,media_type,mime,size_bytes,source,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?)`, tid, name, url, typ, mime, len(b), source, uid, time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
+		_ = os.Remove(filepath.Join(dir, filename))
+		return "", err
+	}
+	if err = tx.Commit(); err != nil {
 		_ = os.Remove(filepath.Join(dir, filename))
 		return "", err
 	}

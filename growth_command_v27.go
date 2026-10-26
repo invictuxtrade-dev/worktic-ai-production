@@ -348,12 +348,12 @@ func copilotDeepLinksV27(message string) []map[string]string {
 	return links
 }
 
-func (a *App) callCopilotOpenAIV27(prompt string) (string, error) {
+func (a *App) callCopilotOpenAIV27(prompt string, tenantID int64) (string, error) {
 	// Reuse the same OpenAI path already proven by agents, automations and channels.
 	// This avoids maintaining a second parser/client just for Copilot.
 	return a.callOpenAI(
 		"Eres Worktic Copilot, el asistente interno experto de WorkticAI. Responde en español claro, práctico y profesional. No inventes conexiones, métricas ni configuraciones. Nunca solicites secretos, tokens ni API keys.",
-		prompt,
+		prompt, tenantID,
 	)
 }
 
@@ -429,12 +429,32 @@ Pregunta actual: ` + q.Message
 	return prompt, ctx
 }
 
-func (a *App) streamCopilotOpenAIV275(ctx context.Context, prompt string, emit func(string) error) error {
+func (a *App) streamCopilotOpenAIV275(ctx context.Context, prompt string, tenantID int64, emit func(string) error) error {
+	var hold *creativeHold
+	attempted := false
+	if commercialEnabled() {
+		if len(prompt) > 12000 {
+			return errors.New("solicitud supera 12.000 caracteres")
+		}
+		var err error
+		hold, err = a.commercialCoreBegin(tenantID)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if e := a.creativeSettle(hold, attempted); e != nil {
+				a.setError(e)
+			}
+		}()
+	}
 	payload := map[string]any{
-		"model":  a.cfg.OpenAIModel,
+		"model":  commercialCoreModel(a.cfg.OpenAIModel),
 		"input":  "Eres Worktic Copilot, el asistente interno experto de WorkticAI. Responde en español claro, práctico y profesional. No inventes conexiones, métricas ni configuraciones. Nunca solicites secretos, tokens ni API keys.\n\nMensaje del usuario: " + prompt,
 		"store":  false,
 		"stream": true,
+	}
+	if commercialEnabled() {
+		payload["max_output_tokens"] = commercialCoreMaxOutput()
 	}
 	b, _ := json.Marshal(payload)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(b))
@@ -444,6 +464,7 @@ func (a *App) streamCopilotOpenAIV275(ctx context.Context, prompt string, emit f
 	req.Header.Set("Authorization", "Bearer "+a.openAIKey())
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
+	attempted = true
 	resp, err := (&http.Client{Timeout: 65 * time.Second}).Do(req)
 	if err != nil {
 		return err
@@ -451,9 +472,17 @@ func (a *App) streamCopilotOpenAIV275(ctx context.Context, prompt string, emit f
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		a.meterCoreV2726(tenantID, hold, raw, "vendor_error")
 		return fmt.Errorf("OpenAI: %s", strings.TrimSpace(string(raw)))
 	}
-
+	var meteredResponse json.RawMessage
+	defer func() {
+		status := "incomplete"
+		if len(meteredResponse) > 0 {
+			status = "completed"
+		}
+		a.meterCoreV2726(tenantID, hold, meteredResponse, status)
+	}()
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 64*1024), 2*1024*1024)
 	emitted := false
@@ -467,9 +496,10 @@ func (a *App) streamCopilotOpenAIV275(ctx context.Context, prompt string, emit f
 			continue
 		}
 		var ev struct {
-			Type  string `json:"type"`
-			Delta string `json:"delta"`
-			Error *struct {
+			Type     string          `json:"type"`
+			Delta    string          `json:"delta"`
+			Response json.RawMessage `json:"response"`
+			Error    *struct {
 				Message string `json:"message"`
 			} `json:"error"`
 		}
@@ -477,6 +507,10 @@ func (a *App) streamCopilotOpenAIV275(ctx context.Context, prompt string, emit f
 			continue
 		}
 		switch ev.Type {
+		case "response.completed":
+			if len(ev.Response) > 0 {
+				meteredResponse = ev.Response
+			}
 		case "response.output_text.delta":
 			if ev.Delta != "" {
 				emitted = true
@@ -520,11 +554,15 @@ func (a *App) copilotV27Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	prompt, ctx := a.copilotPromptV275(tid, u, q)
-	answer, aiErr := a.callCopilotOpenAIV27(prompt)
+	answer, aiErr := a.callCopilotOpenAIV27(prompt, tid)
 	degraded := false
 	if aiErr != nil || strings.TrimSpace(answer) == "" {
 		degraded = true
-		answer = copilotFallbackV274(q.Message, ctx)
+		if commercialEnabled() && aiErr != nil {
+			answer = commercialCoreUserError(aiErr, q.Message, ctx)
+		} else {
+			answer = copilotFallbackV274(q.Message, ctx)
+		}
 	}
 	writeJSON(w, map[string]any{"ok": true, "answer": answer, "actions": copilotDeepLinksV27(q.Message), "context": ctx, "degraded": degraded})
 }
@@ -567,7 +605,7 @@ func (a *App) copilotV275StreamHandler(w http.ResponseWriter, r *http.Request) {
 	prompt, ctx := a.copilotPromptV275(tid, u, q)
 	_ = writeEvent(map[string]any{"type": "start", "context": ctx})
 	parts := strings.Builder{}
-	streamErr := a.streamCopilotOpenAIV275(r.Context(), prompt, func(delta string) error {
+	streamErr := a.streamCopilotOpenAIV275(r.Context(), prompt, tid, func(delta string) error {
 		parts.WriteString(delta)
 		return writeEvent(map[string]any{"type": "delta", "delta": delta})
 	})
@@ -575,6 +613,9 @@ func (a *App) copilotV275StreamHandler(w http.ResponseWriter, r *http.Request) {
 	if streamErr != nil && parts.Len() == 0 {
 		degraded = true
 		fallback := copilotFallbackV274(q.Message, ctx)
+		if commercialEnabled() {
+			fallback = commercialCoreUserError(streamErr, q.Message, ctx)
+		}
 		parts.WriteString(fallback)
 		_ = writeEvent(map[string]any{"type": "delta", "delta": fallback})
 	}

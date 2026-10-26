@@ -154,12 +154,41 @@ func (a *App) automationWorkflowsHandler(w http.ResponseWriter, r *http.Request)
 		}
 		now := time.Now().UTC().Format(time.RFC3339)
 		if r.Method == http.MethodPost {
-			res, e := a.db.Exec(`INSERT INTO automation_workflows(tenant_id,name,description,status,trigger_type,trigger_config,graph_json,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,1,?,?)`, tid, x.Name, x.Description, x.Status, x.TriggerType, string(x.TriggerConfig), string(x.Graph), now, now)
-			if e != nil {
-				writeError(w, e, 500)
-				return
+			// Never let a client-provided ID skip creation or quota checks.
+			x.ID = 0
+			if (commercialModuleGateEnabledV2722() || consumptionV2723Enabled()) && u.Role != "superadmin" {
+				plan, _, planErr := a.activePlan(a.billingAccountUserID(u))
+				if planErr != nil {
+					writeError(w, errors.New("plan no disponible"), 503)
+					return
+				}
+				if consumptionV2723Enabled() {
+					id, e := a.createAutomationWorkflowV2723(tid, x, plan.MaxRules, now)
+					if e != nil {
+						writeError(w, e, 403)
+						return
+					}
+					x.ID = id
+				} else {
+					var n int
+					if e := a.db.QueryRow(`SELECT COUNT(*) FROM automation_workflows WHERE tenant_id=?`, tid).Scan(&n); e != nil {
+						writeError(w, e, 503)
+						return
+					}
+					if n >= plan.MaxRules {
+						writeError(w, errors.New("límite de workflows del plan alcanzado"), 403)
+						return
+					}
+				}
 			}
-			x.ID, _ = res.LastInsertId()
+			if x.ID == 0 {
+				res, e := a.db.Exec(`INSERT INTO automation_workflows(tenant_id,name,description,status,trigger_type,trigger_config,graph_json,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,1,?,?)`, tid, x.Name, x.Description, x.Status, x.TriggerType, string(x.TriggerConfig), string(x.Graph), now, now)
+				if e != nil {
+					writeError(w, e, 500)
+					return
+				}
+				x.ID, _ = res.LastInsertId()
+			}
 		} else {
 			if x.ID <= 0 {
 				writeError(w, errors.New("id inválido"), 400)
@@ -297,10 +326,23 @@ func (a *App) consumeLegacyLeadOutbox() {
 		}
 	}
 	for _, x := range xs {
+		if consumptionV2723Enabled() {
+			claim, claimErr := a.db.Exec(`UPDATE lead_automation_outbox SET status='processing' WHERE id=? AND status='pending'`, x.id)
+			if claimErr != nil {
+				continue
+			}
+			n, _ := claim.RowsAffected()
+			if n != 1 {
+				continue
+			}
+		}
 		var p map[string]any
 		_ = json.Unmarshal([]byte(x.p), &p)
 		if err := a.enqueueAutomationEvent(x.tid, x.ev, x.src, p); err == nil {
 			_, _ = a.db.Exec(`UPDATE lead_automation_outbox SET status='processed',processed_at=? WHERE id=?`, time.Now().UTC().Format(time.RFC3339), x.id)
+		} else if consumptionV2723Enabled() {
+			// Queueing definitely failed: safe to release the claimed outbox row.
+			_, _ = a.db.Exec(`UPDATE lead_automation_outbox SET status='pending' WHERE id=? AND status='processing'`, x.id)
 		}
 	}
 }
@@ -322,7 +364,14 @@ func (a *App) consumeAutomationEvents() {
 		}
 	}
 	for _, x := range xs {
-		_, _ = a.db.Exec(`UPDATE automation_events SET status='processing',attempts=attempts+1 WHERE id=?`, x.id)
+		claim, claimErr := a.db.Exec(`UPDATE automation_events SET status='processing',attempts=attempts+1 WHERE id=? AND status='pending'`, x.id)
+		if claimErr != nil {
+			continue
+		}
+		claimed, _ := claim.RowsAffected()
+		if claimed != 1 {
+			continue
+		} // another instance claimed this event
 		var p map[string]any
 		_ = json.Unmarshal([]byte(x.p), &p)
 		wrows, er := a.db.Query(`SELECT id FROM automation_workflows WHERE tenant_id=? AND status='active' AND trigger_type=?`, x.tid, x.ev)
@@ -360,6 +409,14 @@ func (a *App) runAutomationWorkflow(ctx context.Context, tid, wid int64, eventTy
 	var g automationGraph
 	if json.Unmarshal(wf.Graph, &g) != nil {
 		return nil, errors.New("grafo inválido")
+	}
+	if consumptionV2723Enabled() {
+		if len(g.Nodes) > 50 {
+			return nil, errors.New("workflow excede 50 nodos permitidos en piloto")
+		}
+		if err := a.reserveAutomationRunV2723(tid); err != nil {
+			return nil, err
+		}
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	b, _ := json.Marshal(payload)
@@ -533,7 +590,7 @@ func (a *App) executeAutomationNode(ctx context.Context, tid int64, n automation
 			prompt = "Analiza el evento y resume el siguiente paso comercial."
 		}
 		eventJSON, _ := json.Marshal(state["event"])
-		reply, err := a.callOpenAI("Eres un agente de automatización WorkticAI. "+prompt, string(eventJSON))
+		reply, err := a.callOpenAI("Eres un agente de automatización WorkticAI. "+prompt, string(eventJSON), tid)
 		return map[string]any{"reply": reply}, err
 	case "create_task":
 		return map[string]any{"created": true, "title": cfgString(n.Config, "title"), "note": "registrado en ejecución; módulo de tareas dedicado se enlazará cuando esté disponible"}, nil
