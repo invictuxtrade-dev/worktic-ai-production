@@ -1,0 +1,20 @@
+/* V27.34.7: standalone wallet and plan diagnostics. Scoped to new view. */
+#wcc47GoEditor{cursor:pointer}
+.wcc47-credits-view{padding:12px 0 30px;min-width:0}
+.wcc47-page-intro{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:14px 18px 4px;color:#182642}
+.wcc47-kicker{font-size:10px;font-weight:850;letter-spacing:.11em;color:#7052d9}
+.wcc47-page-intro h2{font-size:clamp(23px,3vw,31px);letter-spacing:-.045em;margin:4px 0 5px;color:#172647}
+.wcc47-page-intro p{font-size:13px;color:#65738e;margin:0;line-height:1.55}
+.wcc47-editor-link{border-radius:12px;padding:11px 16px;border:1px solid #dbd9f4;background:white;color:#4326a6;font-weight:750;font-size:12px;white-space:nowrap}
+.wcc47-editor-link:hover{background:#f4f0ff}
+#wccCommercialSection.wcc46-shell{margin:12px 16px 18px;max-width:none}
+#wccCommercialSection.wcc46-shell .wcc46-hero-title{min-width:0}
+.wcc47-nav-item .nav-ic{stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.wcc47-studio-link{border:1px solid #3c546c!important;background:#162a3c!important;color:#d5f7fc!important;border-radius:10px;font-size:11px!important;white-space:nowrap}
+.wcc47-studio-link:hover{background:#1c3a52!important}
+.wcc47-diagnostics{margin:18px 0 26px;background:#f8faff;border:1px solid #dde4f3;border-radius:15px;padding:12px 16px;overflow:hidden}
+.wcc47-diagnostics>summary{cursor:pointer;color:#526580;font-size:13px;font-weight:750;padding:6px;list-style-position:inside}
+.wcc47-diagnostics>.wcm-entitlements,.wcc47-diagnostics>.wrq-panel{margin:16px 0!important;max-width:100%;background:#fff}
+@media(max-width:850px){.wcc47-page-intro{padding:12px 12px;flex-wrap:wrap}.wcc47-editor-link{width:100%}#wccCommercialSection.wcc46-shell{margin:6px 8px 16px}.wcc47-studio-link{font-size:11px!important}}
+@media(max-width:430px){.wcc47-page-intro h2{font-size:23px}.wcc47-credits-view{padding-top:4px}}
+@media(max-width:430px){.wcc46-hero-actions #wcc46BackToEditor{grid-column:1/-1}}

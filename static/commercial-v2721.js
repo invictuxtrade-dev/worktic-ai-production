@@ -68,7 +68,7 @@
  }
  window.WorkticWalletLegacyRefresh=wallet;
  function setup(){
-  const s=document.querySelector('#studio .wts-app')||document.getElementById('studio');if(s&&!document.getElementById('wccCommercialSection')){
+  const s=document.getElementById('studio-credits');if(s&&!document.getElementById('wccCommercialSection')){
     const el=h('section','wcc-wallet');el.id='wccCommercialSection';el.append(h('div','wcc-wallet-head'),h('div',''));const head=el.firstElementChild;head.append(h('div','wcc-small','WORKTIC STUDIO · CREATIVE CREDITS'),h('h2','','Mi billetera creativa'));
     const refresh=h('button','wcc-refresh','Actualizar saldo');refresh.type='button';refresh.addEventListener('click',wallet);head.append(refresh);const body=el.lastElementChild;body.id='wccWalletV2721';body.textContent='Abre Worktic Studio para ver tus créditos.';s.append(el)
   }
@@ -76,7 +76,7 @@
     const sec=h('section','wcc-admin commercial-v2721');sec.append(h('div','wcc-title'),h('div',''));sec.firstElementChild.append(h('div','wcc-small','V27.21 · PLANES Y MONETIZACIÓN'),h('h2','','Commercial Control Center'));
     const refresh=h('button','wcc-refresh','Actualizar administración');refresh.type='button';refresh.addEventListener('click',admin);sec.firstElementChild.append(refresh);sec.lastElementChild.id='wccCommercialAdmin';adm.append(sec)
   }
-  document.addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;if(b.dataset.view==='studio')setTimeout(wallet,350);if(b.dataset.view==='admin')setTimeout(admin,350)});
+  document.addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;if(b.dataset.view==='studio-credits')setTimeout(wallet,100);if(b.dataset.view==='admin')setTimeout(admin,350)});
   const old=window.WorkticCostConfirm;window.WorkticCostConfirm=async(action,extra)=>{
     try{const q=new URLSearchParams({action,duration:String(extra?.duration||0),chars:String(extra?.chars||0)});const data=await api('/api/commercial/quote?'+q);
       if(!data.allowed_by_plan_and_cost){alert('Esta generación no está permitida por tu plan o cotización.');return false}

@@ -24,11 +24,12 @@
    finally{busy=false}
  }
  function setup(){
-   const studio=document.getElementById('studio');
-   if(!studio)return;
+   const billing=document.getElementById('billing');
+   if(!billing)return;
+   let detail=document.getElementById('wcc47PlanDiagnostics');if(!detail){detail=document.createElement('details');detail.id='wcc47PlanDiagnostics';detail.className='wcc47-diagnostics';const summary=document.createElement('summary');summary.textContent='Ver detalle técnico de funcionalidades y cuotas';detail.append(summary);billing.append(detail)}
    let root=document.getElementById('wcmFeaturesV2722');
-   if(!root){root=el('section','wcm-entitlements');root.id='wcmFeaturesV2722';studio.append(root)}
-   document.addEventListener('click',ev=>{const btn=ev.target.closest?.('[data-view]');if(btn&&btn.dataset.view==='studio')setTimeout(refresh,120)});
+   if(!root){root=el('section','wcm-entitlements');root.id='wcmFeaturesV2722';detail.append(root)}
+   document.addEventListener('click',ev=>{const btn=ev.target.closest?.('[data-view]');if(btn&&btn.dataset.view==='billing')setTimeout(refresh,120)});
    refresh();
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setup);else setup();

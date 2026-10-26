@@ -23,14 +23,14 @@
     finally{inFlight=false}
   }
   function start(){
-    const studio=document.getElementById('studio');if(!studio)return;
+    const billing=document.getElementById('billing');if(!billing)return;let detail=document.getElementById('wcc47PlanDiagnostics');if(!detail){detail=make('details','wcc47-diagnostics');detail.id='wcc47PlanDiagnostics';detail.append(make('summary','','Ver detalle técnico de funcionalidades y cuotas'));billing.append(detail)}
     if(document.getElementById('wrqV2724'))return;
     const node=make('section','wrq-panel');node.id='wrqV2724';
     const header=make('div','wrq-top');
     const headings=make('div','');headings.append(make('span','wrq-eyebrow','WORKTICAI · V27.24'),make('h3','','Mis límites y consumo'));
     const button=make('button','wrq-reload','Actualizar');button.type='button';button.addEventListener('click',reload);header.append(headings,button);
-    node.append(header,make('div','wrq-body'));studio.append(node);
-    document.addEventListener('click',evt=>{const nav=evt.target.closest?.('[data-view]');if(nav?.dataset.view==='studio')setTimeout(reload,100)});
+    node.append(header,make('div','wrq-body'));detail.append(node);
+    document.addEventListener('click',evt=>{const nav=evt.target.closest?.('[data-view]');if(nav?.dataset.view==='billing')setTimeout(reload,100)});
     reload();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();

@@ -1,3 +1,3 @@
-WorkticAI V27.34.6 — Studio Wallet Premium + Movimientos por tenant
-Base: WorkticAI V27.34.5. Cambios aditivos de interfaz y API de movimientos de créditos; planes y pagos conservados.
-Créditos siempre se consultan desde PostgreSQL; generaciones IA requieren controles y presupuestos habilitados.
+WorkticAI V27.34.7 — Créditos Studio como módulo independiente del menú lateral.
+Base: V27.34.6 Studio Wallet Premium.
+Créditos, compras, proveedores y limites: backend sin cambios.
