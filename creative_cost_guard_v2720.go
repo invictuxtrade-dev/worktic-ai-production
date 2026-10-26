@@ -349,5 +349,5 @@ func (a *App) creativeQuoteV2720Handler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Operación inválida", 400)
 		return
 	}
-	writeJSON(w, map[string]any{"estimated_provider_cost_cents": cents, "currency": "USD", "not_a_customer_charge": !commercialEnabled(), "credit_debit_enabled": commercialEnabled(), "note": "Costo externo estimado; el débito se realiza en créditos si el piloto comercial está activado"})
+	writeJSON(w, map[string]any{"estimated_provider_cost_cents": cents, "currency": "USD", "not_a_customer_charge": !studioCreditsEnabled(), "credit_debit_enabled": studioCreditsEnabled(), "note": "Costo externo estimado; el débito se realiza en créditos si el piloto comercial está activado"})
 }

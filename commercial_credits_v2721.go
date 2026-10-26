@@ -36,6 +36,21 @@ type commercialPack struct {
 }
 
 func commercialEnabled() bool { return os.Getenv("WORKTIC_COMMERCIAL_ENABLE") == "1" }
+
+// Studio credits can be enabled independently of subscription/module rollout.
+// Explicit vendor budgets remain mandatory and enforce atomic reservations.
+// Do not treat this switch as authorizing top-up sales or other module gates.
+func studioCreditsEnabled() bool {
+	if commercialEnabled() {
+		return true
+	}
+	return os.Getenv("WORKTIC_STUDIO_CREDITS_ENABLE") == "1" &&
+		creativeEnvCents("WORKTIC_COST_GLOBAL_MONTHLY_CENTS") > 0 &&
+		creativeEnvCents("WORKTIC_COST_BUDGET_PERSONAL_CENTS") > 0 &&
+		creativeEnvCents("WORKTIC_COST_BUDGET_NEGOCIO_CENTS") > 0 &&
+		creativeEnvCents("WORKTIC_COST_BUDGET_EMPRESA_CENTS") > 0
+}
+
 func commercialPlanSeed() []commercialRule {
 	return []commercialRule{
 		{"free", 0, true, false, false, false, false, 3, 100},
@@ -167,7 +182,7 @@ func commercialWalletEnsureTx(tx *Tx, tid int64, period string, r commercialRule
 // Called INSIDE V27.20's provider budget transaction. Both vendor reserve
 // and customer-credit reserve commit together, or neither commits.
 func (a *App) commercialReserveCreditsTx(tx *Tx, hold *creativeHold, plan, operation string, duration, chars int) error {
-	if !commercialEnabled() {
+	if !studioCreditsEnabled() {
 		return nil
 	}
 	rule, err := a.contractStudioRuleTxV2729(tx, hold.TenantID, plan)
@@ -224,7 +239,7 @@ func (a *App) commercialReserveCreditsTx(tx *Tx, hold *creativeHold, plan, opera
 	return err
 }
 func (a *App) commercialSettleCreditsTx(tx *Tx, hold *creativeHold, settle bool) error {
-	if !commercialEnabled() {
+	if !studioCreditsEnabled() {
 		return nil
 	}
 	var fromPlan, fromBought int64
@@ -330,7 +345,7 @@ func (a *App) commercialWalletData(tid int64, plan string) (map[string]any, erro
 	if coreAvailable < 0 {
 		coreAvailable = 0
 	}
-	return map[string]any{"core_ai_monthly_limit": coreCap, "core_ai_used": coreUsed, "core_ai_reserved": coreHeld, "core_ai_available": coreAvailable, "period": period, "plan": plan, "monthly_grant": a1, "plan_spent": s1, "plan_reserved": r1, "plan_available": available, "purchased_balance": b1, "purchased_reserved": breserved, "purchased_spent": bspent, "purchased_available": boughtAvailable, "available_credits": available + boughtAvailable, "rule": r, "enabled": commercialEnabled(), "cost_guards_required": true}, nil
+	return map[string]any{"core_ai_monthly_limit": coreCap, "core_ai_used": coreUsed, "core_ai_reserved": coreHeld, "core_ai_available": coreAvailable, "period": period, "plan": plan, "monthly_grant": a1, "plan_spent": s1, "plan_reserved": r1, "plan_available": available, "purchased_balance": b1, "purchased_reserved": breserved, "purchased_spent": bspent, "purchased_available": boughtAvailable, "available_credits": available + boughtAvailable, "rule": r, "enabled": studioCreditsEnabled(), "topups_enabled": commercialEnabled(), "cost_guards_required": true}, nil
 }
 func commercialSetJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -381,7 +396,7 @@ func (a *App) commercialCatalogV2721Handler(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "Error paquetes", 503)
 		return
 	}
-	commercialSetJSON(w, 200, map[string]any{"plans": plans, "packages": packs, "currency": "USD/USDT", "sales_enabled": commercialEnabled(), "provider_estimates_only": true, "monthly_credits_reset_utc": true, "discounts_and_payments_require_verification": true})
+	commercialSetJSON(w, 200, map[string]any{"plans": plans, "packages": packs, "currency": "USD/USDT", "sales_enabled": commercialEnabled(), "studio_credits_enabled": studioCreditsEnabled(), "provider_estimates_only": true, "monthly_credits_reset_utc": true, "discounts_and_payments_require_verification": true})
 }
 func (a *App) commercialWalletV2721Handler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -435,7 +450,7 @@ func (a *App) commercialQuoteV2721Handler(w http.ResponseWriter, r *http.Request
 	}
 	cents := creativeQuote(action, duration, chars)
 	allowed := commercialRuleAllows(rule, action) && commercialQuoteWithinBudget(cents, credits)
-	commercialSetJSON(w, 200, map[string]any{"action": action, "credits": credits, "estimated_vendor_cost_cents": cents, "enabled": commercialEnabled(), "allowed_by_plan_and_cost": allowed, "not_an_invoice": true})
+	commercialSetJSON(w, 200, map[string]any{"action": action, "credits": credits, "estimated_vendor_cost_cents": cents, "enabled": studioCreditsEnabled(), "allowed_by_plan_and_cost": allowed, "not_an_invoice": true})
 }
 func commercialTxHash(network, hash string) bool {
 	if network == "BEP20" {

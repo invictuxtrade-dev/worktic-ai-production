@@ -226,7 +226,7 @@ func (a *App) studioAIV2711Handler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error de límites", 500)
 		return
 	}
-	if !commercialEnabled() && used >= limit {
+	if !studioCreditsEnabled() && used >= limit {
 		http.Error(w, "Límite diario de IA alcanzado en tu plan", 429)
 		return
 	}

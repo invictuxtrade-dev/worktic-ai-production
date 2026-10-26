@@ -133,7 +133,7 @@ func (a *App) studioVideoV2719Handler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "No se pudo calcular el límite", 500)
 			return
 		}
-		if !commercialEnabled() && used >= lim {
+		if !studioCreditsEnabled() && used >= lim {
 			http.Error(w, "Límite diario de videos IA alcanzado para este plan", 429)
 			return
 		}

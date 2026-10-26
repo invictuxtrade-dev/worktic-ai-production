@@ -67,7 +67,7 @@ func (a *App) studioNarrationV2718Handler(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Error verificando créditos", 500)
 		return
 	}
-	if !commercialEnabled() && used >= limit {
+	if !studioCreditsEnabled() && used >= limit {
 		http.Error(w, "Límite diario de generación IA alcanzado", 429)
 		return
 	}

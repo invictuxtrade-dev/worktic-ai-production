@@ -1,3 +1,4 @@
-WorkticAI V27.34.4 — Planes con lista uniforme de funcionalidades
-Base: V27.34.3. Growth, Landing Pages, Agentes IA y créditos de Studio integrados en la misma lista.
-Sin cajas, etiquetas ni cambios en beneficios, precios, permisos ni pagos.
+WorkticAI V27.34.5 — Créditos Studio y equivalencias por plan
+Base: V27.34.4. Personal 30, Negocio 120 y Empresa 300 desde PostgreSQL.
+Equivalencias aproximadas: 4 créditos/imagen, 15 créditos/video IA de 5 segundos.
+Administración Worktic permite editar los cupos; billetera y débito se activan de forma independiente y segura.

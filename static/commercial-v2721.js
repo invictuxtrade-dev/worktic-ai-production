@@ -16,13 +16,14 @@
    el.replaceChildren();el.append(h('div','wcc-small','PLAN '+d.plan.toUpperCase()+' · '+d.period));
    const nums=h('div','wcc-balance-row');const total=h('div','wcc-balance');total.append(h('span','', 'Disponible'),h('strong','', d.available_credits+' créditos'));nums.append(total);
    const pack=h('div','wcc-balance');pack.append(h('span','','Créditos comprados'),h('strong','',d.purchased_available));nums.append(pack);el.append(nums);
-   el.append(row('Créditos incluidos en el plan',d.monthly_grant),row('Consumidos este mes',d.plan_spent),row('Reservados (generaciones en curso)',d.plan_reserved),row('Saldo comprado disponible',d.purchased_available));el.append(row('Respuestas IA generales incluidas', d.core_ai_monthly_limit||0),row('Respuestas IA utilizadas este mes',d.core_ai_used||0),row('Respuestas IA disponibles',d.core_ai_available||0));
+   el.append(row('Créditos incluidos en el plan',d.monthly_grant),row('Consumidos este mes',d.plan_spent),row('Reservados (generaciones en curso)',d.plan_reserved),row('Saldo comprado disponible',d.purchased_available));
+   const equivalent=h('p','wcc-muted',`Referencias: ${Math.floor(Number(d.monthly_grant||0)/4)} imágenes o ${Math.floor(Number(d.monthly_grant||0)/15)} videos IA de 5 s si usaras todos tus créditos en una sola categoría. Las combinaciones consumen el mismo saldo.`);el.append(equivalent);el.append(row('Respuestas IA generales incluidas', d.core_ai_monthly_limit||0),row('Respuestas IA utilizadas este mes',d.core_ai_used||0),row('Respuestas IA disponibles',d.core_ai_available||0));
    const rule=d.rule;const caps=h('div','wcc-capabilities');
    for(const [label,yes] of [['Editor manual',rule.editor],['Imágenes IA',rule.image_ai],['Videos IA',rule.video_ai],['Textos IA',rule.text_ai],['Voz IA',rule.voice_ai]]){
      caps.append(h('span',yes?'wcc-feature-yes':'wcc-feature-no',(yes?'✓ ':'× ')+label));
    }
    el.append(caps);el.append(h('p','wcc-muted',`Hasta ${rule.max_projects} proyectos · Almacenamiento de referencia: ${rule.storage_mb} MB. Las cuotas de almacenamiento requieren comprobación integral antes del lanzamiento.`));
-   el.append(h('p','wcc-muted',d.enabled?'Las operaciones externas autorizadas consumen primero los créditos del plan y después los comprados.':'Piloto comercial aún desactivado: no se descontarán créditos, pero sí se aplican los controles de costo de proveedor.'));
+   el.append(h('p','wcc-muted',d.enabled?'Las operaciones externas autorizadas consumen primero los créditos del plan y después los comprados.':'La generación IA aún requiere activación técnica y presupuesto del proveedor; no se consumen créditos mientras esté deshabilitada.'));
    buildStore(el,cat,d);
   }catch(e){notice(el,'Billetera temporalmente no disponible: '+e.message,true)}
  }
@@ -35,20 +36,21 @@
    const tx=field('Hash de transacción confirmado en blockchain','text','');tx.input.placeholder='0x... (BEP20) o hash TRC20';tx.input.maxLength=70;form.append(tx.wrap);
    const address=h('div','wcc-muted','Consulta la dirección de pago en Membresía/Planes. Comprueba la red, el token y el importe antes de enviar.');form.append(address);
    const feedback=h('div');form.append(feedback);
-   const submit=h('button','wcc-buy','Registrar pago y solicitar verificación');submit.type='submit';submit.disabled=!d.enabled||!selected;form.append(submit);
+   const submit=h('button','wcc-buy','Registrar pago y solicitar verificación');submit.type='submit';submit.disabled=!d.topups_enabled||!selected;form.append(submit);
    form.addEventListener('submit',async ev=>{ev.preventDefault();if(!window.confirm('Confirma que ya transferiste exactamente el USDT requerido a la dirección oficial de tu plataforma. ¿Registrar el comprobante?'))return;submit.disabled=true;
      try{const out=await api('/api/commercial/topups',{package:selected,network:select.value,tx_hash:tx.input.value.trim()});notice(feedback,`Solicitud ${out.id} pendiente de verificación. El saldo no cambia hasta la aprobación.`,false);tx.input.value='';}
      catch(e){notice(feedback,e.message,true)}finally{submit.disabled=!d.enabled}});
-   box.append(form);if(!d.enabled)box.append(h('p','wcc-warn','Las recargas están desactivadas durante las pruebas de la nueva versión.'));
+   box.append(form);if(!d.topups_enabled)box.append(h('p','wcc-warn','La compra de recargas requiere habilitación y verificación de pagos por separado.'));
    root.append(box);
    const trans=h('details','wcc-history');trans.append(h('summary','','Mis recargas y verificaciones'));const body=h('div','wcc-muted','Consultar historial…');trans.append(body);trans.addEventListener('toggle',async()=>{if(!trans.open)return;try{const data=await api('/api/commercial/topups');body.replaceChildren();for(const x of data.topups){body.append(row(`${x.package} · ${x.credits} créditos`,`${money(x.price_cents)} · ${x.status}`))}if(!data.topups.length)body.textContent='Todavía no hay recargas'}catch(e){body.textContent='Error consultando historial: '+e.message}});root.append(trans);
  }
  async function admin(){const el=document.getElementById('wccCommercialAdmin');if(!el)return;el.replaceChildren(h('p','wcc-muted','Cargando matriz comercial y solicitudes…'));
   try{
     const [cat,rs,ts]=await Promise.all([api('/api/commercial/catalog'),api('/api/admin/commercial/rules'),api('/api/admin/commercial/topups')]);el.replaceChildren();
-    const summary=h('div','wcc-com-summary');summary.append(h('h3','','Matriz de planes · Derechos y restricciones'),h('p','wcc-muted','Los cambios se guardan en PostgreSQL. Mantén los beneficios coherentes con los límites y presupuestos aprobados.'));el.append(summary);
+    const summary=h('div','wcc-com-summary');summary.append(h('h3','','Matriz de planes · Derechos y restricciones'),h('p','wcc-muted','Puedes ajustar los créditos mensuales de Personal, Negocio y Empresa. Los cambios se guardan en PostgreSQL y se reflejan en la web y checkout. Las generaciones IA también requieren presupuestos de proveedor y activación técnica independiente.'));summary.append(h('p',cat.studio_credits_enabled?'wcc-good':'wcc-warn',cat.studio_credits_enabled?'Débito de créditos Studio habilitado.':'Débito de créditos Studio pendiente de activación técnica en Render.'));el.append(summary);
     const cards=h('div','wcc-commercial-plans');for(const r of rs.rules){const price=(cat.plans||[]).find(x=>x.code===r.plan);const card=h('form','wcc-com-plan');card.append(h('h4','',`${price?.name||r.plan} · ${price?.price_usdt||0} USDT/mes`));
-      const credits=field('Créditos IA / mes','number',r.monthly_credits);credits.input.min='0';credits.input.max='100000';card.append(credits.wrap);
+      const credits=field('Créditos Studio / mes','number',r.monthly_credits);credits.input.min='0';credits.input.max='100000';card.append(credits.wrap);
+      const equivalent=h('p','wcc-muted');const refreshEq=()=>{const n=Math.max(0,Number(credits.input.value||0));equivalent.textContent=`Aprox. ${Math.floor(n/4)} imágenes IA o ${Math.floor(n/15)} clips IA de 5 s, usando todo el saldo (4 y 15 créditos respectivamente).`};credits.input.addEventListener('input',refreshEq);refreshEq();card.append(equivalent);
       const projects=field('Máx. proyectos','number',r.max_projects);projects.input.min='0';card.append(projects.wrap);
       const storage=field('Almacenamiento MB (propuesta)','number',r.storage_mb);storage.input.min='0';card.append(storage.wrap);
       const flags=h('div','wcc-toggle-grid');const checks={};for(const [prop,label] of [['editor','Editor'],['image_ai','Imagen IA'],['video_ai','Video IA'],['text_ai','Textos IA'],['voice_ai','Voz IA']]){const chk=h('input');chk.type='checkbox';chk.checked=Boolean(r[prop]);const labelEl=h('label','wcc-check');labelEl.append(chk,h('span','',label));flags.append(labelEl);checks[prop]=chk}card.append(flags);

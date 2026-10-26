@@ -12,21 +12,22 @@ const statusLine=(offer)=>offer.creative_commercial_active?`<span class="wts35-s
 // Never confuse a planned credit grant with already-active credit entitlement.
 const moduleEnabled=(p,key)=>!!p.modules?.[key];
 const moduleLabel=(p,key,label)=>`<span class="${moduleEnabled(p,key)?'wts34-yes':'wts34-no'}">${moduleEnabled(p,key)?'✓':'—'} ${esc(label)}</span>`;
-const creditLabel=(p,offer)=>{
- const active=Number(p.monthly_credits||0);
- const planned=Number(p.studio_credits_planned||0);
- if(offer.creative_commercial_active)return `<b>${number(active)} ${words('créditos Studio/mes','Studio credits/month')}</b>`;
- if(planned>0)return `<b>${number(planned)} ${words('créditos Studio/mes previstos','planned Studio credits/month')}</b> <small class="wts343-credit-notice">${words('No disponibles ni incluidos en la compra actual','Not active or included in the current purchase')}</small>`;
- return words('Sin créditos de generación IA incluidos','No AI generation credits included');
+// Entitlements are served by the backend and edited by superadmin.
+// Equivalences assume the entire grant is spent on one generation type.
+const monthlyStudio=(p)=>Number(p.monthly_credits||p.studio_credits_planned||0);
+const creditEquivalences=(p,offer)=>{
+ const amount=monthlyStudio(p), rates=offer.studio_unit_prices||{};
+ const image=Number(rates.image||0), video=Number(rates.video_5s||0);
+ if(!amount||!image||!video)return '';
+ const imgs=Math.floor(amount/image), clips=Math.floor(amount/video);
+ return words(`aprox. ${number(imgs)} imágenes o ${number(clips)} clips IA de 5 s`,
+              `approx. ${number(imgs)} images or ${number(clips)} AI clips (5 sec)`);
 };
-// All plan features use the same simple list presentation. No separate badges or cards.
-// Planned Studio credits must never be displayed as currently granted credits.
 const creditBenefit=(p,offer)=>{
- const active=Number(p.monthly_credits||0);
- const planned=Number(p.studio_credits_planned||0);
- if(offer.creative_commercial_active&&active>0)return `${number(active)} ${words('créditos Studio/mes','Studio credits/month')}`;
- if(planned>0)return `${number(planned)} ${words('créditos Studio/mes previstos (aún no activos)','planned Studio credits/month (not active yet)')}`;
- return words('Sin créditos de generación IA incluidos','No AI generation credits included');
+ const amount=monthlyStudio(p);
+ if(amount<=0)return words('Sin créditos IA de generación','No AI generation credits');
+ const eq=creditEquivalences(p,offer);
+ return `${number(amount)} ${words('créditos Studio/mes','Studio credits/month')}${eq?` · ${esc(eq)}`:''}`;
 };
 const benefits=(p,offer,short=false)=>{
  const li=(label,disabled=false)=>`<li${disabled?' class="wts34-benefit-disabled"':''}>${label}</li>`;
@@ -41,7 +42,7 @@ const benefits=(p,offer,short=false)=>{
   li(`<b>${number(p.max_rules)}</b> ${words('reglas de automatización','automation rules')}`),
   li(`Worktic Studio: ${p.studio_editor?words('editor de imágenes y videos','image and video editor'):words('no incluido','not included')}`,!p.studio_editor),
   li(`${number(p.max_studio_projects)} ${words('proyectos Studio','Studio projects')} · ${esc(size(p.studio_storage_mb))} ${words('de medios','media storage')}`,!p.studio_editor),
-  li(creditBenefit(p,offer),!(offer.creative_commercial_active&&Number(p.monthly_credits||0)>0))
+  li(creditBenefit(p,offer),monthlyStudio(p)===0)
  ];
  if(!short){
   const mods=[['social','Social Hub'],['analytics','Analytics'],['ads','Ads Center'],['meta_leads','Meta Lead Ads'],['whatsapp_marketing','WhatsApp Marketing'],['automations',words('Workflows avanzados','Advanced workflows')]];
@@ -54,7 +55,7 @@ window.WorkticOfferBenefitsV2734=(offer,code)=>{
  return p?benefits(p,offer,true):'';
 };
 window.WorkticOfferCheckoutV2734=(p,offer)=>{
- return `<div class="wts34-checkout-title">${words('Esto es lo que compras','What your plan includes')} · ${esc(p.name)}</div><ul class="wts34-checkout-list">${benefits(p,offer,true)}</ul><small class="wts34-checkout-disclosure">${words('Créditos mensuales no acumulables. El pago se aprueba tras la verificación. Los límites aplican por empresa y las funciones dependen de activación y permisos externos. El checkout calcula el importe definitivo.','Monthly credits do not roll over. Payment requires verification. Limits are per tenant; features may require activation and third-party permissions. Checkout confirms the final price.')}</small>${offer.creative_commercial_active?'':`<small class="wts35-checkout-note">${words('Los créditos creativos y recargas se habilitarán tras las pruebas; no están incluidos todavía en esta compra.','Creative credits and top-ups will launch after testing; they are not yet included in this purchase.')}</small>`}`;
+ return `<div class="wts34-checkout-title">${words('Esto es lo que compras','What your plan includes')} · ${esc(p.name)}</div><ul class="wts34-checkout-list">${benefits(p,offer,true)}</ul><small class="wts34-checkout-disclosure">${words('Créditos mensuales no acumulables. El pago se aprueba tras la verificación. Los límites aplican por empresa y las funciones dependen de activación y permisos externos. El checkout calcula el importe definitivo.','Monthly credits do not roll over. Payment requires verification. Limits are per tenant; features may require activation and third-party permissions. Checkout confirms the final price.')}</small>${offer.creative_commercial_active?'':`<small class="wts35-checkout-note">${words('Las generaciones IA necesitan habilitación técnica; todavía no es posible utilizar esos créditos.','AI generations require technical activation; those credits cannot yet be used.')}</small>`}`;
 };
 const render=offer=>{
  const root=document.getElementById('plansGrid');if(!root||!document.getElementById('planes'))return;
@@ -98,7 +99,7 @@ const render=offer=>{
     const actual=Number(p.monthly_credits||0);
     const planned=Number(v||0);
     if(offer.creative_commercial_active)return `<strong>${number(actual)}</strong>`;
-    return planned>0?`<span class="wts343-pending">${number(planned)} <small>${words('previstos, no activos','planned, inactive')}</small></span>`:'—';
+    return planned>0?`<strong>${number(planned)}</strong>`:'—';
    }
    if(typeof v==='boolean')return `<span class="${v?'wts34-yes':'wts34-no'}">${v?'✓':'—'}</span>`;
    if(key==='studio_storage_mb')return esc(size(v));
@@ -108,7 +109,7 @@ const render=offer=>{
  }
  const note=document.getElementById('wts34ActivationNotice');if(note){note.classList.toggle('is-ready',!!offer.creative_commercial_active);note.innerHTML=statusLine(offer)}
  const store=document.getElementById('wts34CreditPackages');if(store){store.replaceChildren();
-  if(offer.creative_commercial_active&&offer.packages?.length){for(const pkg of offer.packages){const el=document.createElement('article');el.className='wts34-pack';el.innerHTML=`<b>${esc(pkg.name)}</b><strong>${number(pkg.credits)}</strong><small>${words('créditos','credits')} · ${cash(pkg.price_usdt)} USDT</small>`;store.append(el)}}
+  if(offer.topups_active&&offer.packages?.length){for(const pkg of offer.packages){const el=document.createElement('article');el.className='wts34-pack';el.innerHTML=`<b>${esc(pkg.name)}</b><strong>${number(pkg.credits)}</strong><small>${words('créditos','credits')} · ${cash(pkg.price_usdt)} USDT</small>`;store.append(el)}}
   else store.innerHTML=`<div class="wts35-service"><span class="wts35-service-icon">▧</span><b>Image AI</b><small>${words('Imágenes y campañas','Images and campaigns')}</small></div><div class="wts35-service"><span class="wts35-service-icon">▷</span><b>Video AI</b><small>${words('Clips para redes','Clips for social media')}</small></div><div class="wts35-service"><span class="wts35-service-icon">♫</span><b>Voice AI</b><small>${words('Narraciones y voz','Voiceovers and narration')}</small></div>`;
  }
 };
