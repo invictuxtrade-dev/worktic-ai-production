@@ -640,6 +640,7 @@ func main() {
 	mux.HandleFunc("/api/commercial/full-entitlements", app.commercialFullEntitlementsV2722Handler)
 	mux.HandleFunc("/api/admin/commercial/v2730/coverage", app.tenantGuardReportV2730Handler)
 	mux.HandleFunc("/api/commercial/wallet", app.commercialWalletV2721Handler)
+	mux.HandleFunc("/api/commercial/movements", app.commercialMovementsV27346Handler)
 	mux.HandleFunc("/api/commercial/quote", app.commercialQuoteV2721Handler)
 	mux.HandleFunc("/api/commercial/topups", app.commercialTopupV2721Handler)
 	mux.HandleFunc("/api/admin/commercial/topups", app.commercialAdminV2721Handler)

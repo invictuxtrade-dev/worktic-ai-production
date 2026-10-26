@@ -13,6 +13,7 @@
   el.replaceChildren(h('p','wcc-muted','Consultando créditos…'));
   try{
    const [d,cat]=await Promise.all([api('/api/commercial/wallet'),api('/api/commercial/catalog')]);state.wallet=d;state.catalog=cat;
+   if(window.WorkticWalletV27346?.render){window.WorkticWalletV27346.render(el,d,cat,{buildStore,api,wallet});return;}
    el.replaceChildren();el.append(h('div','wcc-small','PLAN '+d.plan.toUpperCase()+' · '+d.period));
    const nums=h('div','wcc-balance-row');const total=h('div','wcc-balance');total.append(h('span','', 'Disponible'),h('strong','', d.available_credits+' créditos'));nums.append(total);
    const pack=h('div','wcc-balance');pack.append(h('span','','Créditos comprados'),h('strong','',d.purchased_available));nums.append(pack);el.append(nums);
@@ -65,6 +66,7 @@
         });actions.append(b)}item.append(actions)}list.append(item)}if(!ts.topups?.length)list.append(h('p','wcc-muted','Todavía no hay recargas registradas.'));top.append(list);el.append(top);
   }catch(e){notice(el,'No fue posible cargar administración comercial: '+e.message,true)}
  }
+ window.WorkticWalletLegacyRefresh=wallet;
  function setup(){
   const s=document.querySelector('#studio .wts-app')||document.getElementById('studio');if(s&&!document.getElementById('wccCommercialSection')){
     const el=h('section','wcc-wallet');el.id='wccCommercialSection';el.append(h('div','wcc-wallet-head'),h('div',''));const head=el.firstElementChild;head.append(h('div','wcc-small','WORKTIC STUDIO · CREATIVE CREDITS'),h('h2','','Mi billetera creativa'));
