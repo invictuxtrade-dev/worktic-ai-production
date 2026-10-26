@@ -7,7 +7,7 @@ const es=()=>document.documentElement.lang!=='en';
 const words=(a,b)=>es()?a:b;
 const size=mb=>mb>=1024?`${number(mb/1024)} GB`:`${number(mb)} MB`;
 const cash=n=>Number(n||0).toLocaleString(es()?'es-CO':'en-US',{minimumFractionDigits:0,maximumFractionDigits:2});
-const statusLine=(offer)=>offer.creative_commercial_active?'':`<span class="wts34-pending">${words('Créditos IA y recargas aún no activados','AI credits and top-ups not active yet')}</span>`;
+const statusLine=(offer)=>offer.creative_commercial_active?`<span class="wts35-status-icon wts35-status-ready">✓</span><div><strong>${words('Créditos creativos disponibles','Creative credits available')}</strong><small>${words('Consulta los paquetes y el consumo de tu plan antes de generar.','Review packages and your plan limits before generating.')}</small></div>`:`<span class="wts35-status-icon">✦</span><div><strong>${words('Próximamente, más poder creativo','More creative possibilities are coming')}</strong><small>${words('Las recargas estarán disponibles después de su validación. El editor de tu plan sigue disponible.','Top-ups will become available after validation. Your plan editor remains available.')}</small></div>`;
 const benefits=(p,offer,short=false)=>{
  const li=(label)=>`<li>${label}</li>`;
  const result=[
@@ -32,7 +32,7 @@ window.WorkticOfferBenefitsV2734=(offer,code)=>{
  return p?benefits(p,offer,true):'';
 };
 window.WorkticOfferCheckoutV2734=(p,offer)=>{
- return `<div class="wts34-checkout-title">${words('Esto es lo que compras','What your plan includes')} · ${esc(p.name)}</div><ul class="wts34-checkout-list">${benefits(p,offer,true)}</ul><small class="wts34-checkout-disclosure">${words('Créditos mensuales no acumulables. El pago se aprueba tras la verificación. Los límites aplican por empresa y las funciones dependen de activación y permisos externos. El checkout calcula el importe definitivo.','Monthly credits do not roll over. Payment requires verification. Limits are per tenant; features may require activation and third-party permissions. Checkout confirms the final price.')}</small>${statusLine(offer)}`;
+ return `<div class="wts34-checkout-title">${words('Esto es lo que compras','What your plan includes')} · ${esc(p.name)}</div><ul class="wts34-checkout-list">${benefits(p,offer,true)}</ul><small class="wts34-checkout-disclosure">${words('Créditos mensuales no acumulables. El pago se aprueba tras la verificación. Los límites aplican por empresa y las funciones dependen de activación y permisos externos. El checkout calcula el importe definitivo.','Monthly credits do not roll over. Payment requires verification. Limits are per tenant; features may require activation and third-party permissions. Checkout confirms the final price.')}</small>${offer.creative_commercial_active?'':`<small class="wts35-checkout-note">${words('Los créditos creativos y recargas se habilitarán tras las pruebas; no están incluidos todavía en esta compra.','Creative credits and top-ups will launch after testing; they are not yet included in this purchase.')}</small>`}`;
 };
 const render=offer=>{
  const root=document.getElementById('plansGrid');if(!root||!document.getElementById('planes'))return;
@@ -50,10 +50,10 @@ const render=offer=>{
   const val=(p,key)=>{const v=key.split('.').reduce((o,k)=>o?.[k],p);if(typeof v==='boolean')return v?'✓':'—';if(key==='studio_storage_mb')return esc(size(v));return number(v)};
   cmp.innerHTML=`<table class="comparison-table"><thead><tr><th>${words('Capacidad','Capability')}</th>${offer.plans.map(p=>`<th>${esc(p.name)}</th>`).join('')}</tr></thead><tbody>${fields.map(([label,key])=>`<tr><td>${esc(label)}</td>${offer.plans.map(p=>`<td>${val(p,key)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
  }
- const note=document.getElementById('wts34ActivationNotice');if(note)note.innerHTML= statusLine(offer)||words('Las generaciones IA consumen créditos de tu plan o de recargas verificadas.','AI generations spend included or purchased credits.');
+ const note=document.getElementById('wts34ActivationNotice');if(note){note.classList.toggle('is-ready',!!offer.creative_commercial_active);note.innerHTML=statusLine(offer)}
  const store=document.getElementById('wts34CreditPackages');if(store){store.replaceChildren();
   if(offer.creative_commercial_active&&offer.packages?.length){for(const pkg of offer.packages){const el=document.createElement('article');el.className='wts34-pack';el.innerHTML=`<b>${esc(pkg.name)}</b><strong>${number(pkg.credits)}</strong><small>${words('créditos','credits')} · ${cash(pkg.price_usdt)} USDT</small>`;store.append(el)}}
-  else store.textContent=words('Las recargas de créditos estarán disponibles cuando se habilite el servicio comercial.','Credit top-ups will be available after commercial activation.');
+  else store.innerHTML=`<div class="wts35-service"><span class="wts35-service-icon">▧</span><b>Image AI</b><small>${words('Imágenes y campañas','Images and campaigns')}</small></div><div class="wts35-service"><span class="wts35-service-icon">▷</span><b>Video AI</b><small>${words('Clips para redes','Clips for social media')}</small></div><div class="wts35-service"><span class="wts35-service-icon">♫</span><b>Voice AI</b><small>${words('Narraciones y voz','Voiceovers and narration')}</small></div>`;
  }
 };
 async function init(){const root=document.getElementById('planes');if(!root)return;

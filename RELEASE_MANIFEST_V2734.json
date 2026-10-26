@@ -1,10 +1,10 @@
 {
-  "release": "V27.34",
-  "base": "V27.33",
+  "release": "V27.34.1",
+  "base": "V27.34_CORREGIDO_01",
   "sha256_files": {
     ".env.render.example": "ae31148cdb5133efa6d4908f8f92eb14223575df0f6189ee6db5c115a8f8ec4e",
     "INICIAR_LINUX.sh": "dd166e4574515692461647a046d237f65184191d28a119f17de44a29ae1f271f",
-    "VERSION.txt": "8d59f20619082a9443e2393051aa5c341fef20bf394423a308e7467651ee967c",
+    "VERSION.txt": "8a66e87d0165e87161ab5f20687d95ab0ba8630e7c91e62eecb38b961bfe7187",
     "admin_full.go": "e5662b489f1db8001f2f1adba9c9d803e04744e95f3b30e5174aed0dfed5a7f0",
     "ads_v25.go": "d5a90deebe33114ef20d600d837646c87b7d80fee087e692886a018007d2b565",
     "agenda_premium.go": "5dbd8e88ee6cebe53a45733de87fa68756f2eedcb8b2083b91613b88326d9f2a",
@@ -98,7 +98,7 @@
     "static/commercial-modules-v2722.css": "8ed09cd10b33121379e24e5e7c1b00bd8e4884a09033469333abeec7efc8f304",
     "static/commercial-modules-v2722.js": "50f1eaa618d93b5c7e615eca362234b4e2b93cc6357982d16f46730b3468285e",
     "static/commercial-offer-v2734.css": "abed4cb172d2b92524655c11498b77d3cfdf62f2172204a70269fd93acd15327",
-    "static/commercial-offer-v2734.js": "f2459b9b11b92f1603b80e23303673d26fe420d734033f813771c826edc07e66",
+    "static/commercial-offer-v2734.js": "9eeb83f740f9ddb0546f10a87f1e0ce652ca7ee57bd100abc5500c33fd8ed754",
     "static/commercial-v2721.css": "95ed4cb3c9eb5d522beaca54d0863f6edb8f6d0632102f8a1b384dc6a22d8d08",
     "static/commercial-v2721.js": "df52aa7dfc5db0e5e41d3032075731e80a5fa5ad27202bda51cf15e225f8da9a",
     "static/commercial-validation-v2727.css": "f41b18341291ca3856a5967bff6c4da5e90b8f92959e933537a2546d589ad8aa",
@@ -155,7 +155,7 @@
     "static/i18n.js": "8e111875c9bfc947a5f0661ad92ad2f4a5efe0afad62f7976a708c2bbfa25eab",
     "static/inbox-v21.css": "69ac966f39e82b1a96fcb2e8dc43745cc40ecc49f3b6ef035ed986901d781dbd",
     "static/inbox-v21.js": "826997db837272b763a69b8e1674052d47c6006fa7ac9772b3099348a7d631a3",
-    "static/index.html": "463cbcdace2522f2f6f3ec75964b4f1d32ed55dd2bced16a9c3dd3ce5aec72fe",
+    "static/index.html": "80920a696a2e944be496f1c02f97d5e49f13cd1b9671d6d2c09aa76e99c6603d",
     "static/invite.html": "a1210aadf5f19975951bc25f8df36eecc14b8743c0a6db5949f5639af1d74020",
     "static/invite.js": "88a5efdf7a5b709c9dd408a8e53382c528119ab71d147034ab96d8e44dbbf54a",
     "static/landing-builder-safe.css": "40522e31b6603e97786a81d3ef5a1b8142cbc668b5b9e4531d33401fd3cd9ad0",
@@ -218,10 +218,12 @@
     "tools/v2733/release_gate.py": "9314ebf98432fe769d0bb69ebcdccd21989d18b9592d1ca394578d04667a8eb6",
     "tools/v2733/test_release_gate.py": "a3a6346cab788ee26cbcb74ca1f8ffb6502b06c2f4ec775661d2f19f9cee56d0",
     "tools/v2733/verify_manifest.py": "0a8ff0b00efd90c51ec22dbf63e1e78e89d89783190d0d42526805de87eca2ad",
-    "tools/v2734/verify_manifest.py": "d95d2bd7475e74d9577f034ac7fdcb92c7ad735d45c3cb9b22f89664c69e58a3",
+    "tools/v2734/verify_manifest.py": "08d9c7d07e6916bf4756a8dfc9e84f0a06ee894812ccf0dc9397b54ba0b79df2",
     "whatsapp_business_center.go": "82bc023951cd9f1550d42ac652264afdb08351b84297f7f85d689175ce2842b1",
     "whatsapp_cloud.go": "67d5a6f8796cb96c3ed5e7bfd0c994340cf5a26cffaf745fb5aa32295abcc316",
     "whatsapp_embedded.go": "63abe1d3f3db6c52fdd91a79e3c2b3705e5c5ab9489dd7172a374a0a943a79c9",
-    "whatsapp_marketing_v27.go": "78f69362e5d212a3b6271e64c4ff9fbea99e552d399f16c102310e24269885c4"
+    "whatsapp_marketing_v27.go": "78f69362e5d212a3b6271e64c4ff9fbea99e552d399f16c102310e24269885c4",
+    "static/marketing-v2735.css": "be7083673ab93f4d791bc39c95048923c6b088d827a06ee79dea6feb1cc6f32b",
+    "static/marketing-v2735.js": "75c187c49346e157c12e0bbe6e2626b3bf531f6fc69f001570aaa919f972c219"
   }
 }

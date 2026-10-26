@@ -1,3 +1,3 @@
-WorkticAI V27.34 — Web Comercial Studio + Planes Verificables + Checkout Unificado
-Base: WorkticAI V27.33 Production Candidate (sin desplegar).
-Desarrollo local; NO activar comercial sin staging.
+WorkticAI V27.34.1 — Web Comercial Studio Premium + Header + Creative Credits
+Base: WorkticAI V27.34 corregida 01, Git main 3744176.
+Solo rediseño de la web comercial. Sin cambios en planes, checkout ni backend.

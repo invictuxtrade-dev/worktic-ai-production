@@ -10,5 +10,5 @@ expected=manifest['sha256_files']
 changed=[k for k in actual.keys()&expected.keys() if actual[k]!=expected[k]]
 missing=sorted(expected.keys()-actual.keys())
 added=sorted(actual.keys()-expected.keys())
-print(json.dumps({'release':'V27.34','files':len(actual),'integrity_ok':not(changed or missing or added),'changed':sorted(changed),'missing':missing,'added':added},ensure_ascii=False,indent=2))
+print(json.dumps({'release':manifest.get('release','V27.34'),'files':len(actual),'integrity_ok':not(changed or missing or added),'changed':sorted(changed),'missing':missing,'added':added},ensure_ascii=False,indent=2))
 sys.exit(bool(changed or missing or added))
