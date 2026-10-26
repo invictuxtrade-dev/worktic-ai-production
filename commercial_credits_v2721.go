@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"regexp"
@@ -345,7 +346,7 @@ func (a *App) commercialWalletData(tid int64, plan string) (map[string]any, erro
 	if coreAvailable < 0 {
 		coreAvailable = 0
 	}
-	return map[string]any{"core_ai_monthly_limit": coreCap, "core_ai_used": coreUsed, "core_ai_reserved": coreHeld, "core_ai_available": coreAvailable, "period": period, "plan": plan, "monthly_grant": a1, "plan_spent": s1, "plan_reserved": r1, "plan_available": available, "purchased_balance": b1, "purchased_reserved": breserved, "purchased_spent": bspent, "purchased_available": boughtAvailable, "available_credits": available + boughtAvailable, "rule": r, "enabled": studioCreditsEnabled(), "topups_enabled": commercialEnabled(), "cost_guards_required": true}, nil
+	return map[string]any{"core_ai_monthly_limit": coreCap, "core_ai_used": coreUsed, "core_ai_reserved": coreHeld, "core_ai_available": coreAvailable, "period": period, "plan": plan, "monthly_grant": a1, "plan_spent": s1, "plan_reserved": r1, "plan_available": available, "purchased_balance": b1, "purchased_reserved": breserved, "purchased_spent": bspent, "purchased_available": boughtAvailable, "available_credits": available + boughtAvailable, "rule": r, "enabled": studioCreditsEnabled(), "topups_enabled": a.studioTopupsEnabledV27349(), "cost_guards_required": true}, nil
 }
 func commercialSetJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -396,7 +397,7 @@ func (a *App) commercialCatalogV2721Handler(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "Error paquetes", 503)
 		return
 	}
-	commercialSetJSON(w, 200, map[string]any{"plans": plans, "packages": packs, "currency": "USD/USDT", "sales_enabled": commercialEnabled(), "studio_credits_enabled": studioCreditsEnabled(), "provider_estimates_only": true, "monthly_credits_reset_utc": true, "discounts_and_payments_require_verification": true})
+	commercialSetJSON(w, 200, map[string]any{"plans": plans, "packages": packs, "currency": "USD/USDT", "sales_enabled": commercialEnabled(), "topups_enabled": a.studioTopupsEnabledV27349(), "studio_credits_enabled": studioCreditsEnabled(), "provider_estimates_only": true, "monthly_credits_reset_utc": true, "discounts_and_payments_require_verification": true})
 }
 func (a *App) commercialWalletV2721Handler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -500,8 +501,12 @@ func (a *App) commercialTopupV2721Handler(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Método no permitido", 405)
 		return
 	}
-	if !commercialEnabled() {
+	if !a.studioTopupsEnabledV27349() {
 		http.Error(w, "Las recargas todavía no están habilitadas al público", 503)
+		return
+	}
+	if _, err := a.billingOwnerV2728(u); err != nil {
+		http.Error(w, err.Error(), 403)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
@@ -540,7 +545,7 @@ func (a *App) commercialTopupV2721Handler(w http.ResponseWriter, r *http.Request
 		http.Error(w, "No se pudo crear la solicitud", 500)
 		return
 	}
-	if billingLifecycleV2728Enabled() {
+	{
 		tx, e := a.db.Begin()
 		if e != nil {
 			http.Error(w, "Transacción no disponible", 503)
@@ -558,12 +563,6 @@ func (a *App) commercialTopupV2721Handler(w http.ResponseWriter, r *http.Request
 		}
 		if e = tx.Commit(); e != nil {
 			http.Error(w, "No se pudo confirmar la solicitud", 503)
-			return
-		}
-	} else {
-		_, err = a.db.Exec(`INSERT INTO commercial_topups_v2721(id,tenant_id,requested_by,package_code,credits,price_cents,network,tx_hash,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`, id, tid, u.ID, q.Package, credits, price, q.Network, q.TxHash, "pending", time.Now().UTC().Format(time.RFC3339))
-		if err != nil {
-			http.Error(w, "La transacción ya fue presentada", 409)
 			return
 		}
 	}
@@ -592,15 +591,15 @@ func (a *App) commercialAdminV2721Handler(w http.ResponseWriter, r *http.Request
 		}
 		commercialSetJSON(w, 200, map[string]any{"topups": result, "manual_blockchain_verification_required": true})
 	case http.MethodPost:
-		if !commercialEnabled() {
-			http.Error(w, "Activación comercial deshabilitada", 503)
-			return
-		}
+
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
 		var q struct {
-			ID        string `json:"id"`
-			Action    string `json:"action"`
-			Confirmed bool   `json:"verified_on_chain"`
+			ID                 string  `json:"id"`
+			Action             string  `json:"action"`
+			Confirmed          bool    `json:"verified_on_chain"`
+			VerifiedAmountUSDT float64 `json:"verified_amount_usdt"`
+			VerifiedWallet     string  `json:"verified_wallet"`
+			VerifiedTxHash     string  `json:"verified_tx_hash"`
 		}
 		if json.NewDecoder(r.Body).Decode(&q) != nil {
 			http.Error(w, "Solicitud inválida", 400)
@@ -620,9 +619,9 @@ func (a *App) commercialAdminV2721Handler(w http.ResponseWriter, r *http.Request
 			return
 		}
 		defer tx.Rollback()
-		var tenant, credits int64
-		var status string
-		if err = tx.QueryRow(`SELECT tenant_id,credits,status FROM commercial_topups_v2721 WHERE id=?`, q.ID).Scan(&tenant, &credits, &status); err != nil {
+		var tenant, credits, price int64
+		var status, network, requestedHash string
+		if err = tx.QueryRow(`SELECT tenant_id,credits,price_cents,status,network,tx_hash FROM commercial_topups_v2721 WHERE id=?`, q.ID).Scan(&tenant, &credits, &price, &status, &network, &requestedHash); err != nil {
 			http.Error(w, "Solicitud no encontrada", 404)
 			return
 		}
@@ -636,6 +635,21 @@ func (a *App) commercialAdminV2721Handler(w http.ResponseWriter, r *http.Request
 			expected = "approved"
 			newStatus = "refunded"
 			delta = -credits
+		}
+		if q.Action == "approve" {
+			official := ""
+			if network == "BEP20" {
+				official = a.cfg.USDTBEP20Address
+			} else if network == "TRC20" {
+				official = a.cfg.USDTTRC20Address
+			}
+			if official == "" || !strings.EqualFold(strings.TrimSpace(official), strings.TrimSpace(q.VerifiedWallet)) ||
+				!strings.EqualFold(strings.TrimSpace(requestedHash), strings.TrimSpace(q.VerifiedTxHash)) ||
+				math.IsNaN(q.VerifiedAmountUSDT) || math.IsInf(q.VerifiedAmountUSDT, 0) ||
+				q.VerifiedAmountUSDT < float64(price)/100 || q.VerifiedAmountUSDT > 10000000 {
+				http.Error(w, "Verificación insuficiente: coteja hash, destinatario y monto recibido de USDT contra la cadena", 400)
+				return
+			}
 		}
 		if status != expected {
 			http.Error(w, "Solicitud ya procesada o estado incompatible", 409)
@@ -664,6 +678,14 @@ func (a *App) commercialAdminV2721Handler(w http.ResponseWriter, r *http.Request
 			}
 			if n, _ := res.RowsAffected(); n != 1 {
 				http.Error(w, "No es posible revertir créditos consumidos o reservados; realizar conciliación manual", 409)
+				return
+			}
+		}
+		if q.Action == "approve" {
+			_, err = tx.Exec(`INSERT INTO studio_topup_verifications_v27349(topup_id,reviewer_id,network,verified_hash,verified_wallet,verified_amount_usdt,verified_at) VALUES(?,?,?,?,?,?,?)`,
+				q.ID, admin.ID, network, strings.ToLower(strings.TrimSpace(q.VerifiedTxHash)), strings.TrimSpace(q.VerifiedWallet), q.VerifiedAmountUSDT, time.Now().UTC().Format(time.RFC3339Nano))
+			if err != nil {
+				http.Error(w, "No se pudo registrar la evidencia de revisión", 503)
 				return
 			}
 		}
@@ -726,7 +748,7 @@ func (a *App) commercialRulesAdminV2721Handler(w http.ResponseWriter, r *http.Re
 // Base global cap remains an administrative emergency ceiling for included-plan
 // budgets. The purchased component is funded by verified paid credits only.
 func commercialPurchasedFundingCents(db *DB, tenantID int64) int64 {
-	if !commercialEnabled() {
+	if !studioCreditsEnabled() {
 		return 0
 	}
 	// Only unused purchased credits plus purchased credits spent IN THIS MONTH

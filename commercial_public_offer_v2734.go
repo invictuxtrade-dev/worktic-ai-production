@@ -50,7 +50,7 @@ func (a *App) publicCommercialOfferV2734Handler(w http.ResponseWriter, r *http.R
 	}
 	defer rows.Close()
 	commercialActive := studioCreditsEnabled()
-	topupsActive := commercialEnabled()
+	topupsActive := a.studioTopupsEnabledV27349()
 	moduleGatesActive := commercialModuleGateEnabledV2722()
 	plans := make([]publicOfferPlanV2734, 0, 4)
 	for rows.Next() {

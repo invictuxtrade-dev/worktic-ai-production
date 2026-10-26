@@ -317,6 +317,9 @@ func main() {
 	if err = initCommercialV2721Schema(db); err != nil {
 		log.Fatalf("commercial v2721 schema: %v", err)
 	}
+	if err = initStudioTopupsV27349Schema(db); err != nil {
+		log.Fatalf("studio topups v27349 schema: %v", err)
+	}
 	if err = initSocialGovernanceV231Schema(db); err != nil {
 		log.Fatalf("social governance v23.1 schema: %v", err)
 	}
@@ -643,6 +646,8 @@ func main() {
 	mux.HandleFunc("/api/commercial/movements", app.commercialMovementsV27346Handler)
 	mux.HandleFunc("/api/commercial/quote", app.commercialQuoteV2721Handler)
 	mux.HandleFunc("/api/commercial/topups", app.commercialTopupV2721Handler)
+	mux.HandleFunc("/api/commercial/topups/config", app.studioTopupsConfigV27349Handler)
+	mux.HandleFunc("/api/admin/studio/topups", app.studioTopupsAdminV27349Handler)
 	mux.HandleFunc("/api/admin/commercial/topups", app.commercialAdminV2721Handler)
 	mux.HandleFunc("/api/admin/commercial/rules", app.commercialRulesAdminV2721Handler)
 	mux.HandleFunc("/api/admin/cost-intelligence", app.creativeAdminCostsV2720Handler)
@@ -3220,7 +3225,7 @@ func (a *App) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("ingresa un hash de transacción válido"), 400)
 		return
 	}
-	if billingLifecycleV2728Enabled() && !commercialTxHash(q.Network, q.TxHash) {
+	if (billingLifecycleV2728Enabled() || a.studioTopupsEnabledV27349()) && !commercialTxHash(q.Network, q.TxHash) {
 		http.Error(w, "Hash de blockchain inválido para la red seleccionada", 400)
 		return
 	}
@@ -3245,7 +3250,7 @@ func (a *App) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	var res sql.Result
 	var err error
-	if billingLifecycleV2728Enabled() {
+	if billingLifecycleV2728Enabled() || a.studioTopupsEnabledV27349() {
 		tx, e := a.db.Begin()
 		if e != nil {
 			http.Error(w, "No se pudo iniciar la transacción", 503)

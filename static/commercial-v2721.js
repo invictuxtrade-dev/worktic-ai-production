@@ -29,6 +29,7 @@
   }catch(e){notice(el,'Billetera temporalmente no disponible: '+e.message,true)}
  }
  function buildStore(root,cat,d){
+   if(window.WorkticStudioTopupsV27349?.renderStore){return window.WorkticStudioTopupsV27349.renderStore(root,cat,d,api)}
    const box=h('div','wcc-shop');box.append(h('h3','','Ampliar mis créditos'),h('p','wcc-muted','Selecciona un paquete. Tu pago se acredita únicamente después de que administración compruebe el ingreso de USDT.'));
    const cards=h('div','wcc-package-grid');let selected=cat.packages?.[0]?.code;
    for(const p of cat.packages||[]){const b=h('button','wcc-pack');b.type='button';b.append(h('b','',p.name),h('strong','',p.credits+' créditos'),h('span','',money(p.price_cents)));if(p.code===selected)b.classList.add('is-active');
@@ -58,12 +59,13 @@
       const feedback=h('div','wcc-msg');card.append(feedback);const save=h('button','wcc-admin-save','Guardar restricciones');save.type='submit';card.append(save);
       card.addEventListener('submit',async e=>{e.preventDefault();save.disabled=true;try{const payload={plan:r.plan,monthly_credits:Number(credits.input.value),max_projects:Number(projects.input.value),storage_mb:Number(storage.input.value)};for(const [k,ch]of Object.entries(checks))payload[k]=ch.checked;await api('/api/admin/commercial/rules',payload);notice(feedback,'Reglas guardadas. Se aplicarán a solicitudes nuevas.',false)}catch(ex){notice(feedback,ex.message,true)}finally{save.disabled=false}});
       cards.append(card)}el.append(cards);
-    const top=h('section','wcc-admin-topups');top.append(h('h3','','Recargas recibidas'));top.append(h('p','wcc-muted','No apruebes ninguna recarga sin verificar USDT, importe exacto, red, destino, confirmaciones y ausencia de reutilización del hash.'));
+    if(window.WorkticStudioTopupsV27349?.renderAdmin){window.WorkticStudioTopupsV27349.renderAdmin(el,ts,api,admin)}
+    else {    const top=h('section','wcc-admin-topups');top.append(h('h3','','Recargas recibidas'));top.append(h('p','wcc-muted','No apruebes ninguna recarga sin verificar USDT, importe exacto, red, destino, confirmaciones y ausencia de reutilización del hash.'));
     const list=h('div','wcc-topup-list');for(const x of ts.topups){const item=h('article','wcc-topup');item.append(h('b','',`Empresa #${x.tenant_id} · ${x.credits} créditos · ${money(x.price_cents)}`),h('span','',`${x.network} · ${x.status}`),h('code','',x.tx_hash));
       if(x.status==='pending'){const actions=h('div','wcc-actions');for(const action of ['approve','reject']){const b=h('button',action==='approve'?'wcc-approve':'wcc-reject',action==='approve'?'Aprobar pago comprobado':'Rechazar');b.type='button';b.addEventListener('click',async()=>{
           if(!window.confirm(action==='approve'?'¿Has comprobado independientemente en blockchain la transacción, importe USDT y destinatario? Se acreditarán créditos reales.':'¿Confirmas rechazar la solicitud?'))return;
           b.disabled=true;try{await api('/api/admin/commercial/topups',{id:x.id,action,verified_on_chain:action==='approve'});await admin()}catch(e){window.alert(e.message);b.disabled=false}
-        });actions.append(b)}item.append(actions)}list.append(item)}if(!ts.topups?.length)list.append(h('p','wcc-muted','Todavía no hay recargas registradas.'));top.append(list);el.append(top);
+        });actions.append(b)}item.append(actions)}list.append(item)}if(!ts.topups?.length)list.append(h('p','wcc-muted','Todavía no hay recargas registradas.'));top.append(list);el.append(top); }
   }catch(e){notice(el,'No fue posible cargar administración comercial: '+e.message,true)}
  }
  window.WorkticWalletLegacyRefresh=wallet;

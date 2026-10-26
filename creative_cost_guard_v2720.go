@@ -112,7 +112,7 @@ func (a *App) creativeReserve(tenantID, userID int64, plan, operation, provider 
 	}
 	globalLimit := creativeEnvCents("WORKTIC_COST_GLOBAL_MONTHLY_CENTS")
 	tenantLimit := creativeTenantLimit(plan)
-	if commercialEnabled() && globalLimit > 0 && tenantLimit > 0 {
+	if studioCreditsEnabled() && globalLimit > 0 && tenantLimit > 0 {
 		globalLimit += commercialPurchasedFundingCents(a.db, 0)
 		tenantLimit += commercialPurchasedFundingCents(a.db, tenantID)
 	}

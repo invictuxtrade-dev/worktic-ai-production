@@ -1,4 +1,3 @@
-WorkticAI V27.34.8 — Acciones visibles en Créditos Studio
-Base: V27.34.7.
-Corrección UX: Ver movimientos y Recargar créditos abren paneles visibles, sin desplazamiento al pie de página.
-No activa pagos, generación IA ni altera saldos o cuotas.
+WorkticAI V27.34.9 — Studio Topups Admin + Safe Manual USDT Checkout
+Base: V27.34.8 (sin alterar otros módulos).
+Pagos manuales verificables; sin créditos automáticos ni generación fuera de presupuesto.
