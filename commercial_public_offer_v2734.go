@@ -26,6 +26,7 @@ type publicOfferPlanV2734 struct {
     Telegram int64 `json:"max_telegram"`
     Messenger int64 `json:"max_messenger"`
     Credits int64 `json:"monthly_credits"`
+    StudioCreditsPlanned int64 `json:"studio_credits_planned"`
     Projects int64 `json:"max_studio_projects"`
     StorageMB int64 `json:"studio_storage_mb"`
     StudioEditor bool `json:"studio_editor"`
@@ -60,6 +61,7 @@ func (a *App) publicCommercialOfferV2734Handler(w http.ResponseWriter, r *http.R
         p.StudioVoice=commercialActive && rule.Voice
         p.StudioText=commercialActive && rule.Text
         p.Credits=0
+        p.StudioCreditsPlanned=rule.Monthly
         if commercialActive { p.Credits=rule.Monthly }
         p.Projects=rule.MaxProjects
         p.StorageMB=rule.StorageMB
@@ -80,6 +82,6 @@ func (a *App) publicCommercialOfferV2734Handler(w http.ResponseWriter, r *http.R
     }
     // Only constant server metadata is public: never return API keys, internal costs or financial records.
     w.Header().Set("Content-Type", "application/json; charset=utf-8")
-    payload:=map[string]any{"version":"27.34", "plans":plans, "creative_commercial_active":commercialActive,"module_gates_active":moduleGatesActive,"packages":packages,"currency":"USDT","discount_annual_percent":20,"notes":[]string{"Los importes de checkout se verifican en el servidor; promociones pueden modificarlos.","Créditos de generación IA y paquetes solo están disponibles cuando la activación comercial está habilitada.","Los servicios externos de Meta, Ads, Luma y otros requieren permisos, configuración y pueden tener cargos adicionales."}}
+    payload:=map[string]any{"version":"27.34.3", "plans":plans, "creative_commercial_active":commercialActive,"module_gates_active":moduleGatesActive,"packages":packages,"currency":"USDT","discount_annual_percent":20,"notes":[]string{"Los importes de checkout se verifican en el servidor; promociones pueden modificarlos.","Créditos de generación IA y paquetes solo están disponibles cuando la activación comercial está habilitada.","Los servicios externos de Meta, Ads, Luma y otros requieren permisos, configuración y pueden tener cargos adicionales."}}
     _=json.NewEncoder(w).Encode(payload)
 }

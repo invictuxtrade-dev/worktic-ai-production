@@ -1,2 +1,3 @@
-WorkticAI V27.34.2 — Website FAQ Expanded + Partners Header Unified
-Base: V27.34.1 Web Premium. Public website only; checkout and commercial controls unchanged.
+WorkticAI V27.34.3 — Planes Completos Growth / Landings / Agentes / Créditos Studio
+Base: V27.34.2. Los límites siguen conectados al catálogo de backend; los créditos previstos se distinguen de los activos.
+Web pública + API de lectura del catálogo; no altera pagos, quotas ni Worktic Partners.

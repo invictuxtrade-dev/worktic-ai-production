@@ -647,7 +647,7 @@ var I18N = {
 
 "lp.plans_eyebrow":{es:"Planes transparentes",en:"Transparent pricing"},
 "lp.plans_title":{es:"Elige la capacidad que necesita tu operación",en:"Choose the capacity your operation needs"},
-"lp.plans_desc":{"es":"Compara usuarios, canales, CRM, automatizaciones y Worktic Studio. Los beneficios definitivos se muestran según la configuración del plan vigente.","en":"Compare users, channels, CRM, automations and Worktic Studio. Final entitlements reflect the active plan configuration."},
+"lp.plans_desc":{"es":"Conoce qué incluye cada plan: Growth y campañas, landing pages, agentes IA, canales, CRM y Worktic Studio. Compara las capacidades disponibles antes de elegir.","en":"Discover each plan’s Growth and campaigns, landing pages, AI agents, channels, CRM and Worktic Studio. Compare your options before choosing."},
 "lp.plan_free_name":{es:"Free",en:"Free"},
 "lp.plan_free_cta":{es:"Probar gratis",en:"Try for free"},
 "lp.plan_personal_name":{es:"Personal",en:"Personal"},
