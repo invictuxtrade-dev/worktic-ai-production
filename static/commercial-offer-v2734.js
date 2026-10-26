@@ -19,30 +19,33 @@ const creditLabel=(p,offer)=>{
  if(planned>0)return `<b>${number(planned)} ${words('créditos Studio/mes previstos','planned Studio credits/month')}</b> <small class="wts343-credit-notice">${words('No disponibles ni incluidos en la compra actual','Not active or included in the current purchase')}</small>`;
  return words('Sin créditos de generación IA incluidos','No AI generation credits included');
 };
-const growthPillars=(p)=>[
- ['growth',moduleEnabled(p,'marketing'),words('Growth & Campañas','Growth & Campaigns')],
- ['landings',moduleEnabled(p,'landings'),words('Landing Pages','Landing Pages')],
- ['agents',moduleEnabled(p,'agents') && Number(p.max_agents||0)>0,words('Agentes IA','AI Agents')]
-].map(([id,ok,label])=>`<div class="wts343-pill wts343-pill-${ok?'on':'off'}" data-feature="${id}"><span aria-hidden="true">${ok?'✓':'—'}</span><strong>${label}</strong>${id==='agents'&&ok?`<small>· ${number(p.max_agents)}</small>`:''}</div>`).join('');
+// All plan features use the same simple list presentation. No separate badges or cards.
+// Planned Studio credits must never be displayed as currently granted credits.
+const creditBenefit=(p,offer)=>{
+ const active=Number(p.monthly_credits||0);
+ const planned=Number(p.studio_credits_planned||0);
+ if(offer.creative_commercial_active&&active>0)return `${number(active)} ${words('créditos Studio/mes','Studio credits/month')}`;
+ if(planned>0)return `${number(planned)} ${words('créditos Studio/mes previstos (aún no activos)','planned Studio credits/month (not active yet)')}`;
+ return words('Sin créditos de generación IA incluidos','No AI generation credits included');
+};
 const benefits=(p,offer,short=false)=>{
- const li=(label)=>`<li>${label}</li>`;
+ const li=(label,disabled=false)=>`<li${disabled?' class="wts34-benefit-disabled"':''}>${label}</li>`;
+ const canAgents=moduleEnabled(p,'agents')&&Number(p.max_agents||0)>0;
  const result=[
-  li(`${moduleLabel(p,'marketing',words('Growth & Campañas','Growth & Campaigns'))} · ${moduleLabel(p,'landings','Landing Pages')}`),
-  li(`${moduleLabel(p,'agents',words('Agentes IA','AI Agents'))} · <b>${number(p.max_agents)}</b> ${words('agentes permitidos','allowed agents')}`),
+  li(words('Growth & Campañas','Growth & Campaigns'),!moduleEnabled(p,'marketing')),
+  li('Landing Pages',!moduleEnabled(p,'landings')),
+  li(`${words('Agentes IA','AI Agents')} · ${number(p.max_agents)} ${words('permitidos','allowed')}`,!canAgents),
   li(`<b>${number(p.max_users)}</b> ${words('usuarios','users')} · <b>${number(p.max_channels)}</b> ${words('conexiones','connections')}`),
   li(`<b>${number(p.max_contacts)}</b> ${words('contactos CRM','CRM contacts')} · <b>${number(p.max_products)}</b> ${words('productos','products')}`),
   li(`<b>${number(p.max_ai_responses)}</b> ${words('respuestas IA/mes','AI replies/month')}`),
   li(`<b>${number(p.max_rules)}</b> ${words('reglas de automatización','automation rules')}`),
-  li(`Worktic Studio: ${p.studio_editor?words('editor de imágenes y videos','image and video editor'):words('no incluido','not included')}`),
-  li(`${number(p.max_studio_projects)} ${words('proyectos Studio','Studio projects')} · ${esc(size(p.studio_storage_mb))} ${words('de medios','media storage')}`),
-  li(creditLabel(p,offer))
+  li(`Worktic Studio: ${p.studio_editor?words('editor de imágenes y videos','image and video editor'):words('no incluido','not included')}`,!p.studio_editor),
+  li(`${number(p.max_studio_projects)} ${words('proyectos Studio','Studio projects')} · ${esc(size(p.studio_storage_mb))} ${words('de medios','media storage')}`,!p.studio_editor),
+  li(creditBenefit(p,offer),!(offer.creative_commercial_active&&Number(p.monthly_credits||0)>0))
  ];
  if(!short){
-  // Main cards already show these as feature chips and a Studio grant card.
-  // Checkout deliberately keeps them in its full purchase summary.
-  result.splice(0,2);result.pop();
   const mods=[['social','Social Hub'],['analytics','Analytics'],['ads','Ads Center'],['meta_leads','Meta Lead Ads'],['whatsapp_marketing','WhatsApp Marketing'],['automations',words('Workflows avanzados','Advanced workflows')]];
-  for(const [code,label] of mods)result.push(li(moduleLabel(p,code,label)));
+  for(const [code,label] of mods)result.push(li(esc(label),!moduleEnabled(p,code)));
  }
  return result.join('');
 };
@@ -59,7 +62,7 @@ const render=offer=>{
  const cards=offer.plans.map(p=>{
   const paid=p.code!=='free';const featured=p.code==='business';const price=year?p.annual_usdt:p.monthly_usdt;
   const href=paid?`/login.html?tab=register&plan=${encodeURIComponent(p.code)}&billing=${year?'annual':'monthly'}`:'/login.html?tab=register';
-  return `<article class="card plan wts34-plan ${featured?'pop':''}" data-plan="${esc(p.code)}">${featured?`<span class="flag">${words('Más popular','Most popular')}</span>`:''}<h3>${esc(p.name)}</h3><p class="wts34-plan-desc">${esc(p.description)}</p><div class="price wts34-price">${paid?cash(price)+' USDT':'0 USDT'}<small>${paid?(year?words('/año','/year'):words('/mes','/month')):''}</small></div>${paid?`<p class="wts34-equivalent">${year?words(`Equivale a ${cash(p.annual_usdt/12)} USDT/mes · pago anual`,`Equivalent to ${cash(p.annual_usdt/12)} USDT/month · billed annually`):words('Facturado mensualmente','Billed monthly')}</p>`:''}<div class="wts343-pillars" aria-label="${words('Áreas del plan','Plan areas')}">${growthPillars(p)}</div><div class="wts343-studio-grant"><span class="wts343-studio-icon">✦</span><div><strong>Worktic Studio</strong><small>${creditLabel(p,offer)}</small></div></div><div class="wts34-entitle-title">${words('Capacidades de tu plan','Your plan capacities')}</div><ul class="wts34-benefit-list">${benefits(p,offer,false)}</ul><a class="btn ${featured?'primary':''} plan-cta" href="${href}">${paid?words('Elegir '+esc(p.name),'Choose '+esc(p.name)):words('Crear cuenta Free','Start free')}</a></article>`;
+  return `<article class="card plan wts34-plan ${featured?'pop':''}" data-plan="${esc(p.code)}">${featured?`<span class="flag">${words('Más popular','Most popular')}</span>`:''}<h3>${esc(p.name)}</h3><p class="wts34-plan-desc">${esc(p.description)}</p><div class="price wts34-price">${paid?cash(price)+' USDT':'0 USDT'}<small>${paid?(year?words('/año','/year'):words('/mes','/month')):''}</small></div>${paid?`<p class="wts34-equivalent">${year?words(`Equivale a ${cash(p.annual_usdt/12)} USDT/mes · pago anual`,`Equivalent to ${cash(p.annual_usdt/12)} USDT/month · billed annually`):words('Facturado mensualmente','Billed monthly')}</p>`:''}<div class="wts34-entitle-title">${words('Capacidades de tu plan','Your plan capacities')}</div><ul class="wts34-benefit-list">${benefits(p,offer,false)}</ul><a class="btn ${featured?'primary':''} plan-cta" href="${href}">${paid?words('Elegir '+esc(p.name),'Choose '+esc(p.name)):words('Crear cuenta Free','Start free')}</a></article>`;
  }).join('');
  root.innerHTML=cards;
  const cmp=document.getElementById('wts34Compare');if(cmp){

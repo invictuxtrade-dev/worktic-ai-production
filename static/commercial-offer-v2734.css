@@ -34,3 +34,7 @@ html,body{max-width:100%;overflow-x:clip}
 @media(max-width:600px){#planes{padding-bottom:36px}#planes .wts343-pill{font-size:.68rem}#planes .wts34-plan{gap:0}#planes .plan-comparison>summary{padding:16px}#planes .comparison-table th,#planes .comparison-table td{padding:10px 11px}}
 
 #planes .wts34-benefit-list li:has(> .wts34-no):before{content:'—';color:#a69dad}
+
+/* V27.34.4: all plan entitlements are uniform rows in a single list. */
+#planes .wts34-benefit-list li.wts34-benefit-disabled{color:#96909f}
+#planes .wts34-benefit-list li.wts34-benefit-disabled:before{content:'—';color:#aaa3b5}
