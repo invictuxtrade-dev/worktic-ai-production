@@ -39,3 +39,21 @@
 .wcc48-package{display:flex;flex-direction:column;gap:4px;border:1px solid #435577;border-radius:11px;padding:12px;background:#182a49}.wcc48-package span{font-weight:800;color:#e7e5ff}.wcc48-package small{color:#a6b9d7}
 .wcc48-dialog .wcc-shop{border:0;padding:0;margin:0}.wcc48-dialog .wcc-shop h3{color:#fff!important}.wcc48-dialog .wcc-field{color:#dce6f5}
 @media(max-width:640px){.wcc48-overlay{padding:10px;align-items:center}.wcc48-dialog{max-height:88dvh;border-radius:14px;padding:16px}.wcc48-section-head{align-items:flex-start;flex-direction:column}.wcc48-packages{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* V27.34.9 Lite — compra de créditos con un único formulario progresivo */
+.wcc48-dialog:has(.wcc49-shop){width:min(630px,100%)}
+.wcc49-shop{min-width:0;color:#e9f0fe;font-size:13px}
+.wcc49-heading h3{font-size:17px!important;margin:0 0 4px!important}
+.wcc49-heading p{margin:0 0 18px;color:#aabdd6;font-size:12px;line-height:1.5}
+.wcc49-first{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:13px;align-items:end;border:1px solid #39516e;background:#1a2c49;border-radius:13px;padding:15px;margin-bottom:12px}
+.wcc49-label{display:flex;flex-direction:column;gap:6px;min-width:0;color:#d5e2f6;font-size:12px;font-weight:650}
+.wcc49-label span{color:#b8c8e0}.wcc49-select{width:100%;min-width:0;background:#102038;color:#f8fbff;border:1px solid #4a6383;border-radius:9px;min-height:42px;padding:9px 12px;font:inherit;box-sizing:border-box}
+.wcc49-select:focus-visible,.wcc49-submit:focus-visible,.wcc49-copy:focus-visible{outline:2px solid #aa93ff;outline-offset:2px}
+.wcc49-amount{text-align:right;display:flex;flex-direction:column;gap:3px;white-space:nowrap}.wcc49-amount strong{font-size:19px;color:#87e7dc}.wcc49-amount small{font-size:10.5px;color:#adbbd6}
+.wcc49-details{border:1px solid #39516e;background:#14253f;border-radius:12px;margin-bottom:13px}.wcc49-details>summary{padding:14px 16px;cursor:pointer;color:#fff;font-size:13px;font-weight:750}.wcc49-details[open]>summary{border-bottom:1px solid #32445e}.wcc49-detail-body{display:grid;gap:15px;padding:15px}
+.wcc49-address{background:#102139;border:1px solid #385777;padding:12px;border-radius:10px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:center}.wcc49-address>span{grid-column:1/-1;color:#a9bcd6;font-size:11px}.wcc49-address code{overflow-wrap:anywhere;color:#b3fff1;font-size:11px}.wcc49-copy,.wcc49-submit{cursor:pointer;border:1px solid #6276aa;border-radius:9px;background:#1f3a5e;color:white;padding:9px 13px;font-size:12px;font-weight:750}.wcc49-copy:disabled,.wcc49-submit:disabled{cursor:not-allowed;opacity:.45}.wcc49-submit{background:linear-gradient(115deg,#7845ea,#436dec);border:0;min-height:40px}
+.wcc49-verify{display:flex;gap:10px;align-items:flex-start;color:#bacce3;font-size:11.5px;line-height:1.5}.wcc49-verify input{margin-top:3px;accent-color:#8a61ff}
+.wcc49-footer{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.wcc49-feedback{font-size:11.5px;line-height:1.5;color:#ffd1ad;flex:1}.wcc49-feedback.wcc49-ok{color:#9aebcd}
+.wcc49-state{border:1px solid #4d6381;background:#1c2e4a;padding:16px;border-radius:12px}.wcc49-state strong{font-size:13px}.wcc49-state p{margin:6px 0 0;color:#b9c8e1;font-size:12px;line-height:1.5}.wcc49-pack-preview{font-size:11px;color:#98aeca;margin:12px 0;line-height:1.7}
+.wcc49-history{border-top:1px solid #344966;padding:13px 2px 0;font-size:12px}.wcc49-history>summary{cursor:pointer;color:#bacdf0}.wcc49-history-body{padding:13px 0;color:#a8bad2}.wcc49-request{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #2e4762;padding:9px 3px}.wcc49-request b{color:#b3eede}
+@media(max-width:560px){.wcc49-first{grid-template-columns:1fr}.wcc49-amount{text-align:left;flex-direction:row;justify-content:space-between;align-items:center}.wcc49-footer>.wcc49-submit{width:100%}.wcc49-address{grid-template-columns:1fr}.wcc49-copy{justify-self:start}}

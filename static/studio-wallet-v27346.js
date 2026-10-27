@@ -117,15 +117,8 @@
    const list=document.createElement('div');list.id='wcc46MovementsList';content.append(list);
    movements(content);return;
   }
-  if(!current.topups_enabled){
-   showNotice(content,'Las recargas todavía no están habilitadas. Por seguridad, no se puede registrar un pago ni añadir créditos mientras el administrador no active y verifique el servicio.');
-   const packs=Array.isArray(catalog?.packages)?catalog.packages:[];
-   if(packs.length){const note=document.createElement('p');note.className='wcc48-pack-note';note.textContent='Paquetes de referencia (compra deshabilitada):';content.append(note);
-    const grid=document.createElement('div');grid.className='wcc48-packages';
-    for(const pack of packs){const el=document.createElement('div');el.className='wcc48-package';const name=document.createElement('strong'),amount=document.createElement('span'),price=document.createElement('small');name.textContent=pack.name||'Paquete';amount.textContent=fmt(pack.credits)+' créditos';price.textContent=pack.price_cents!=null?(Number(pack.price_cents)/100).toLocaleString('es-CO',{style:'currency',currency:'USD'}):'Precio por confirmar';el.append(name,amount,price);grid.append(el)}content.append(grid)
-   }
-   return;
-  }
+  // Same compact purchase interface for active and inactive stores.
+  // Never display long fake-card catalogs to a tenant without enabled purchasing.
   if(actions?.buildStore)actions.buildStore(content,catalog||{packages:[]},current);
   else showNotice(content,'Cargando el catálogo de paquetes. Vuelve a intentar en unos segundos.');
  }

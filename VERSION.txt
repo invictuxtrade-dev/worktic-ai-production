@@ -1,3 +1,2 @@
-WorkticAI V27.34.9 — Studio Topups Admin + Safe Manual USDT Checkout
-Base: V27.34.8 (sin alterar otros módulos).
-Pagos manuales verificables; sin créditos automáticos ni generación fuera de presupuesto.
+WorkticAI V27.34.9 Lite — Recargas Studio sencillas y seguras
+Base: V27.34.8. Ajustes UI (no activación de recargas).

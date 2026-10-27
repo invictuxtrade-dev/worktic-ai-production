@@ -29,23 +29,49 @@
   }catch(e){notice(el,'Billetera temporalmente no disponible: '+e.message,true)}
  }
  function buildStore(root,cat,d){
-   if(window.WorkticStudioTopupsV27349?.renderStore){return window.WorkticStudioTopupsV27349.renderStore(root,cat,d,api)}
-   const box=h('div','wcc-shop');box.append(h('h3','','Ampliar mis créditos'),h('p','wcc-muted','Selecciona un paquete. Tu pago se acredita únicamente después de que administración compruebe el ingreso de USDT.'));
-   const cards=h('div','wcc-package-grid');let selected=cat.packages?.[0]?.code;
-   for(const p of cat.packages||[]){const b=h('button','wcc-pack');b.type='button';b.append(h('b','',p.name),h('strong','',p.credits+' créditos'),h('span','',money(p.price_cents)));if(p.code===selected)b.classList.add('is-active');
-     b.addEventListener('click',()=>{selected=p.code;cards.querySelectorAll('.wcc-pack').forEach(x=>x.classList.remove('is-active'));b.classList.add('is-active')});cards.append(b)}box.append(cards);
-   const form=h('form','wcc-topup-form');const payNetwork=h('label','wcc-field');payNetwork.append(h('span','','Red USDT'));const select=h('select','');for(const net of ['BEP20','TRC20']){const o=h('option','',net);o.value=net;select.append(o)}payNetwork.append(select);form.append(payNetwork);
-   const tx=field('Hash de transacción confirmado en blockchain','text','');tx.input.placeholder='0x... (BEP20) o hash TRC20';tx.input.maxLength=70;form.append(tx.wrap);
-   const address=h('div','wcc-muted','Consulta la dirección de pago en Membresía/Planes. Comprueba la red, el token y el importe antes de enviar.');form.append(address);
-   const feedback=h('div');form.append(feedback);
-   const submit=h('button','wcc-buy','Registrar pago y solicitar verificación');submit.type='submit';submit.disabled=!d.topups_enabled||!selected;form.append(submit);
-   form.addEventListener('submit',async ev=>{ev.preventDefault();if(!window.confirm('Confirma que ya transferiste exactamente el USDT requerido a la dirección oficial de tu plataforma. ¿Registrar el comprobante?'))return;submit.disabled=true;
-     try{const out=await api('/api/commercial/topups',{package:selected,network:select.value,tx_hash:tx.input.value.trim()});notice(feedback,`Solicitud ${out.id} pendiente de verificación. El saldo no cambia hasta la aprobación.`,false);tx.input.value='';}
-     catch(e){notice(feedback,e.message,true)}finally{submit.disabled=!d.enabled}});
-   box.append(form);if(!d.topups_enabled)box.append(h('p','wcc-warn','La compra de recargas requiere habilitación y verificación de pagos por separado.'));
-   root.append(box);
-   const trans=h('details','wcc-history');trans.append(h('summary','','Mis recargas y verificaciones'));const body=h('div','wcc-muted','Consultar historial…');trans.append(body);trans.addEventListener('toggle',async()=>{if(!trans.open)return;try{const data=await api('/api/commercial/topups');body.replaceChildren();for(const x of data.topups){body.append(row(`${x.package} · ${x.credits} créditos`,`${money(x.price_cents)} · ${x.status}`))}if(!data.topups.length)body.textContent='Todavía no hay recargas'}catch(e){body.textContent='Error consultando historial: '+e.message}});root.append(trans);
+   // V27.34.9 Lite: un solo recorrido, importes oficiales del catálogo y pago verificado en el servidor.
+   const box=h('section','wcc49-shop');root.append(box);
+   const packs=(Array.isArray(cat?.packages)?cat.packages:[]).filter(p=>p&&p.code&&p.active!==false&&Number(p.credits)>0);
+   const head=h('div','wcc49-heading');head.append(h('h3','','Compra créditos en 3 pasos'),h('p','', 'Elige un paquete, realiza la transferencia y envía el comprobante. Acreditación tras verificación.'));box.append(head);
+   if(!d.topups_enabled){
+     const off=h('div','wcc49-state');off.append(h('strong','','Recargas temporalmente desactivadas'),h('p','','Tu saldo actual y los créditos de tu plan se mantienen. La tienda estará disponible cuando Administración termine su habilitación segura.'));box.append(off);
+     if(packs.length){const line=h('p','wcc49-pack-preview','Paquetes previstos: '+packs.map(p=>`${p.credits} créditos por ${money(p.price_cents)}`).join(' · '));box.append(line)}
+     return;
+   }
+   if(!packs.length){box.append(h('p','wcc49-state','Actualmente no hay paquetes activos.'));return}
+   const form=h('form','wcc49-form');form.noValidate=true;box.append(form);
+   const main=h('div','wcc49-first');form.append(main);
+   const pick=h('label','wcc49-label');pick.append(h('span','','1. Paquete de créditos'));const selectPack=h('select','wcc49-select');for(const p of packs){const op=h('option','',`${p.name||p.code} · ${p.credits} créditos · ${money(p.price_cents)}`);op.value=p.code;selectPack.append(op)}pick.append(selectPack);main.append(pick);
+   const summary=h('div','wcc49-amount');main.append(summary);
+   const detail=h('details','wcc49-details');const summaryNode=h('summary','','2. Datos para pagar con USDT');detail.append(summaryNode);form.append(detail);
+   const detailBody=h('div','wcc49-detail-body');detail.append(detailBody);
+   const netLabel=h('label','wcc49-label');netLabel.append(h('span','','Red de pago'));const network=h('select','wcc49-select');for(const [n,t] of [['BEP20','BNB Smart Chain (BEP20)'],['TRC20','Tron (TRC20)']]){const op=h('option','',t);op.value=n;network.append(op)}netLabel.append(network);detailBody.append(netLabel);
+   const address=h('div','wcc49-address');const addressTitle=h('span','','Dirección oficial de pago');const addressValue=h('code','','Consultando…');const copy=h('button','wcc49-copy','Copiar');copy.type='button';copy.disabled=true;address.append(addressTitle,addressValue,copy);detailBody.append(address);
+   const checkLabel=h('label','wcc49-verify');const acknowledged=h('input');acknowledged.type='checkbox';checkLabel.append(acknowledged,h('span','','Verifiqué la red, token USDT, dirección e importe antes de enviar.'));detailBody.append(checkLabel);
+   const hashLabel=h('label','wcc49-label');hashLabel.append(h('span','','3. Hash de la transacción'));const tx=h('input','wcc49-select');tx.type='text';tx.autocomplete='off';tx.placeholder='Pega el hash después de enviar el pago';tx.maxLength=66;hashLabel.append(tx);detailBody.append(hashLabel);
+   const footer=h('div','wcc49-footer');const feedback=h('div','wcc49-feedback');feedback.setAttribute('aria-live','polite');const submit=h('button','wcc49-submit','Enviar comprobante');submit.type='submit';submit.disabled=true;footer.append(feedback,submit);detailBody.append(footer);
+   const currentPack=()=>packs.find(p=>p.code===selectPack.value)||packs[0];
+   function refreshPack(){const p=currentPack();summary.replaceChildren(h('strong','',money(p.price_cents)),h('small','',`${p.credits} créditos · aprobación manual`));}
+   selectPack.addEventListener('change',refreshPack);refreshPack();
+   let addresses=null;
+   async function loadAddresses(){try{const response=await api('/api/billing/config');addresses={BEP20:String(response.bep20_address||'').trim(),TRC20:String(response.trc20_address||'').trim()};updateAddress()}catch(e){addresses=null;addressValue.textContent='No se pudo confirmar la dirección oficial';copy.disabled=true;submit.disabled=true;feedback.textContent='No realices transferencias hasta consultar los datos oficiales.'}}
+   function updateAddress(){const value=addresses?.[network.value]||'';addressValue.textContent=value||'Esta red no tiene dirección oficial configurada';copy.disabled=!value;updateSubmit()}
+   function updateSubmit(){const value=addresses?.[network.value]||'';const hash=tx.value.trim();const valid=network.value==='BEP20'?/^0x[0-9a-fA-F]{64}$/.test(hash):/^[0-9a-fA-F]{64}$/.test(hash);submit.disabled=!value||!acknowledged.checked||!valid||!d.topups_enabled;}
+   network.addEventListener('change',updateAddress);tx.addEventListener('input',updateSubmit);acknowledged.addEventListener('change',updateSubmit);
+   copy.addEventListener('click',async()=>{const v=addresses?.[network.value];if(!v)return;try{await navigator.clipboard.writeText(v);copy.textContent='Copiada';setTimeout(()=>{if(copy.isConnected)copy.textContent='Copiar'},1400)}catch{feedback.textContent='Selecciona y copia manualmente la dirección.'}});
+   // El servidor valida titular, red, paquete, hash único y aprobación real.
+   form.addEventListener('submit',async ev=>{ev.preventDefault();updateSubmit();if(submit.disabled)return;
+     const p=currentPack();if(!window.confirm(`¿Ya enviaste ${money(p.price_cents)} USDT por ${network.value} a la dirección oficial?\nRegistrarás el hash para verificación. No se acreditará saldo automáticamente.`))return;
+     submit.disabled=true;feedback.textContent='Registrando solicitud…';
+     try{const out=await api('/api/commercial/topups',{package:p.code,network:network.value,tx_hash:tx.value.trim()});feedback.textContent=`Solicitud ${out.id||''} recibida. Estado: pendiente de verificación.`;feedback.classList.add('wcc49-ok');tx.value='';acknowledged.checked=false;detail.open=false;}
+     catch(e){feedback.textContent='No se pudo registrar: '+e.message;feedback.classList.remove('wcc49-ok')}
+     finally{updateSubmit()}
+   });
+   const history=h('details','wcc49-history');history.append(h('summary','','Ver mis solicitudes de recarga'));const historyBody=h('div','wcc49-history-body','Abrir para consultar las solicitudes reales.');history.append(historyBody);box.append(history);
+   history.addEventListener('toggle',async()=>{if(!history.open)return;historyBody.textContent='Consultando…';try{const data=await api('/api/commercial/topups');historyBody.replaceChildren();const xs=Array.isArray(data.topups)?data.topups:[];if(!xs.length)historyBody.textContent='Aún no hay recargas registradas.';for(const x of xs){const line=h('div','wcc49-request');line.append(h('span','',`${x.credits} créditos · ${x.network}`),h('b','',x.status==='approved'?'Aprobada':x.status==='rejected'?'Rechazada':'Pendiente'));historyBody.append(line)}}catch(e){historyBody.textContent='No se pudieron consultar las solicitudes: '+e.message}});
+   loadAddresses();
  }
+
  async function admin(){const el=document.getElementById('wccCommercialAdmin');if(!el)return;el.replaceChildren(h('p','wcc-muted','Cargando matriz comercial y solicitudes…'));
   try{
     const [cat,rs,ts]=await Promise.all([api('/api/commercial/catalog'),api('/api/admin/commercial/rules'),api('/api/admin/commercial/topups')]);el.replaceChildren();
@@ -59,13 +85,12 @@
       const feedback=h('div','wcc-msg');card.append(feedback);const save=h('button','wcc-admin-save','Guardar restricciones');save.type='submit';card.append(save);
       card.addEventListener('submit',async e=>{e.preventDefault();save.disabled=true;try{const payload={plan:r.plan,monthly_credits:Number(credits.input.value),max_projects:Number(projects.input.value),storage_mb:Number(storage.input.value)};for(const [k,ch]of Object.entries(checks))payload[k]=ch.checked;await api('/api/admin/commercial/rules',payload);notice(feedback,'Reglas guardadas. Se aplicarán a solicitudes nuevas.',false)}catch(ex){notice(feedback,ex.message,true)}finally{save.disabled=false}});
       cards.append(card)}el.append(cards);
-    if(window.WorkticStudioTopupsV27349?.renderAdmin){window.WorkticStudioTopupsV27349.renderAdmin(el,ts,api,admin)}
-    else {    const top=h('section','wcc-admin-topups');top.append(h('h3','','Recargas recibidas'));top.append(h('p','wcc-muted','No apruebes ninguna recarga sin verificar USDT, importe exacto, red, destino, confirmaciones y ausencia de reutilización del hash.'));
+    const top=h('section','wcc-admin-topups');top.append(h('h3','','Recargas recibidas'));top.append(h('p','wcc-muted','No apruebes ninguna recarga sin verificar USDT, importe exacto, red, destino, confirmaciones y ausencia de reutilización del hash.'));
     const list=h('div','wcc-topup-list');for(const x of ts.topups){const item=h('article','wcc-topup');item.append(h('b','',`Empresa #${x.tenant_id} · ${x.credits} créditos · ${money(x.price_cents)}`),h('span','',`${x.network} · ${x.status}`),h('code','',x.tx_hash));
       if(x.status==='pending'){const actions=h('div','wcc-actions');for(const action of ['approve','reject']){const b=h('button',action==='approve'?'wcc-approve':'wcc-reject',action==='approve'?'Aprobar pago comprobado':'Rechazar');b.type='button';b.addEventListener('click',async()=>{
           if(!window.confirm(action==='approve'?'¿Has comprobado independientemente en blockchain la transacción, importe USDT y destinatario? Se acreditarán créditos reales.':'¿Confirmas rechazar la solicitud?'))return;
           b.disabled=true;try{await api('/api/admin/commercial/topups',{id:x.id,action,verified_on_chain:action==='approve'});await admin()}catch(e){window.alert(e.message);b.disabled=false}
-        });actions.append(b)}item.append(actions)}list.append(item)}if(!ts.topups?.length)list.append(h('p','wcc-muted','Todavía no hay recargas registradas.'));top.append(list);el.append(top); }
+        });actions.append(b)}item.append(actions)}list.append(item)}if(!ts.topups?.length)list.append(h('p','wcc-muted','Todavía no hay recargas registradas.'));top.append(list);el.append(top);
   }catch(e){notice(el,'No fue posible cargar administración comercial: '+e.message,true)}
  }
  window.WorkticWalletLegacyRefresh=wallet;
