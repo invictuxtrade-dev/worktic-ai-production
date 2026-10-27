@@ -1,2 +1,2 @@
-WorkticAI V27.34.9 Lite — Recargas Studio sencillas y seguras
-Base: V27.34.8. Ajustes UI (no activación de recargas).
+WorkticAI V27.35.0 STAGING — Llamadas IA + billetera de créditos de voz separada
+Base: V27.34.9 Lite. NO desplegar en producción sin preflight de proveedor y pruebas.

@@ -26,6 +26,8 @@ type publicOfferPlanV2734 struct {
 	Telegram             int64           `json:"max_telegram"`
 	Messenger            int64           `json:"max_messenger"`
 	Credits              int64           `json:"monthly_credits"`
+	VoiceCreditsPlanned  int64           `json:"voice_credits_planned"`
+	VoiceCredits         int64           `json:"voice_credits"`
 	StudioCreditsPlanned int64           `json:"studio_credits_planned"`
 	Projects             int64           `json:"max_studio_projects"`
 	StorageMB            int64           `json:"studio_storage_mb"`
@@ -77,6 +79,14 @@ func (a *App) publicCommercialOfferV2734Handler(w http.ResponseWriter, r *http.R
 		p.StudioText = commercialActive && rule.Text
 		p.Credits = 0
 		p.StudioCreditsPlanned = rule.Monthly
+		// Voice is a different ledger. Enterprise grant is only usable when
+		// the external provider and commercial voice switch are active.
+		if p.Code == "enterprise" {
+			p.VoiceCreditsPlanned = a.voiceEnterpriseIncluded()
+			if voiceConfigured() {
+				p.VoiceCredits = p.VoiceCreditsPlanned
+			}
+		}
 		if commercialActive {
 			p.Credits = rule.Monthly
 		}
@@ -114,7 +124,7 @@ func (a *App) publicCommercialOfferV2734Handler(w http.ResponseWriter, r *http.R
 	}
 	// Only constant server metadata is public: never return API keys, internal costs or financial records.
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	payload := map[string]any{"version": "27.34.5", "plans": plans, "creative_commercial_active": commercialActive, "studio_credits_active": commercialActive, "topups_active": topupsActive, "studio_unit_prices": map[string]int64{"image": mustCreativeCreditsV27345("image", 0, 0), "video_5s": mustCreativeCreditsV27345("video", 5, 0), "video_10s": mustCreativeCreditsV27345("video", 10, 0)}, "module_gates_active": moduleGatesActive, "packages": packages, "currency": "USDT", "discount_annual_percent": 20, "notes": []string{"Los importes de checkout se verifican en el servidor; promociones pueden modificarlos.", "Las generaciones IA requieren crédito disponible, proveedor configurado y presupuestos técnicos autorizados; las recargas se habilitan por separado.", "Los servicios externos de Meta, Ads, Luma y otros requieren permisos, configuración y pueden tener cargos adicionales."}}
+	payload := map[string]any{"version": "27.35", "voice_active": voiceConfigured(), "voice_price_per_minute_credits": a.voicePrice(), "voice_packages": voicePackages(a.voicePrice()), "voice_sales_active": a.voiceTopupsEnabled(), "plans": plans, "creative_commercial_active": commercialActive, "studio_credits_active": commercialActive, "topups_active": topupsActive, "studio_unit_prices": map[string]int64{"image": mustCreativeCreditsV27345("image", 0, 0), "video_5s": mustCreativeCreditsV27345("video", 5, 0), "video_10s": mustCreativeCreditsV27345("video", 10, 0)}, "module_gates_active": moduleGatesActive, "packages": packages, "currency": "USDT", "discount_annual_percent": 20, "notes": []string{"Los importes de checkout se verifican en el servidor; promociones pueden modificarlos.", "Las generaciones IA requieren crédito disponible, proveedor configurado y presupuestos técnicos autorizados; las recargas se habilitan por separado.", "Los servicios externos de Meta, Ads, Luma y otros requieren permisos, configuración y pueden tener cargos adicionales."}}
 	_ = json.NewEncoder(w).Encode(payload)
 }
 

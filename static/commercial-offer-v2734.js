@@ -29,6 +29,16 @@ const creditBenefit=(p,offer)=>{
  const eq=creditEquivalences(p,offer);
  return `${number(amount)} ${words('créditos Studio/mes','Studio credits/month')}${eq?` · ${esc(eq)}`:''}`;
 };
+const voiceBenefit=(p,offer)=>{
+ if(p.code==='enterprise'){
+   const amount=Number(p.voice_credits||p.voice_credits_planned||0);
+   const perMinute=Number(offer.voice_price_per_minute_credits||0);
+   const mins=perMinute>0?Math.floor(amount/perMinute):0;
+   return offer.voice_active?words(`Llamadas IA: ${number(amount)} créditos/mes · hasta ${number(mins)} minutos`,`AI Calls: ${number(amount)} credits/month · up to ${number(mins)} minutes`):words(`Llamadas IA: ${number(amount)} créditos/mes previstos · activación pendiente`,`AI Calls: ${number(amount)} credits/month planned · activation pending`);
+ }
+ if(p.code==='free')return words('Llamadas IA no incluidas','AI Calls not included');
+ return words('Llamadas IA mediante paquetes de créditos adicionales','AI Calls with optional credit packages');
+};
 const benefits=(p,offer,short=false)=>{
  const li=(label,disabled=false)=>`<li${disabled?' class="wts34-benefit-disabled"':''}>${label}</li>`;
  const canAgents=moduleEnabled(p,'agents')&&Number(p.max_agents||0)>0;
@@ -42,7 +52,8 @@ const benefits=(p,offer,short=false)=>{
   li(`<b>${number(p.max_rules)}</b> ${words('reglas de automatización','automation rules')}`),
   li(`Worktic Studio: ${p.studio_editor?words('editor de imágenes y videos','image and video editor'):words('no incluido','not included')}`,!p.studio_editor),
   li(`${number(p.max_studio_projects)} ${words('proyectos Studio','Studio projects')} · ${esc(size(p.studio_storage_mb))} ${words('de medios','media storage')}`,!p.studio_editor),
-  li(creditBenefit(p,offer),monthlyStudio(p)===0)
+  li(creditBenefit(p,offer),monthlyStudio(p)===0),
+  li(voiceBenefit(p,offer),p.code==='free')
  ];
  if(!short){
   const mods=[['social','Social Hub'],['analytics','Analytics'],['ads','Ads Center'],['meta_leads','Meta Lead Ads'],['whatsapp_marketing','WhatsApp Marketing'],['automations',words('Workflows avanzados','Advanced workflows')]];
@@ -81,6 +92,8 @@ const render=offer=>{
    [words('Contactos CRM','CRM contacts'),'max_contacts'],
    [words('Productos / servicios','Products / services'),'max_products'],
    [words('Respuestas IA / mes','AI replies / month'),'max_ai_responses'],
+   {group:words('Llamadas IA · telefonía inteligente','AI Calls · intelligent calling')},
+   [words('Créditos de voz incluidos / mes','Included voice credits / month'),'voice_credits_planned'],
    {group:'Worktic Studio'},
    [words('Editor de imágenes y videos','Image and video editor'),'studio_editor'],
    [words('Créditos Studio / mes','Studio credits / month'),'studio_credits_planned'],
@@ -95,6 +108,7 @@ const render=offer=>{
   ];
   const val=(p,key)=>{
    const v=key.split('.').reduce((o,k)=>o?.[k],p);
+   if(key==='voice_credits_planned'){return p.code==='enterprise'?`${number(p.voice_credits_planned||0)} ${offer.voice_active?'':'· próximamente'}`:'—'}
    if(key==='studio_credits_planned'){
     const actual=Number(p.monthly_credits||0);
     const planned=Number(v||0);

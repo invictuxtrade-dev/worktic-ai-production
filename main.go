@@ -317,6 +317,12 @@ func main() {
 	if err = initCommercialV2721Schema(db); err != nil {
 		log.Fatalf("commercial v2721 schema: %v", err)
 	}
+	if err = initVoiceV2735Schema(db); err != nil {
+		log.Fatalf("voice v27.35 schema: %v", err)
+	}
+	if err = initVoiceConsentV2735(db); err != nil {
+		log.Fatalf("voice v27.35 consents: %v", err)
+	}
 	if err = initStudioTopupsV27349Schema(db); err != nil {
 		log.Fatalf("studio topups v27349 schema: %v", err)
 	}
@@ -452,6 +458,15 @@ func main() {
 		log.Fatalf("production runtime: %v", err)
 	}
 	app := &App{cfg: cfg, db: db, client: client, qrState: "idle", autoLast: map[string]time.Time{}, tgStop: make(chan struct{}), prod: prod}
+	// Voice recovery only touches stale reservations and never updates Studio.
+	app.voiceRecoverStale()
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			app.voiceRecoverStale()
+		}
+	}()
 	if err := app.reconcilePartnerApprovedPaymentsV2715(); err != nil {
 		log.Printf("partners v27.15 commission reconciliation: %v", err)
 	}
@@ -642,6 +657,16 @@ func main() {
 	mux.HandleFunc("/api/public/offer/v2734", app.publicCommercialOfferV2734Handler)
 	mux.HandleFunc("/api/commercial/full-entitlements", app.commercialFullEntitlementsV2722Handler)
 	mux.HandleFunc("/api/admin/commercial/v2730/coverage", app.tenantGuardReportV2730Handler)
+	mux.HandleFunc("/api/voice/v2735/overview", app.voiceOverviewHandler)
+	mux.HandleFunc("/api/voice/v2735/channels", app.voiceChannelHandler)
+	mux.HandleFunc("/api/voice/v2735/topups", app.voiceTopupsHandler)
+	mux.HandleFunc("/api/voice/v2735/browser/start", app.voiceBrowserHandler)
+	mux.HandleFunc("/api/voice/v2735/outbound", app.voiceOutboundHandler)
+	mux.HandleFunc("/api/voice/v2735/consent", app.voiceConsentHandler)
+	mux.HandleFunc("/api/admin/voice/v2735", app.voiceAdminHandler)
+	mux.HandleFunc("/webhooks/voice/twilio/inbound", app.voiceTwilioInboundHandler)
+	mux.HandleFunc("/webhooks/voice/twilio/status", app.voiceTwilioStatusHandler)
+	mux.HandleFunc("/webhooks/voice/openai", app.voiceOpenAIWebhookHandler)
 	mux.HandleFunc("/api/commercial/wallet", app.commercialWalletV2721Handler)
 	mux.HandleFunc("/api/commercial/movements", app.commercialMovementsV27346Handler)
 	mux.HandleFunc("/api/commercial/quote", app.commercialQuoteV2721Handler)
