@@ -44,6 +44,9 @@ func (a *App) ensureInboxConversation(tenantID int64, chat string) {
 }
 
 func (a *App) inboxAIAllowed(tenantID int64, chat string) bool {
+	if deleted, err := a.inboxIsRemoved(tenantID, chat); err != nil || deleted {
+		return false
+	}
 	a.ensureInboxConversation(tenantID, chat)
 	var mode, status string
 	err := a.db.QueryRow(`SELECT mode,status FROM inbox_conversations WHERE tenant_id=? AND chat_jid=?`, tenantID, chat).Scan(&mode, &status)
@@ -65,11 +68,11 @@ func (a *App) inboxOverviewHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var open, pending, closed, human, unread int
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM inbox_conversations WHERE tenant_id=? AND status='open'`, tid).Scan(&open)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM inbox_conversations WHERE tenant_id=? AND status='pending'`, tid).Scan(&pending)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM inbox_conversations WHERE tenant_id=? AND status='closed'`, tid).Scan(&closed)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM inbox_conversations WHERE tenant_id=? AND mode='human' AND status<>'closed'`, tid).Scan(&human)
-	_ = a.db.QueryRow(`SELECT COALESCE(SUM(unread),0) FROM worktic_contacts WHERE tenant_id=?`, tid).Scan(&unread)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM inbox_conversations WHERE tenant_id=? AND status='open' AND NOT EXISTS (SELECT 1 FROM inbox_removed_v273511 d WHERE d.tenant_id=inbox_conversations.tenant_id AND d.chat_jid=inbox_conversations.chat_jid)`, tid).Scan(&open)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM inbox_conversations WHERE tenant_id=? AND status='pending' AND NOT EXISTS (SELECT 1 FROM inbox_removed_v273511 d WHERE d.tenant_id=inbox_conversations.tenant_id AND d.chat_jid=inbox_conversations.chat_jid)`, tid).Scan(&pending)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM inbox_conversations WHERE tenant_id=? AND status='closed' AND NOT EXISTS (SELECT 1 FROM inbox_removed_v273511 d WHERE d.tenant_id=inbox_conversations.tenant_id AND d.chat_jid=inbox_conversations.chat_jid)`, tid).Scan(&closed)
+	_ = a.db.QueryRow(`SELECT COUNT(*) FROM inbox_conversations WHERE tenant_id=? AND mode='human' AND status<>'closed' AND NOT EXISTS (SELECT 1 FROM inbox_removed_v273511 d WHERE d.tenant_id=inbox_conversations.tenant_id AND d.chat_jid=inbox_conversations.chat_jid)`, tid).Scan(&human)
+	_ = a.db.QueryRow(`SELECT COALESCE(SUM(unread),0) FROM worktic_contacts c WHERE tenant_id=? AND NOT EXISTS (SELECT 1 FROM inbox_removed_v273511 d WHERE d.tenant_id=c.tenant_id AND d.chat_jid=c.chat_jid)`, tid).Scan(&unread)
 	writeJSON(w, map[string]any{"open": open, "pending": pending, "closed": closed, "human": human, "unread": unread})
 }
 
@@ -87,6 +90,13 @@ func (a *App) inboxConversationHandler(w http.ResponseWriter, r *http.Request) {
 	var exists int
 	if a.db.QueryRow(`SELECT COUNT(*) FROM worktic_contacts WHERE tenant_id=? AND chat_jid=?`, tid, chat).Scan(&exists) != nil || exists == 0 {
 		writeError(w, errors.New("conversación no encontrada"), 404)
+		return
+	}
+	if deleted, e := a.inboxIsRemoved(tid, chat); e != nil {
+		writeError(w, e, 500)
+		return
+	} else if deleted {
+		writeError(w, errors.New("conversación eliminada"), 404)
 		return
 	}
 	a.ensureInboxConversation(tid, chat)
@@ -175,9 +185,25 @@ func (a *App) inboxConversationHandler(w http.ResponseWriter, r *http.Request) {
 		closed = time.Now().UTC().Format(time.RFC3339)
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	_, err = a.db.Exec(`UPDATE inbox_conversations SET status=?,mode=?,priority=?,assigned_user_id=?,department=?,tags=?,sla_due_at=?,closed_at=?,updated_at=? WHERE tenant_id=? AND chat_jid=?`, req.Status, req.Mode, req.Priority, req.AssignedUserID, req.Department, req.Tags, sla, closed, now, tid, chat)
-	if err != nil {
-		writeError(w, err, 500)
+	oldData := map[string]any{"status": curStatus, "mode": curMode, "priority": curPriority, "assigned_user_id": curAssigned, "department": curDept, "tags": curTags, "sla_due_at": curSLA}
+	newData := map[string]any{"status": req.Status, "mode": req.Mode, "priority": req.Priority, "assigned_user_id": req.AssignedUserID, "department": req.Department, "tags": req.Tags, "sla_due_at": sla}
+	tx, e := a.db.Begin()
+	if e != nil {
+		writeError(w, e, 500)
+		return
+	}
+	defer tx.Rollback()
+	_, e = tx.Exec(`UPDATE inbox_conversations SET status=?,mode=?,priority=?,assigned_user_id=?,department=?,tags=?,sla_due_at=?,closed_at=?,updated_at=? WHERE tenant_id=? AND chat_jid=?`, req.Status, req.Mode, req.Priority, req.AssignedUserID, req.Department, req.Tags, sla, closed, now, tid, chat)
+	if e != nil {
+		writeError(w, e, 500)
+		return
+	}
+	if e = a.inboxAuditTx(tx, tid, chat, u, "conversation.updated", oldData, newData, ""); e != nil {
+		writeError(w, e, 500)
+		return
+	}
+	if e = tx.Commit(); e != nil {
+		writeError(w, e, 500)
 		return
 	}
 	if req.Mode != curMode {
@@ -204,6 +230,10 @@ func (a *App) inboxNotesHandler(w http.ResponseWriter, r *http.Request) {
 	chat := strings.TrimSpace(r.URL.Query().Get("chat"))
 	if chat == "" {
 		writeError(w, errors.New("chat obligatorio"), 400)
+		return
+	}
+	if !a.inboxVisible(tid, chat) {
+		writeError(w, errors.New("conversación no disponible"), 404)
 		return
 	}
 	if r.Method == http.MethodGet {
@@ -236,9 +266,24 @@ func (a *App) inboxNotesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	_, err = a.db.Exec(`INSERT INTO inbox_notes(tenant_id,chat_jid,user_id,user_name,note,created_at) VALUES(?,?,?,?,?,?)`, tid, chat, u.ID, u.Name, strings.TrimSpace(req.Note), now)
-	if err != nil {
-		writeError(w, err, 500)
+	tx, e := a.db.Begin()
+	if e != nil {
+		writeError(w, e, 500)
+		return
+	}
+	defer tx.Rollback()
+	_, e = tx.Exec(`INSERT INTO inbox_notes(tenant_id,chat_jid,user_id,user_name,note,created_at) VALUES(?,?,?,?,?,?)`, tid, chat, u.ID, u.Name, strings.TrimSpace(req.Note), now)
+	if e != nil {
+		writeError(w, e, 500)
+		return
+	}
+	// Keep the note content in inbox_notes; audit records the action without duplicating sensitive text.
+	if e = a.inboxAuditTx(tx, tid, chat, u, "conversation.note_added", nil, map[string]any{"note_added": true}, ""); e != nil {
+		writeError(w, e, 500)
+		return
+	}
+	if e = tx.Commit(); e != nil {
+		writeError(w, e, 500)
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true})

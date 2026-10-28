@@ -1,0 +1,68 @@
+/* WorkticAI V27.35.11 — Conversation workspace: bounded three-pane layout. */
+.inbox-view{--inbox-purple:#7634e5;--inbox-line:#e8e4f0;--inbox-soft:#f8f6ff}
+.inbox-view .inbox-v21{gap:14px;min-width:0}
+.inbox-view .inbox-toolbar-v21{align-items:center;flex-wrap:wrap}
+.inbox-toolbar-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.inbox-toolbar-actions button{min-height:36px;font-size:12px}
+.inbox-view .inbox-workspace{display:grid;grid-template-columns:minmax(240px,310px) minmax(0,1fr) minmax(245px,295px);height:clamp(520px,68dvh,780px);min-height:520px;max-height:780px;overflow:hidden;min-width:0;background:#fff;border:1px solid var(--inbox-line);border-radius:22px;box-shadow:0 20px 54px rgba(37,24,76,.08)}
+.inbox-view .inbox-workspace .conversation-list{padding:0;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;background:#fbfaff;border-right:1px solid var(--inbox-line)}
+.inbox-view .conversation-list-head{flex:0 0 auto;background:#fbfaff;padding:16px 17px;min-height:70px}
+.inbox-view #convList{flex:1 1 auto;min-height:0;height:auto;max-height:none;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-color:#d6caf2 transparent}
+.inbox-view .conv{margin:7px 8px;padding:12px!important;border:1px solid transparent;border-radius:14px;background:transparent;box-shadow:none;transition:background .16s,border-color .16s,box-shadow .16s}
+.inbox-view .conv:hover{background:#fff;border-color:#e6ddf7;box-shadow:0 6px 20px rgba(64,37,105,.05)}
+.inbox-view .conv.active{padding:12px!important;background:#f0eaff;border:1px solid #b59bea;box-shadow:0 4px 16px rgba(106,62,191,.09)}
+.inbox-view .conv-avatar{background:linear-gradient(135deg,#ded4ff,#f7edff);border:1px solid #e1d4fb;border-radius:14px}
+.inbox-view .conv-meta .mini-pill{color:#595070;background:#eeeafa}
+.inbox-view .inbox-workspace .chat{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;min-height:0;min-width:0;height:100%;max-height:100%;overflow:hidden;border:0;border-radius:0;background:#f9faff}
+.inbox-view .chat-head-v21{background:#fff;min-width:0;min-height:68px;padding:12px 16px;flex-wrap:wrap}
+.inbox-view .chat-head-v21 .identity{min-width:0;flex:1 1 110px}
+.inbox-view .chat-head-v21 .identity b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inbox-view .chat-head-v21 .identity small{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.inbox-view .chat-head-v21 .inbox-status-row{margin:0;flex:0 0 auto}
+.inbox-head-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.inbox-view .inbox-head-actions button{min-height:32px;min-width:0;padding:6px 10px;border-radius:10px;font-size:11px;font-weight:750}
+.inbox-quiet-btn{border:1px solid #e4dbf3;color:#6240a9;background:#f8f5ff}
+.inbox-remove-btn{border:1px solid #ffd9df;color:#ab3552;background:#fff7f8}
+.inbox-view #inboxModeBanner{flex:none;font-size:11px;line-height:1.5;padding:10px 16px}
+.inbox-view #messages{flex:1 1 auto;min-height:0;min-width:0;max-height:100%;height:auto;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:20px 18px;scrollbar-color:#c8bbeb transparent;overflow-wrap:anywhere}
+.inbox-view #messages .msg{flex:none;max-width:min(86%,520px);word-break:break-word;white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;border:1px solid #eae7f2;box-shadow:0 3px 11px rgba(50,42,85,.035);padding:12px 15px;font-size:12.5px;line-height:1.6}
+.inbox-view #messages .msg.out{background:linear-gradient(135deg,#30264a,#4f3186);border:0;color:#fff}
+.inbox-view .chat .composer{flex:none;margin:0;display:flex;align-items:flex-end;gap:10px;padding:12px 14px;border-top:1px solid var(--inbox-line);background:#fff;min-width:0}
+.inbox-view .composer textarea{flex:1;min-width:0;max-height:90px;min-height:42px;resize:none;border-radius:12px;background:#faf9ff}
+.inbox-view .composer button{flex:0 0 auto;min-height:42px;border-radius:12px}
+.inbox-view .inbox-side{display:block;min-height:0;max-height:100%;min-width:0;overflow-y:auto;overflow-x:hidden;padding:16px;background:#fff;scrollbar-color:#d6caf2 transparent;border-left:1px solid var(--inbox-line)}
+.inbox-side-heading{display:flex;gap:10px;align-items:center;margin-bottom:15px}
+.inbox-side-heading h3{font-size:14px;margin:0 0 4px}
+.inbox-side-heading small{font-size:10px;color:#8b82a1;line-height:1.35;display:block}
+.inbox-side-icon{display:grid;place-items:center;flex:none;width:35px;height:35px;border-radius:11px;background:#f0eaff;color:#7634e5;font-size:19px}
+.inbox-view .inbox-contact-card{background:linear-gradient(145deg,#f8f5ff,#fff);border:1px solid #eee7fb;margin-bottom:14px;padding:14px;border-radius:15px;overflow-wrap:anywhere;font-size:12px}
+.inbox-view .inbox-side .field{margin-bottom:13px;font-size:12px}
+.inbox-view .inbox-side .field span{font-size:11px;font-weight:700;color:#504663}
+.inbox-view .inbox-side select,.inbox-view .inbox-side input{min-height:39px;border-radius:10px;max-width:100%}
+.inbox-view .inbox-side>button{font-size:11px;min-height:38px}
+.inbox-audit-link{background:transparent!important;color:#6945ba!important;border:1px solid #e4d8fc!important;margin-top:7px}
+.inbox-empty-chat{padding:24px;text-align:center;color:#746785;font-size:13px;line-height:1.6}
+/* Native dialog, independent from Worktic's shared #modal component. */
+dialog.worktic-inbox-dialog{max-width:min(590px,calc(100vw - 24px));width:590px;max-height:min(82dvh,760px);border:1px solid #e9dff5;padding:0;border-radius:22px;background:#fff;color:#201936;box-shadow:0 30px 100px rgba(24,17,49,.24);overflow:hidden}
+dialog.worktic-inbox-dialog::backdrop{background:rgba(15,10,35,.56);backdrop-filter:blur(4px)}
+.inbox-dialog-shell{display:grid;grid-template-rows:auto minmax(0,1fr) auto;max-height:min(82dvh,760px)}
+.inbox-dialog-header{padding:20px 22px 15px;border-bottom:1px solid #ebe4f4;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.inbox-dialog-header small{font-size:10px;letter-spacing:.13em;font-weight:850;color:#8b4ce7}
+.inbox-dialog-header h3{margin:6px 0 0;font-size:21px;letter-spacing:-.02em}
+.inbox-close{border:1px solid #eae5f4;background:#fff;border-radius:10px;width:36px;height:36px;font-size:22px;flex:none}
+.inbox-dialog-body{padding:20px 22px;overflow:auto;min-height:0;line-height:1.55}
+.inbox-dialog-footer{border-top:1px solid #eee6f5;padding:14px 22px;display:flex;justify-content:flex-end;gap:10px;background:#fcfbff}
+.inbox-alert{border:1px solid #ffdde4;background:#fff5f7;padding:14px;border-radius:13px;font-size:13px;color:#803b50}
+.inbox-alert p{margin:6px 0 0;color:#86596a}
+.inbox-dialog-contact{font-weight:800;font-size:14px;margin:17px 0}.inbox-dialog-contact small{display:block;font-weight:500;color:#877c95;margin-top:3px}
+.inbox-audit-reason{display:grid;gap:8px;font-weight:750;font-size:12px}
+.inbox-audit-reason span{font-size:10px;color:#8b4ce7}
+.inbox-audit-reason textarea{width:100%;resize:vertical;min-height:86px;border-radius:12px;padding:12px;box-sizing:border-box;border:1px solid #d9cbea}
+.inbox-dialog-error{color:#b42343;font-weight:700;font-size:12px;margin-top:10px}
+.inbox-danger-solid{background:#a72c50;color:#fff;border:0;border-radius:11px;padding:10px 15px;font-weight:750}
+.inbox-audit-timeline{display:grid;gap:12px}.inbox-audit-entry{display:flex;align-items:flex-start;gap:12px;background:#faf8ff;border:1px solid #eee8fa;border-radius:13px;padding:12px}
+.inbox-event-dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none;background:#8d56e4;box-shadow:0 0 0 4px #ece4ff}
+.inbox-audit-entry strong,.inbox-audit-entry small{display:block}.inbox-audit-entry small{color:#897d9d;margin-top:4px;font-size:11px}.inbox-audit-entry p{font-size:12px;margin:5px 0 0}.inbox-audit-entry details{margin-top:7px;font-size:11px}.inbox-audit-entry pre{max-width:100%;white-space:pre-wrap;word-break:break-word;font-size:10px;color:#514168;background:#f3effb}
+.inbox-removed-list{display:grid;gap:10px}.inbox-removed-item{display:flex;align-items:center;gap:14px;justify-content:space-between;border:1px solid #eee6f7;border-radius:13px;padding:14px}.inbox-removed-item strong,.inbox-removed-item small{display:block}.inbox-removed-item small{color:#9387a2;margin-top:4px}.inbox-removed-item p{font-size:12px;margin:5px 0 0}.inbox-removed-actions{display:flex;gap:6px;flex-wrap:wrap}
+@media(max-width:1100px){.inbox-view .inbox-workspace{grid-template-columns:minmax(220px,290px) minmax(0,1fr);grid-template-rows:minmax(0,1fr) 218px;height:clamp(680px,78dvh,880px);max-height:880px}.inbox-view .inbox-side{grid-column:1 / -1;grid-row:2;display:block;border-left:0;border-top:1px solid var(--inbox-line)}.inbox-view .inbox-side .field{display:inline-grid;width:calc(50% - 10px);margin-right:8px;vertical-align:top}}
+@media(max-width:760px){.inbox-view .inbox-workspace{display:flex;flex-direction:column;max-height:none;height:auto;min-height:0}.inbox-view .inbox-workspace .conversation-list{flex:none;height:220px;min-height:220px;border-right:0;border-bottom:1px solid var(--inbox-line)}.inbox-view .inbox-workspace .chat{height:clamp(410px,65dvh,600px);flex:none;max-height:600px;min-height:410px}.inbox-view .inbox-side{flex:none;height:310px;max-height:310px;border-top:1px solid var(--inbox-line)}.inbox-view .inbox-side .field{display:grid;width:100%;margin-right:0}.inbox-view #messages .msg{max-width:92%}.inbox-view .chat-head-v21{gap:8px;padding:10px 12px}.inbox-view .chat-head-v21 .inbox-status-row{display:none}.inbox-view .inbox-workspace .composer{padding:9px;gap:7px}.inbox-dialog-header,.inbox-dialog-body,.inbox-dialog-footer{padding-left:15px;padding-right:15px}.inbox-removed-item{flex-direction:column;align-items:stretch}}

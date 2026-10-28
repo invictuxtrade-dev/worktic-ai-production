@@ -344,6 +344,9 @@ func main() {
 	if err = initInboxV21Schema(db); err != nil {
 		log.Fatal(err)
 	}
+	if err = initInboxAuditV273511Schema(db); err != nil {
+		log.Fatalf("inbox audit v273511 schema: %v", err)
+	}
 	if err = initAutomationV20Schema(db); err != nil {
 		log.Fatalf("automation v20 schema: %v", err)
 	}
@@ -572,6 +575,10 @@ func main() {
 	mux.HandleFunc("/api/inbox/conversation", app.inboxConversationHandler)
 	mux.HandleFunc("/api/inbox/notes", app.inboxNotesHandler)
 	mux.HandleFunc("/api/inbox/team", app.inboxTeamHandler)
+	mux.HandleFunc("/api/inbox/remove", app.inboxRemoveHandler)
+	mux.HandleFunc("/api/inbox/restore", app.inboxRestoreHandler)
+	mux.HandleFunc("/api/inbox/removed", app.inboxRemovedListHandler)
+	mux.HandleFunc("/api/inbox/audit", app.inboxAuditHandler)
 	mux.HandleFunc("/api/messages", app.messagesHandler)
 	mux.HandleFunc("/api/read", app.readHandler)
 	mux.HandleFunc("/api/contact", app.contactHandler)
@@ -1228,7 +1235,7 @@ func (a *App) conversationsHandler(w http.ResponseWriter, r *http.Request) {
       COALESCE((SELECT timestamp FROM worktic_messages m WHERE m.tenant_id=c.tenant_id AND m.chat_jid=c.chat_jid ORDER BY m.id DESC LIMIT 1),c.updated_at),
       (SELECT COUNT(*) FROM worktic_messages m WHERE m.tenant_id=c.tenant_id AND m.chat_jid=c.chat_jid),
       COALESCE(ic.status,'open'),COALESCE(ic.mode,'ai'),COALESCE(ic.priority,'normal'),COALESCE(ic.assigned_user_id,0),COALESCE(u.name,''),COALESCE(ic.department,''),COALESCE(ic.tags,''),COALESCE(ic.sla_due_at,'')
-      FROM worktic_contacts c LEFT JOIN inbox_conversations ic ON ic.tenant_id=c.tenant_id AND ic.chat_jid=c.chat_jid LEFT JOIN app_users u ON u.id=ic.assigned_user_id AND u.tenant_id=c.tenant_id WHERE c.tenant_id=? ORDER BY 8 DESC`, tid)
+      FROM worktic_contacts c LEFT JOIN inbox_conversations ic ON ic.tenant_id=c.tenant_id AND ic.chat_jid=c.chat_jid LEFT JOIN app_users u ON u.id=ic.assigned_user_id AND u.tenant_id=c.tenant_id WHERE c.tenant_id=? AND NOT EXISTS (SELECT 1 FROM inbox_removed_v273511 d WHERE d.tenant_id=c.tenant_id AND d.chat_jid=c.chat_jid) ORDER BY 8 DESC`, tid)
 	if err != nil {
 		writeError(w, err, 500)
 		return
@@ -1252,13 +1259,13 @@ func (a *App) messagesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	chat := strings.TrimSpace(r.URL.Query().Get("chat"))
-	q := `SELECT id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp FROM worktic_messages WHERE tenant_id=?`
+	q := `SELECT id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp FROM worktic_messages m WHERE m.tenant_id=? AND NOT EXISTS (SELECT 1 FROM inbox_removed_v273511 d WHERE d.tenant_id=m.tenant_id AND d.chat_jid=m.chat_jid)`
 	args := []any{tid}
 	if chat != "" {
-		q += ` AND chat_jid=?`
+		q += ` AND m.chat_jid=?`
 		args = append(args, chat)
 	}
-	q += ` ORDER BY id ASC LIMIT 500`
+	q += ` ORDER BY m.id DESC LIMIT 500`
 	rows, err := a.db.Query(q, args...)
 	if err != nil {
 		writeError(w, err, 500)
@@ -1273,6 +1280,10 @@ func (a *App) messagesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out = append(out, m)
+	}
+	// Return newest 500 messages in natural chronological order.
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
 	}
 	writeJSON(w, out)
 }
@@ -1291,6 +1302,10 @@ func (a *App) readHandler(w http.ResponseWriter, r *http.Request) {
 	tid, _, terr := a.tenantForRequest(r)
 	if terr != nil {
 		writeError(w, terr, 401)
+		return
+	}
+	if !a.inboxVisible(tid, req.Chat) {
+		writeError(w, errors.New("conversación no disponible"), 404)
 		return
 	}
 	_, err := a.db.Exec(`UPDATE worktic_contacts SET unread=0 WHERE tenant_id=? AND chat_jid=?`, tid, req.Chat)
@@ -1313,15 +1328,40 @@ func (a *App) contactHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("chat obligatorio"), 400)
 		return
 	}
-	tid, _, terr := a.tenantForRequest(r)
+	tid, u, terr := a.tenantForRequest(r)
 	if terr != nil {
 		writeError(w, terr, 401)
 		return
 	}
-	_, err := a.db.Exec(`UPDATE worktic_contacts SET name=?,updated_at=? WHERE tenant_id=? AND chat_jid=?`, strings.TrimSpace(req.Name), time.Now().UTC().Format(time.RFC3339), tid, req.Chat)
-	if err != nil {
-		writeError(w, err, 500)
+	if !a.inboxVisible(tid, req.Chat) {
+		writeError(w, errors.New("conversación no disponible"), 404)
 		return
+	}
+	var previousName string
+	if e := a.db.QueryRow(`SELECT name FROM worktic_contacts WHERE tenant_id=? AND chat_jid=?`, tid, req.Chat).Scan(&previousName); e != nil {
+		writeError(w, errors.New("contacto no encontrado"), 404)
+		return
+	}
+	newName := strings.TrimSpace(req.Name)
+	if previousName != newName {
+		tx, e := a.db.Begin()
+		if e != nil {
+			writeError(w, e, 500)
+			return
+		}
+		defer tx.Rollback()
+		if _, e = tx.Exec(`UPDATE worktic_contacts SET name=?,updated_at=? WHERE tenant_id=? AND chat_jid=?`, newName, time.Now().UTC().Format(time.RFC3339), tid, req.Chat); e != nil {
+			writeError(w, e, 500)
+			return
+		}
+		if e = a.inboxAuditTx(tx, tid, req.Chat, u, "conversation.contact_renamed", map[string]any{"name": previousName}, map[string]any{"name": newName}, ""); e != nil {
+			writeError(w, e, 500)
+			return
+		}
+		if e = tx.Commit(); e != nil {
+			writeError(w, e, 500)
+			return
+		}
 	}
 	writeJSON(w, map[string]any{"ok": true})
 }
@@ -1349,6 +1389,15 @@ func (a *App) sendHandler(w http.ResponseWriter, r *http.Request) {
 	if target == "" || strings.TrimSpace(req.Text) == "" {
 		writeError(w, errors.New("destinatario y mensaje son obligatorios"), 400)
 		return
+	}
+	if tenantID, _, tenantErr := a.tenantForRequest(r); tenantErr == nil {
+		if removed, e := a.inboxIsRemoved(tenantID, target); e != nil {
+			writeError(w, e, 500)
+			return
+		} else if removed {
+			writeError(w, errors.New("conversación eliminada: restaura antes de enviar"), 409)
+			return
+		}
 	}
 	// Preserve tenant-scoped Cloud/Messenger sending from the existing Inbox.
 	// Bare JID, QR and global Telegram still use the legacy global connection
