@@ -3,6 +3,17 @@
 const q=s=>document.querySelector(s), qa=s=>[...document.querySelectorAll(s)];
 const money=n=>'$'+Number(n||0).toLocaleString(undefined,{maximumFractionDigits:0});
 const num=n=>Number(n||0).toLocaleString();
+
+const kpiIcon59=(i)=>{
+ const shapes=[
+  '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M12 8v8M15 10a3 3 0 0 0-5 0c0 2 5 1 5 4a3 3 0 0 1-5 0"/>',
+  '<circle cx="12" cy="12" r="9"/><path d="M7 15l4-4 3 3 4-6M14 8h4v4"/>',
+  '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-5 3-7 8-7s8 2 8 7"/>',
+  '<path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l-3 3v-9A7.5 7.5 0 0 1 9.5 5h3A7.5 7.5 0 0 1 20 11.5Z"/><path d="M7 12h8"/>'
+ ];
+ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true">${shapes[i]||shapes[0]}</svg>`;
+};
+
 const delta=v=>{v=Number(v||0);return `<span class="v27-delta ${v>0?'up':v<0?'down':'flat'}">${v>0?'↑ ':v<0?'↓ ':''}${Math.abs(v).toFixed(1)}% vs. periodo anterior</span>`};
 function switchViewV27(view){const b=q(`nav button[data-view="${view}"]`);if(b){b.click();if(innerWidth<900)q('#appSidebar')?.classList.remove('open')}}
 window.switchViewV27=switchViewV27;
@@ -38,7 +49,13 @@ async function loadGrowthDashboardV27(){
       {label:'Leads',hint:'Contactos potenciales captados por los canales.',value:num(k.leads),change:k.leads_change,icon:'♙',series:series.map(x=>x.leads||0)},
       {label:'Conversaciones',hint:'Conversaciones registradas en la bandeja omnicanal.',value:num(k.conversations),change:k.conversations_change,icon:'◌',series:series.map(x=>x.conversations||0)}
     ];
-    q('#v27Kpis').innerHTML=primary.map((x,i)=>`<article class="v276-kpi v276-kpi-${i}"><div class="v276-kpi-icon">${x.icon}</div><div class="v276-kpi-copy"><small>${x.label} <span class="wua58-kpi-info" title="${x.hint}" aria-label="${x.hint}" tabindex="0">ⓘ</span></small><b>${x.value}</b>${delta(x.change)}<span class="wua58-kpi-hint">${x.hint}</span></div><div class="v276-spark">${sparklineV274(x.series)}</div></article>`).join('');
+    // Four consistently sized KPI cards; explanations use a dedicated full-width row.
+    q('#v27Kpis').innerHTML=primary.map((x,i)=>`<article class="v276-kpi v276-kpi-${i} wua59-kpi" aria-label="${x.label}: ${x.value}. ${x.hint}">
+       <div class="wua59-kpi-heading"><span class="wua59-kpi-icon">${kpiIcon59(i)}</span><span class="wua59-kpi-label">${x.label}</span><span class="wua59-kpi-info" title="${x.hint}" aria-label="${x.hint}" tabindex="0">i</span></div>
+       <div class="wua59-kpi-middle"><strong class="wua59-kpi-number">${x.value}</strong><div class="wua59-kpi-spark">${sparklineV274(x.series)}</div></div>
+       <div class="wua59-kpi-change">${delta(x.change)}</div>
+       <p class="wua59-kpi-explain">${x.hint}</p>
+    </article>`).join('');
 
     const src=(d.sources||[]).slice(0,6), maxSrc=Math.max(1,...src.map(x=>Number(x.leads||0)));
     q('#v276ChannelBars').innerHTML=src.length?`<div class="v276-bars-grid">${src.map((x,i)=>{const v=Number(x.leads||0);const pct=Math.max(8,Math.round(v*100/maxSrc));return `<div class="v276-bar-col"><div class="v276-bar-value">${num(v)}</div><div class="v276-bar-track"><i style="height:${pct}%"></i></div><span>${esc(x.source||'Fuente')}</span></div>`}).join('')}</div>`:`<div class="v276-empty-chart"><b>Aún no hay captación suficiente</b><span>Cuando ingresen leads, aquí verás el rendimiento de cada fuente.</span></div>`;
