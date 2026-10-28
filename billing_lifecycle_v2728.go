@@ -57,12 +57,12 @@ func billingNormalizedHashV2728(network, hash string) string {
 func billingClaimTxV2728(tx *Tx, network, hash, sourceType, sourceID string, tenant int64) error {
 	network = strings.ToUpper(strings.TrimSpace(network))
 	hash = billingNormalizedHashV2728(network, hash)
-	if !commercialTxHash(network, hash) || tenant <= 0 || sourceID == "" || (sourceType != "subscription" && sourceType != "studio_topup") {
+	if !commercialTxHash(network, hash) || tenant <= 0 || sourceID == "" || (sourceType != "subscription" && sourceType != "studio_topup" && sourceType != "voice_topup") {
 		return errors.New("referencia de pago inválida")
 	}
 	// Pre-existing rows are not in the shared ledger: block their reuse too.
 	var oldCount int
-	if err := tx.QueryRow(`SELECT (SELECT COUNT(*) FROM billing_payments WHERE LOWER(tx_hash)=?) + (SELECT COUNT(*) FROM commercial_topups_v2721 WHERE LOWER(tx_hash)=?)`, hash, hash).Scan(&oldCount); err != nil {
+	if err := tx.QueryRow(`SELECT (SELECT COUNT(*) FROM billing_payments WHERE LOWER(tx_hash)=?) + (SELECT COUNT(*) FROM commercial_topups_v2721 WHERE LOWER(tx_hash)=?) + (SELECT COUNT(*) FROM voice_topups_v2735 WHERE LOWER(payment_reference)=LOWER(?))`, hash, hash, network+":"+hash).Scan(&oldCount); err != nil {
 		return err
 	}
 	if oldCount > 0 {

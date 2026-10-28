@@ -478,11 +478,28 @@ func (a *App) voiceTopupsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Sesión requerida", 401)
 		return
 	}
+	if !a.voiceTopupsEnabled() {
+		http.Error(w, "Recargas de voz no habilitadas", 403)
+		return
+	}
 	var q struct {
-		Package   string `json:"package"`
-		Reference string `json:"reference"`
+		Package string `json:"package"`
+		Network string `json:"network"`
+		TxHash  string `json:"tx_hash"`
 	}
 	if !voiceReadJSON(w, r, &q) {
+		return
+	}
+	q.Package = strings.TrimSpace(q.Package)
+	q.Network = strings.ToUpper(strings.TrimSpace(q.Network))
+	q.TxHash = strings.TrimSpace(q.TxHash)
+	if !commercialTxHash(q.Network, q.TxHash) {
+		http.Error(w, "Red o hash de transacción inválidos", 400)
+		return
+	}
+	if (q.Network == "BEP20" && strings.TrimSpace(a.cfg.USDTBEP20Address) == "") ||
+		(q.Network == "TRC20" && strings.TrimSpace(a.cfg.USDTTRC20Address) == "") {
+		http.Error(w, "No existe dirección oficial para esta red", 503)
 		return
 	}
 	plan, e := a.voicePlan(tid)
@@ -497,17 +514,32 @@ func (a *App) voiceTopupsHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	if matched == nil || len(q.Reference) > 120 {
-		http.Error(w, "Paquete o referencia inválida", 400)
+	if matched == nil {
+		http.Error(w, "Paquete de voz inválido", 400)
 		return
 	}
 	id := voiceID()
-	_, e = a.db.Exec(`INSERT INTO voice_topups_v2735(id,tenant_id,package_code,credits,price_cents,payment_reference,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)`, id, tid, q.Package, matched["credits"], matched["price_cents"], strings.TrimSpace(q.Reference), voiceNow())
+	tx, e := a.db.Begin()
 	if e != nil {
+		http.Error(w, "No se pudo preparar la operación", 503)
+		return
+	}
+	defer tx.Rollback()
+	// The same transaction hash cannot be used for subscription, Studio and Voice.
+	if e = billingClaimTxV2728(tx, q.Network, q.TxHash, "voice_topup", id, tid); e != nil {
+		http.Error(w, "La transacción ya está registrada o no es válida", 409)
+		return
+	}
+	ref := q.Network + ":" + strings.ToLower(q.TxHash)
+	if _, e = tx.Exec(`INSERT INTO voice_topups_v2735(id,tenant_id,package_code,credits,price_cents,payment_reference,status,created_at) VALUES(?,?,?,?,?,?,'pending',?)`, id, tid, q.Package, matched["credits"], matched["price_cents"], ref, voiceNow()); e != nil {
 		http.Error(w, "No se pudo registrar la solicitud", 503)
 		return
 	}
-	commercialSetJSON(w, 201, map[string]any{"id": id, "status": "pending", "message": "Solicitud creada. Ningún crédito se activa hasta aprobación de pago por administración."})
+	if e = tx.Commit(); e != nil {
+		http.Error(w, "Error guardando la solicitud", 503)
+		return
+	}
+	commercialSetJSON(w, 201, map[string]any{"id": id, "status": "pending", "message": "Solicitud registrada. Los créditos requieren aprobación manual.", "credited": false})
 }
 func (a *App) voiceAdminHandler(w http.ResponseWriter, r *http.Request) {
 	admin, ok := a.requireSuperadmin(w, r)
