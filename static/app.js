@@ -209,7 +209,7 @@ $('#newContact').onclick=()=>{}; // redefinido en V13.1
 const stages=['Nuevo','Interesado','Calificado','Cotización','Ganado','Perdido'];async function loadOpps(){const xs=await api('/api/crm/opportunities');$('#pipelineBoard').innerHTML=stages.map(s=>`<div class="column"><b>${stageLabel(s)}</b>${xs.filter(x=>x.stage===s).map(x=>`<div class="card"><b>${esc(x.title)}</b><p>$${Number(x.value||0).toLocaleString()}</p><small>${esc(x.owner||T('js.unassigned','Sin asignar'))}</small></div>`).join('')}</div>`).join('')}
 $('#newOpp').onclick=()=>{}; // redefinido en V13.1
 
-async function loadMe(){const u=await api('/api/auth/me');window.currentUser=u;$('#userLabel').textContent=u.name+' · '+roleLabel(u.role);const canTeam=u.account_type==='business'&&['owner','admin'].includes(u.role);$('#usersNav').hidden=!(u.role==='superadmin'||canTeam);$('#adminNav').hidden=u.role!=='superadmin';return u}
+async function loadMe(){const u=await api('/api/auth/me');window.currentUser=u;const canTeam=u.account_type==='business'&&['owner','admin'].includes(u.role);$('#usersNav').hidden=!(u.role==='superadmin'||canTeam);$('#adminNav').hidden=u.role!=='superadmin';return u}
 $('#logoutBtn').onclick=async()=>{await api('/api/auth/logout',{method:'POST'});location.href='/login.html'};
 function modal(html){
  const dialog=$('#modal'),content=$('#modalContent');

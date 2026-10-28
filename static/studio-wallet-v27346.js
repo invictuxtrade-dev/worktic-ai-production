@@ -21,11 +21,43 @@
    const mobile=$('.mobile-appbar');if(mobile){const chip=document.createElement('button');chip.id='wccMobileCredits';chip.type='button';chip.className='wcc46-mobile-balance';chip.textContent='◈ Créditos';chip.addEventListener('click',()=>openWallet('overview'));const menu=$('#mobileStatus',mobile);mobile.insertBefore(chip,menu||null)}
   }
  }
+ // V27.35.12: one existing nav badge, aggregate independent real balances.
+ // The first number is never presented as a verified combined total if Voice cannot load.
+ let voiceSnapshot=null,voiceSnapshotTime=0,voiceInflight=null,badgeGeneration=0;
+ const VOICE_TTL=20000;
+ function paintBadge(studio,voice){
+  const v=Number.isFinite(voice)?Math.max(0,voice):null;
+  const known=Number.isFinite(studio);
+  const total=known?(Math.max(0,studio)+(v===null?0:v)):null;
+  const label=total===null?'Créditos':fmt(total)+' créditos';
+  text(document,'#wccNavAmount',label);
+  text(document,'#wccMobileCredits',total===null?'◈ Créditos':'◈ '+fmt(total));
+  const wrap=$('#wccNavCredits');
+  if(wrap){
+   wrap.dataset.balanceComplete=v===null?'false':'true';
+   const help=total===null?'Consulta tus saldos en la billetera':v===null?`Studio: ${fmt(studio)} créditos. Saldo de Llamadas IA pendiente de consultar.`:`Total: ${fmt(total)} créditos (Studio ${fmt(studio)} + Llamadas IA ${fmt(v)}). Saldos independientes.`;
+   wrap.title=help;
+   $('.wcc46-nav-balance',wrap)?.setAttribute('aria-label',help);
+  }
+ }
  function updateBadge(d){
-  const n=d?fmt(d.available_credits)+' créditos':'Créditos';
-  text(document,'#wccNavAmount',n);text(document,'#wccMobileCredits',d?'◈ '+fmt(d.available_credits):'◈ Créditos');
-  $('#wccNavCredits')?.classList.toggle('wcc46-disabled',Boolean(d&&!d.enabled));
-  if(d)$('#wccNavCredits')?.setAttribute('title',d.enabled?'Saldo disponible de Worktic Studio':'Créditos asignados; la generación IA aún requiere activación');
+  const studio=d&&Number.isFinite(Number(d.available_credits))?Math.max(0,Number(d.available_credits)):null;
+  const generation=++badgeGeneration;
+  if(studio===null){paintBadge(null,null);return}
+  const fresh=voiceSnapshot!==null&&Date.now()-voiceSnapshotTime<VOICE_TTL;
+  paintBadge(studio,fresh?voiceSnapshot:null);
+  // Avoid redundant requests on repeated Studio refreshes.
+  if(fresh)return;
+  if(!voiceInflight){
+   voiceInflight=api('/api/voice/v2735/overview').then(result=>{
+    const value=result&&result.wallet&&result.wallet.available;
+    if(typeof value!=='number'||!Number.isFinite(value)||value<0)throw Error('Saldo de voz inválido');
+    voiceSnapshot=value;voiceSnapshotTime=Date.now();return value;
+   }).finally(()=>{voiceInflight=null});
+  }
+  voiceInflight.then(value=>{if(generation===badgeGeneration)paintBadge(studio,value)}).catch(()=>{
+   if(generation===badgeGeneration)paintBadge(studio,null);
+  });
  }
  function goCredits(){const view=$('#studio-credits');if(view&&!view.classList.contains('active'))document.querySelector('button[data-view="studio-credits"]')?.click()}
  function openWallet(target){

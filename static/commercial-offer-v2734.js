@@ -47,6 +47,7 @@ const benefits=(p,offer,short=false)=>{
   li('Landing Pages',!moduleEnabled(p,'landings')),
   li(`${words('Agentes IA','AI Agents')} · ${number(p.max_agents)} ${words('permitidos','allowed')}`,!canAgents),
   li(`<b>${number(p.max_users)}</b> ${words('usuarios','users')} · <b>${number(p.max_channels)}</b> ${words('conexiones','connections')}`),
+  li(words('Chat Web · dentro del cupo de conexiones del plan','Web Chat · within the plan connection limit'),Number(p.max_channels||0)<=0),
   li(`<b>${number(p.max_contacts)}</b> ${words('contactos CRM','CRM contacts')} · <b>${number(p.max_products)}</b> ${words('productos','products')}`),
   li(`<b>${number(p.max_ai_responses)}</b> ${words('respuestas IA/mes','AI replies/month')}`),
   li(`<b>${number(p.max_rules)}</b> ${words('reglas de automatización','automation rules')}`),
@@ -89,6 +90,7 @@ const render=offer=>{
    {group:words('Equipo, canales y operación','Team, channels and operations')},
    [words('Usuarios','Users'),'max_users'],[words('Conexiones totales','Total connections'),'max_channels'],
    ['WhatsApp','max_whatsapp'],['Telegram','max_telegram'],['Messenger','max_messenger'],
+   [words('Chat Web (usa el cupo total de conexiones)','Web Chat (uses total connection allowance)'),'chat_web_included'],
    [words('Contactos CRM','CRM contacts'),'max_contacts'],
    [words('Productos / servicios','Products / services'),'max_products'],
    [words('Respuestas IA / mes','AI replies / month'),'max_ai_responses'],
@@ -107,6 +109,7 @@ const render=offer=>{
    [words('Growth avanzado / Autopilot','Advanced Growth / Autopilot'),'modules.social_governance']
   ];
   const val=(p,key)=>{
+   if(key==='chat_web_included')return `<span class="${Number(p.max_channels||0)>0?'wts34-yes':'wts34-no'}">${Number(p.max_channels||0)>0?'✓':'—'}</span>`;
    const v=key.split('.').reduce((o,k)=>o?.[k],p);
    if(key==='voice_credits_planned'){return p.code==='enterprise'?`${number(p.voice_credits_planned||0)} ${offer.voice_active?'':'· próximamente'}`:'—'}
    if(key==='studio_credits_planned'){
