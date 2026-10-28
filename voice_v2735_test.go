@@ -31,6 +31,17 @@ func TestVoicePackagesV2735(t *testing.T) {
 		t.Fatal("packages do not track admin price")
 	}
 }
+func TestVoicePackagesPricedV27357(t *testing.T) {
+	base := voicePackagesPriced(30, 1)
+	if base[0]["credits"] != int64(300) || base[0]["price_cents"] != int64(300) {
+		t.Fatalf("default 10-min package changed: %v", base[0])
+	}
+	updated := voicePackagesPriced(40, 3)
+	if updated[1]["credits"] != int64(1200) || updated[1]["price_cents"] != int64(3600) {
+		t.Fatalf("voice price update should affect only future offers: %v", updated[1])
+	}
+}
+
 func TestVoiceOpenAIWebhookSignatureV2735(t *testing.T) {
 	secret := []byte("test-secret-not-real")
 	t.Setenv("OPENAI_WEBHOOK_SECRET", "whsec_"+base64.StdEncoding.EncodeToString(secret))

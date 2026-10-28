@@ -21,51 +21,7 @@ async function balances(root,studio){
   const rate=Number(voice.price_per_minute_credits||0);if(rate>0){const detail=el('small','wcc55-minutes',`Equivale aproximadamente a ${Math.floor(Number(voice.wallet?.available||0)/rate)} min a tarifa actual`);v.c.append(detail)}
  }catch(e){if(id!==state.seq||!section.isConnected)return;state.voice=null;state.voiceError=e.message;v.strong.textContent='No disponible';v.sub.textContent='No se pudo consultar el saldo de Llamadas IA';v.mini.textContent='Reintentar abriendo de nuevo la billetera';}
  const label=el('div','wcc55-studio-section-title','Detalle del consumo · Studio IA');anchor.before(label);
- voiceAdmin(section).catch(()=>{});
-}
-async function voiceAdmin(section){
- // Render strictly for authenticated superadministrators; 403/401 remain invisible.
- let admin,config;
- try{[admin,config]=await Promise.all([api('/api/admin/voice/v2735'),api('/api/commercial/topups/config')])}catch{return}
- if(!section.isConnected)return;
- const details=el('details','wcc56-sales-admin');
- details.append(el('summary','','⚙ Administrar recargas de Llamadas IA'));
- const content=el('div','wcc56-sales-content');details.append(content);
- content.append(el('p','','Configuración comercial de voz dentro de la misma billetera. La activación de cobros no habilita llamadas telefónicas salientes.'));
- const status=el('div','wcc56-sales-status');status.setAttribute('role','status');content.append(status);
- const form=el('form','');content.append(form);
- const toggle=el('label','wcc56-toggle');const sales=el('input');sales.type='checkbox';sales.checked=!!admin.sales_enabled_setting;
- toggle.append(sales,el('span','','Habilitar compra de paquetes de créditos para Llamadas IA'));form.append(toggle);
- const price=el('p','',`Precio de referencia: ${fmt(admin.price_per_minute_credits)} créditos/minuto. Créditos de Empresa: ${fmt(admin.enterprise_monthly_credits)} mensuales.`);form.append(price);
- const instrLabel=el('label','wcc56-sales-field');instrLabel.append(el('span','','Instrucciones de recarga para clientes'));
- const instructions=el('textarea');instructions.maxLength=500;instructions.placeholder='USDT BEP20 o TRC20; verificar importe, red y hash de la transacción antes de aprobar.';
- instructions.value=admin.payment_instructions||'';instrLabel.append(instructions);form.append(instrLabel);
- const actions=el('div','wcc56-sales-actions');const save=el('button','','Guardar configuración de recargas');save.type='submit';actions.append(save);form.append(actions);
- const addressReady=!!(config?.addresses?.BEP20||config?.addresses?.TRC20);
- const configReady=!!admin.provider_ready;
- const describe=(saved='')=>{
-  const ready=configReady&&addressReady&&sales.checked&&instructions.value.trim().length>0;
-  status.classList.toggle('ready',ready);
-  status.textContent=saved||(ready?'Recargas de voz habilitadas para planes de pago. Acreditación manual tras verificar USDT.':
-    !configReady?'Servicio de voz sin activar: configurar WORKTIC_VOICE_ENABLED=true y OPENAI_API_KEY en Render antes de vender paquetes.':
-    !addressReady?'Falta dirección USDT oficial en la configuración de pagos.':
-    !sales.checked?'Las ventas de créditos de voz están desactivadas.':
-    !instructions.value.trim()?'Introduce las instrucciones de pago para habilitar las ventas.':'');
- };
- sales.addEventListener('change',()=>describe());instructions.addEventListener('input',()=>describe());describe();
- form.addEventListener('submit',async ev=>{ev.preventDefault();
-  if(sales.checked&&(!configReady||!addressReady||!instructions.value.trim())){
-   describe();return;
-  }
-  save.disabled=true;status.textContent='Guardando configuración…';
-  try{
-   await api('/api/admin/voice/v2735',{action:'settings',price_per_minute_credits:Number(admin.price_per_minute_credits),enterprise_monthly_credits:Number(admin.enterprise_monthly_credits),sales_enabled:sales.checked,payment_instructions:instructions.value.trim(),payment_url:admin.payment_url||''});
-   admin.sales_enabled_setting=sales.checked;admin.payment_instructions=instructions.value.trim();
-   describe('Configuración guardada. Abre Recargar créditos → Llamadas IA para comprobar los paquetes.');status.classList.add('ready');
-  }catch(e){status.classList.remove('ready');status.textContent='No se pudo guardar: '+e.message}
-  finally{save.disabled=false}
- });
- section.append(details);
+ // Commercial configuration is now exclusively in Administración → Billetera de Créditos.
 }
 async function movements(list){
  list.replaceChildren(el('p','wcc55-loading','Cargando movimientos de Studio y Llamadas IA…'));

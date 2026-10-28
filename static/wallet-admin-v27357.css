@@ -1,0 +1,36 @@
+/* WorkticAI V27.35.7 – in existing light superadmin design, no new client-facing page */
+#admin .wtc57-admin{min-width:0;color:#20172f}
+#admin .wtc57-header{border:1px solid #e8dff6;background:linear-gradient(120deg,#fff 0%,#faf6ff 100%);border-radius:20px;padding:20px;margin-bottom:14px}
+#admin .wtc57-header h2{margin:4px 0 6px;font-size:23px}
+#admin .wtc57-eyebrow{font-size:10px;letter-spacing:.11em;font-weight:800;color:#7441cc}
+#admin .wtc57-muted{color:#746a82;font-size:13px;line-height:1.55;margin:7px 0 14px}
+#admin .wtc57-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+#admin .wtc57-panel{border:1px solid #e5dcef;border-radius:20px;padding:18px;background:#fff;min-width:0;box-shadow:0 8px 20px rgba(45,20,90,.03)}
+#admin .wtc57-panel h3{font-size:18px;margin:6px 0 8px}
+#admin .wtc57-row{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px;border-radius:13px;background:#f7f5fe;margin:14px 0}
+#admin .wtc57-check{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;line-height:1.4;cursor:pointer;min-width:0}
+#admin .wtc57-check input{accent-color:#7937ea;flex:0 0 auto;width:17px;height:17px}
+#admin .wtc57-field{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:12px;font-weight:700;color:#423654}
+#admin .wtc57-field input,#admin .wtc57-field textarea{width:100%;min-width:0;box-sizing:border-box;background:#fff;color:#2c1e40;border:1px solid #dcd2eb;border-radius:11px;padding:10px 12px;font-size:14px;line-height:1.4;box-shadow:none}
+#admin .wtc57-field input:focus,#admin .wtc57-field textarea:focus{outline:2px solid #8653ee;outline-offset:1px}
+#admin .wtc57-field small{color:#847a90;font-size:10px;font-weight:500}
+#admin .wtc57-save{border:0;color:#fff;background:linear-gradient(100deg,#306df8,#a72bf1);padding:10px 14px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer;width:auto;min-height:40px}
+#admin .wtc57-save:disabled{opacity:.55;cursor:wait}
+#admin .wtc57-pack-list{display:grid;gap:10px;margin-top:16px}
+#admin .wtc57-package{display:grid;gap:9px;border:1px solid #e9e3f1;border-radius:14px;padding:13px;background:#fcfbff;min-width:0}
+#admin .wtc57-package>strong{font-size:13px}
+#admin .wtc57-pack-fields{display:grid;grid-template-columns:minmax(0,.65fr) minmax(0,1fr);gap:10px;align-items:end;min-width:0}
+#admin .wtc57-pack-fields .wtc57-check{grid-column:1/-1}
+#admin .wtc57-unit{margin:0;color:#736780;font-size:11px}
+#admin .wtc57-three{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}
+#admin .wtc57-three .wtc57-field:last-child{grid-column:1/-1}
+#admin .wtc57-voice-preview{padding:12px;border:1px solid #eee0ff;border-radius:12px;background:#faf6ff;font-size:12px;line-height:1.65;color:#57347b;margin:12px 0}
+#admin .wtc57-panel>.wtc57-field{margin:12px 0}
+#admin .wtc57-status,#admin .wtc57-success,#admin .wtc57-notice{padding:11px 14px;border-radius:12px;font-size:12px;line-height:1.45;overflow-wrap:anywhere;max-width:100%;box-sizing:border-box}
+#admin .wtc57-status{background:#f3f0fc;color:#503975;margin-bottom:14px}
+#admin .wtc57-status.ok,#admin .wtc57-success{background:#eafaf3;color:#0a7044}
+#admin .wtc57-status.bad{background:#fff0f1;color:#9d2336}
+#admin .wtc57-notice{background:#fff7e9;color:#815100;margin:14px 0}
+#admin .wtc57-disclaimer{font-size:12px;color:#817589;padding:10px 6px;line-height:1.5}
+@media(max-width:1120px){#admin .wtc57-cols{grid-template-columns:1fr}}
+@media(max-width:560px){#admin .wtc57-panel{padding:12px}#admin .wtc57-pack-fields,#admin .wtc57-three{grid-template-columns:1fr}#admin .wtc57-three .wtc57-field:last-child{grid-column:auto}}

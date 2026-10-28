@@ -1,1 +1,1 @@
-WorkticAI V27.35.6 — QR/checkout responsivo y venta de créditos de voz desde la Billetera
+WorkticAI V27.35.7 — Administracion / Billetera de Creditos y tarifas Studio + Llamadas IA

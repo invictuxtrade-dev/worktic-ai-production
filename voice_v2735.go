@@ -126,7 +126,7 @@ func (a *App) voiceTextSetting(key string) string {
 	return value
 }
 func (a *App) voiceTopupsEnabled() bool {
-	return voiceConfigured() && a.voiceSetting("sales_enabled", 0) == 1 && a.voiceTextSetting("payment_instructions") != ""
+	return voiceConfigured() && a.voiceSetting("sales_enabled", 0) == 1 && strings.TrimSpace(a.voiceTextSetting("payment_instructions")) != "" && (strings.TrimSpace(a.cfg.USDTBEP20Address) != "" || strings.TrimSpace(a.cfg.USDTTRC20Address) != "")
 }
 func (a *App) voicePrice() int64 {
 	n := a.voiceSetting("price_per_minute_credits", voiceDefaultPrice())
@@ -142,11 +142,24 @@ func (a *App) voiceEnterpriseIncluded() int64 {
 	}
 	return n
 }
+
+// Each voice credit defaults to US$0.01. Credits consumed per minute are an
+// independent cost-control setting; do not confuse unit price with usage rate.
+func (a *App) voiceCreditPriceCents() int64 {
+	n := a.voiceSetting("credit_price_cents", 1)
+	if n < 1 || n > 100 {
+		return 1
+	}
+	return n
+}
 func voicePackages(price int64) []map[string]any {
+	return voicePackagesPriced(price, 1)
+}
+func voicePackagesPriced(creditsPerMinute, creditUnitCents int64) []map[string]any {
 	return []map[string]any{
-		{"code": "voice_10", "name": "Inicio · 10 minutos", "credits": price * 10, "price_cents": price * 10},
-		{"code": "voice_30", "name": "Crecimiento · 30 minutos", "credits": price * 30, "price_cents": price * 30},
-		{"code": "voice_100", "name": "Escala · 100 minutos", "credits": price * 100, "price_cents": price * 100},
+		{"code": "voice_10", "name": "Inicio · 10 minutos", "credits": creditsPerMinute * 10, "price_cents": creditsPerMinute * 10 * creditUnitCents},
+		{"code": "voice_30", "name": "Crecimiento · 30 minutos", "credits": creditsPerMinute * 30, "price_cents": creditsPerMinute * 30 * creditUnitCents},
+		{"code": "voice_100", "name": "Escala · 100 minutos", "credits": creditsPerMinute * 100, "price_cents": creditsPerMinute * 100 * creditUnitCents},
 	}
 }
 func (a *App) voicePlan(tenant int64) (string, error) {
@@ -393,7 +406,7 @@ func (a *App) voiceOverviewHandler(w http.ResponseWriter, r *http.Request) {
 		tr.Close()
 	}
 	// Studio continues to be the source of truth for Studio balances.
-	commercialSetJSON(w, 200, map[string]any{"version": "27.35", "plan": plan, "wallet": map[string]any{"included": inc, "purchased": buy, "available": inc + buy, "period": time.Now().UTC().Format("2006-01")}, "price_per_minute_credits": a.voicePrice(), "enterprise_monthly_credits": a.voiceEnterpriseIncluded(), "active": voiceConfigured(), "sip_ready": voiceSIPReady(), "voices": voiceVoicesV2735, "channels": channels, "agents": agents, "calls": calls, "topups": tops, "packages": voicePackages(a.voicePrice()), "mode": "manual_payment_review", "sales_enabled": a.voiceTopupsEnabled(), "payment_instructions": a.voiceTextSetting("payment_instructions"), "payment_url": a.voiceTextSetting("payment_url")})
+	commercialSetJSON(w, 200, map[string]any{"version": "27.35", "plan": plan, "wallet": map[string]any{"included": inc, "purchased": buy, "available": inc + buy, "period": time.Now().UTC().Format("2006-01")}, "price_per_minute_credits": a.voicePrice(), "enterprise_monthly_credits": a.voiceEnterpriseIncluded(), "active": voiceConfigured(), "sip_ready": voiceSIPReady(), "voices": voiceVoicesV2735, "channels": channels, "agents": agents, "calls": calls, "topups": tops, "packages": voicePackagesPriced(a.voicePrice(), a.voiceCreditPriceCents()), "credit_price_cents": a.voiceCreditPriceCents(), "mode": "manual_payment_review", "sales_enabled": a.voiceTopupsEnabled(), "payment_instructions": a.voiceTextSetting("payment_instructions"), "payment_url": a.voiceTextSetting("payment_url")})
 }
 func (a *App) voiceChannelHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -508,7 +521,7 @@ func (a *App) voiceTopupsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var matched map[string]any
-	for _, p := range voicePackages(a.voicePrice()) {
+	for _, p := range voicePackagesPriced(a.voicePrice(), a.voiceCreditPriceCents()) {
 		if p["code"] == q.Package {
 			matched = p
 			break
@@ -559,8 +572,8 @@ func (a *App) voiceAdminHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			rows.Close()
 		}
-		commercialSetJSON(w, 200, map[string]any{"enabled": voiceEnabled(), "provider_ready": voiceConfigured(), "sip_ready": voiceSIPReady(), "price_per_minute_credits": a.voicePrice(), "enterprise_monthly_credits": a.voiceEnterpriseIncluded(), "pending": pending,
-			"sales_enabled": a.voiceTopupsEnabled(), "sales_enabled_setting": a.voiceSetting("sales_enabled", 0) == 1,
+		commercialSetJSON(w, 200, map[string]any{"enabled": voiceEnabled(), "provider_ready": voiceConfigured(), "sip_ready": voiceSIPReady(), "price_per_minute_credits": a.voicePrice(), "credit_price_cents": a.voiceCreditPriceCents(), "enterprise_monthly_credits": a.voiceEnterpriseIncluded(), "pending": pending,
+			"sales_enabled": a.voiceTopupsEnabled(), "sales_enabled_setting": a.voiceSetting("sales_enabled", 0) == 1, "payment_address_ready": strings.TrimSpace(a.cfg.USDTBEP20Address) != "" || strings.TrimSpace(a.cfg.USDTTRC20Address) != "",
 			"payment_instructions": a.voiceTextSetting("payment_instructions"), "payment_url": a.voiceTextSetting("payment_url")})
 		return
 	}
@@ -572,6 +585,7 @@ func (a *App) voiceAdminHandler(w http.ResponseWriter, r *http.Request) {
 		Action              string `json:"action"`
 		ID                  string `json:"id"`
 		Price               int64  `json:"price_per_minute_credits"`
+		CreditPriceCents    *int64 `json:"credit_price_cents"`
 		Enterprise          int64  `json:"enterprise_monthly_credits"`
 		SalesEnabled        bool   `json:"sales_enabled"`
 		PaymentInstructions string `json:"payment_instructions"`
@@ -581,6 +595,14 @@ func (a *App) voiceAdminHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if q.Action == "settings" {
+		creditUnit := a.voiceCreditPriceCents()
+		if q.CreditPriceCents != nil {
+			creditUnit = *q.CreditPriceCents
+		}
+		if creditUnit < 1 || creditUnit > 100 {
+			http.Error(w, "Precio unitario de voz fuera de límites (1 a 100 centavos)", 400)
+			return
+		}
 		if q.Price < 10 || q.Price > 1000 || q.Enterprise < 0 || q.Enterprise > 100000 || len(q.PaymentInstructions) > 500 || len(q.PaymentURL) > 300 {
 			http.Error(w, "Tarifas fuera de límites", 400)
 			return
@@ -602,7 +624,7 @@ func (a *App) voiceAdminHandler(w http.ResponseWriter, r *http.Request) {
 		if q.SalesEnabled {
 			sales = "1"
 		}
-		for _, entry := range [][2]string{{"price_per_minute_credits", strconv.FormatInt(q.Price, 10)}, {"enterprise_monthly_credits", strconv.FormatInt(q.Enterprise, 10)}, {"sales_enabled", sales}, {"payment_instructions", strings.TrimSpace(q.PaymentInstructions)}, {"payment_url", strings.TrimSpace(q.PaymentURL)}} {
+		for _, entry := range [][2]string{{"price_per_minute_credits", strconv.FormatInt(q.Price, 10)}, {"credit_price_cents", strconv.FormatInt(creditUnit, 10)}, {"enterprise_monthly_credits", strconv.FormatInt(q.Enterprise, 10)}, {"sales_enabled", sales}, {"payment_instructions", strings.TrimSpace(q.PaymentInstructions)}, {"payment_url", strings.TrimSpace(q.PaymentURL)}} {
 			if _, e = tx.Exec(`INSERT INTO voice_config_v2735(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, entry[0], entry[1]); e != nil {
 				http.Error(w, "No se pudo guardar", 503)
 				return
