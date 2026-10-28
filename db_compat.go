@@ -32,6 +32,7 @@ func (r compatResult) LastInsertId() (int64, error) { return r.id, nil }
 func (r compatResult) RowsAffected() (int64, error) { return r.rows, nil }
 
 var postgresSerialTables = map[string]bool{
+	"mobile_web_channels_v1": true, "mobile_web_sessions_v1": true,
 	"ads_campaigns_v25": true, "ads_connections_v25": true, "ads_daily_metrics_v25": true, "ads_entities_v25": true,
 	"ads_oauth_states_v25": true, "ads_sync_log_v25": true, "agenda_blocks": true, "agenda_hours": true,
 	"agenda_professionals": true, "agenda_services": true, "ai_agent_audit": true, "ai_agent_knowledge_v22": true,

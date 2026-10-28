@@ -8,6 +8,9 @@
 "use strict";
 
 var I18N = {
+"nav.webchat":{es:"Chat Web",en:"Web Chat"},
+"title.webchat":{es:"Chat Web",en:"Web Chat"},
+"subtitle.webchat":{es:"Chat de visitantes, agentes y conversaciones en sitios externos",en:"Website visitors, agents, and conversations"},
 "lp.v2734_price_note":{"es":"Importes de suscripción en USDT. El checkout calcula el total antes de pagar; promociones, permisos externos, impuestos y cargos aplicables se gestionan por separado. Los créditos IA solo se incluyen cuando el servicio comercial está activo.","en":"Subscription prices in USDT. Checkout calculates the payable total; promotions, third-party permissions, taxes and other fees are handled separately. AI credits are included only when commercial service is active."},
 "lp.v2734_credits_desc":{"es":"Además de los créditos de los planes que tengan el servicio activo, podrás comprar recargas para imágenes, clips IA y narraciones. Cada generación muestra sus créditos antes de ejecutarse.","en":"In addition to credits included in eligible active plans, you can buy top-ups for images, AI clips and voiceovers. Every generation shows its credit cost before running."},
 "lp.v2734_credits_title":{"es":"Crea más cuando tu negocio lo necesite","en":"Create more when your business needs it"},

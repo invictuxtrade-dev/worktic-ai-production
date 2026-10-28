@@ -526,7 +526,9 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 				return
 			}
 		}
-		writeJSON(w, map[string]any{"connections": out, "max_total": p.MaxChannels, "limits": map[string]int{"whatsapp_qr": a.channelTypeLimitForPlan(p, "whatsapp_qr"), "whatsapp_cloud": a.channelTypeLimitForPlan(p, "whatsapp_cloud"), "telegram": a.channelTypeLimitForPlan(p, "telegram"), "messenger": a.channelTypeLimitForPlan(p, "messenger")}})
+		var webCount int
+		_ = a.db.QueryRow(`SELECT COUNT(*) FROM mobile_web_channels_v1 WHERE tenant_id=?`, tid).Scan(&webCount)
+		writeJSON(w, map[string]any{"connections": out, "web_count": webCount, "max_total": p.MaxChannels, "limits": map[string]int{"whatsapp_qr": a.channelTypeLimitForPlan(p, "whatsapp_qr"), "whatsapp_cloud": a.channelTypeLimitForPlan(p, "whatsapp_cloud"), "telegram": a.channelTypeLimitForPlan(p, "telegram"), "messenger": a.channelTypeLimitForPlan(p, "messenger")}})
 	case http.MethodPost:
 		if u.Role != "owner" && u.Role != "admin" && u.Role != "superadmin" {
 			writeError(w, errors.New("sin permiso para conectar canales"), 403)
@@ -561,6 +563,9 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 		}
 		var total, byType int
 		_ = a.db.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE tenant_id=? AND status<>'deleted'`, tid).Scan(&total)
+		var webTotal int
+		_ = a.db.QueryRow(`SELECT COUNT(*) FROM mobile_web_channels_v1 WHERE tenant_id=?`, tid).Scan(&webTotal)
+		total += webTotal
 		_ = a.db.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE tenant_id=? AND type=? AND status<>'deleted'`, tid, q.Type).Scan(&byType)
 		if total >= p.MaxChannels {
 			writeError(w, fmt.Errorf("tu plan permite %d conexiones", p.MaxChannels), 403)

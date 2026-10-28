@@ -108,6 +108,11 @@ func (a *App) createTenantChannelV2730(tid, creator int64, kind, name, config, p
 	if err = tx.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE tenant_id=? AND type=? AND status<>'deleted'`, tid, kind).Scan(&byType); err != nil {
 		return 0, err
 	}
+	var webTotal int
+	if err = tx.QueryRow(`SELECT COUNT(*) FROM mobile_web_channels_v1 WHERE tenant_id=?`, tid).Scan(&webTotal); err != nil {
+		return 0, err
+	}
+	total += webTotal
 	if total >= maxTotal {
 		return 0, fmt.Errorf("tu plan admite como máximo %d conexiones", maxTotal)
 	}

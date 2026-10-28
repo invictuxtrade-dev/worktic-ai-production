@@ -1,0 +1,25 @@
+/* WorkticAI Chat Web V27.36 — isolated premium module */
+.ww36-view{--ww-edge:#293e60;--ww-card:#121f33;--ww-muted:#a5b7d3;color:#f4f7ff}
+.ww36-hero{display:flex;align-items:center;gap:20px;border:1px solid #36517b;border-radius:22px;padding:25px 27px;margin-bottom:20px;background:radial-gradient(ellipse at 90% 0%,#2e2375 0,transparent 47%),linear-gradient(112deg,#13243f,#161f45 75%,#23204c)}
+.ww36-hero-icon{display:grid;place-items:center;flex:none;width:64px;height:64px;background:linear-gradient(135deg,#2574f9,#9e39fa);border-radius:18px;box-shadow:0 10px 30px #703ff840;color:white;font-size:36px}
+.ww36-eyebrow{font-size:11px;font-weight:800;letter-spacing:1.6px;color:#a4b7ff}
+.ww36-hero h2{font-size:29px;margin:5px 0 7px;color:#fff}.ww36-hero p{margin:0;color:#bac8e6;max-width:610px;line-height:1.5}
+.ww36-hero-actions{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}.ww36-hero-actions button{white-space:nowrap}
+.ww36-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:20px}
+.ww36-stat{background:#132139;border:1px solid #2b3e5c;border-radius:15px;padding:17px}.ww36-stat b{display:block;font-size:25px}.ww36-stat small{color:#a9bddb}
+.ww36-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,320px);gap:18px}
+.ww36-panel-title h3{margin:4px 0}.ww36-panel-title p{margin:5px 0 15px;color:var(--ww-muted);font-size:13px}
+.ww36-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;align-content:start}
+.ww36-card{border:1px solid #314360;border-radius:19px;background:linear-gradient(135deg,#19263f,#111d30);padding:17px;min-width:0}
+.ww36-card-top{display:flex;align-items:center;justify-content:space-between;gap:9px}.ww36-card-top strong{font-size:16px;color:#fff}.ww36-label{font-size:11px;font-weight:800;padding:5px 8px;border-radius:99px;color:#b5bcd1;background:#24304b}.ww36-label.on{color:#75efbe;background:#194637}
+.ww36-card p{color:#a9b9d3;font-size:12px;margin:10px 0;overflow-wrap:anywhere}.ww36-card dl{margin:14px 0}.ww36-card dl div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #ffffff12;padding:7px 0;font-size:12px}.ww36-card dt{color:#9cadcc}.ww36-card dd{margin:0;max-width:65%;overflow-wrap:anywhere;text-align:right;color:#e7ecff}
+.ww36-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.ww36-actions button{font-size:12px;padding:9px 12px}
+.ww36-info{border:1px solid #283e5c;border-radius:19px;padding:20px;background:#121f32;align-self:start}.ww36-info h3{margin:0 0 10px}.ww36-info ol{padding-left:19px;line-height:1.75;font-size:13px;color:#c6d2e9}.ww36-info-footer{background:#20234b;border-radius:13px;padding:13px;margin:18px 0;font-size:12px;color:#d1d9f1}.ww36-info-footer p{margin:5px 0 0}.ww36-info>button{width:100%}
+.ww36-notice{border:1px solid #3e5082;border-radius:12px;padding:12px 15px;background:#192743;color:#c9d5f3;margin-bottom:14px;font-size:13px}
+.ww36-notice.error{background:#462434;border-color:#895269;color:#ffdce6}.ww36-notice.good{background:#1a4538;border-color:#246c52;color:#b8ffdf}
+.ww36-empty{border:1px dashed #345070;border-radius:16px;padding:27px;text-align:center;color:#b8c6de}.ww36-empty strong{display:block;font-size:17px;color:#fff;margin:8px}
+.ww36-channel-teaser{display:flex;align-items:center;gap:14px;border-radius:14px;border:1px solid #463e80;background:linear-gradient(110deg,#132c4b,#28215b);padding:15px 20px;margin:12px 0}.ww36-teaser-icon{width:44px;height:44px;display:grid;place-items:center;background:linear-gradient(120deg,#2877ff,#9a48e9);color:white;font-size:24px;border-radius:14px}.ww36-channel-teaser b{color:#fff}.ww36-channel-teaser p{color:#bdc6e0;margin:4px 0 0;font-size:12px}.ww36-channel-teaser button{margin-left:auto;white-space:nowrap}
+.ww36-snippet{width:100%;min-height:95px;background:#0b1729;border:1px solid #374966;color:#e7efff;border-radius:11px;resize:vertical;font:12px ui-monospace,Consolas,monospace;padding:12px;box-sizing:border-box}
+.ww36-privacy{font-size:12px;color:#abb8d0}.ww36-form label{display:block;margin:9px 0;font-size:13px}.ww36-form label input:not([type=checkbox]),.ww36-form select{width:100%}.ww36-form .grid2{gap:12px}
+@media(max-width:900px){.ww36-hero{flex-wrap:wrap}.ww36-hero-actions{margin:4px 0 0;width:100%}.ww36-layout{grid-template-columns:1fr}}
+@media(max-width:540px){.ww36-hero{padding:18px}.ww36-stats{grid-template-columns:1fr 1fr}.ww36-stats .ww36-stat:last-child{grid-column:span 2}.ww36-list{grid-template-columns:1fr}.ww36-channel-teaser{flex-wrap:wrap}.ww36-channel-teaser button{margin-left:0}}

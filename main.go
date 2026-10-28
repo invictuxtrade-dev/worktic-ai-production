@@ -338,6 +338,9 @@ func main() {
 	if err = initMetaLeadAdsSchema(db); err != nil {
 		log.Fatalf("meta lead ads schema: %v", err)
 	}
+	if err = initWebChatMobileV1(db); err != nil {
+		log.Fatalf("web chat v27.36 schema: %v", err)
+	}
 	if err = initInboxV21Schema(db); err != nil {
 		log.Fatal(err)
 	}
@@ -550,6 +553,14 @@ func main() {
 	mux.HandleFunc("/healthz", app.healthHandler)
 	mux.HandleFunc("/readyz", app.readyHandler)
 	mux.HandleFunc("/api/status", app.statusHandler)
+	mux.HandleFunc("/api/mobile/webchat/channels", app.webChatChannelsV1)
+	mux.HandleFunc("/api/mobile/webchat/reply", app.webChatReplyV1)
+	mux.HandleFunc("/api/mobile/webchat/public/start", app.webChatStartV1)
+	mux.HandleFunc("/api/mobile/webchat/public/messages", app.webChatMessageV1)
+	mux.HandleFunc("/api/webchat/channels", app.webChatChannelsV1)
+	mux.HandleFunc("/api/webchat/reply", app.webChatReplyV1)
+	mux.HandleFunc("/api/webchat/public/start", app.webChatStartV1)
+	mux.HandleFunc("/api/webchat/public/messages", app.webChatMessageV1)
 	mux.HandleFunc("/api/channels/connections", app.channelConnectionsHandler)
 	mux.HandleFunc("/api/channels/action", app.channelActionHandler)
 	mux.HandleFunc("/api/channels/qr", app.channelQRHandler)
@@ -1344,6 +1355,19 @@ func (a *App) sendHandler(w http.ResponseWriter, r *http.Request) {
 	// Preserve tenant-scoped Cloud/Messenger sending from the existing Inbox.
 	// Bare JID, QR and global Telegram still use the legacy global connection
 	// and are therefore rejected ONLY in multiempresa hardening mode.
+	if strings.HasPrefix(target, "webchat:") {
+		tenantID, _, tenantErr := a.tenantForRequest(r)
+		if tenantErr != nil {
+			writeError(w, tenantErr, http.StatusUnauthorized)
+			return
+		}
+		if err := a.webChatSendHuman(tenantID, target, strings.TrimSpace(req.Text)); err != nil {
+			writeError(w, err, http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "message_id": "webchat"})
+		return
+	}
 	if tenantHardeningV2730Enabled() && !strings.HasPrefix(target, "wacloud:") && !strings.HasPrefix(target, "messenger:") {
 		writeError(w, errors.New("envío con sesión global no permitido; selecciona una conexión empresarial"), http.StatusForbidden)
 		return
@@ -2117,7 +2141,7 @@ func (a *App) currentUser(r *http.Request) *User {
 }
 func (a *App) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/api/auth/login") || strings.HasPrefix(r.URL.Path, "/api/auth/register") || strings.HasPrefix(r.URL.Path, "/api/team/invitations/accept") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/messenger") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/whatsapp") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/leads") || strings.HasPrefix(r.URL.Path, "/webhooks/messenger/") || strings.HasPrefix(r.URL.Path, "/webhooks/telegram/") {
+		if !strings.HasPrefix(r.URL.Path, "/api/") || (r.URL.Path == "/api/webchat/public/start" || r.URL.Path == "/api/webchat/public/messages" || r.URL.Path == "/api/mobile/webchat/public/start" || r.URL.Path == "/api/mobile/webchat/public/messages") || strings.HasPrefix(r.URL.Path, "/api/auth/login") || strings.HasPrefix(r.URL.Path, "/api/auth/register") || strings.HasPrefix(r.URL.Path, "/api/team/invitations/accept") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/messenger") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/whatsapp") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/leads") || strings.HasPrefix(r.URL.Path, "/webhooks/messenger/") || strings.HasPrefix(r.URL.Path, "/webhooks/telegram/") {
 			next.ServeHTTP(w, r)
 			return
 		}
