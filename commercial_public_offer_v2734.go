@@ -68,8 +68,9 @@ func (a *App) publicCommercialOfferV2734Handler(w http.ResponseWriter, r *http.R
 		}
 		rule, err := commercialReadRule(a.db, p.Code)
 		if err != nil {
-			http.Error(w, "Beneficios Studio no disponibles", http.StatusServiceUnavailable)
-			return
+			// Never advertise unknown benefits. Keep other valid plans visible.
+			// This plan stays unavailable until its commercial rule is repaired.
+			continue
 		}
 		p.StudioEditor = rule.Editor
 		// Never advertise unactivated AI creative benefits as already included.
@@ -104,10 +105,8 @@ func (a *App) publicCommercialOfferV2734Handler(w http.ResponseWriter, r *http.R
 		http.Error(w, "Catálogo incompleto", http.StatusServiceUnavailable)
 		return
 	}
-	if len(plans) != 4 {
-		http.Error(w, "Los cuatro planes deben estar disponibles para comparar", http.StatusServiceUnavailable)
-		return
-	}
+	/* Active plans are independently publishable by superadmin.
+	   A disabled plan must not suppress the other plans on the landing. */
 	packages := make([]map[string]any, 0)
 	if topupsActive {
 		pr, e := a.db.Query(`SELECT name,credits,price_cents FROM commercial_packages_v2721 WHERE active=1 ORDER BY price_cents`)

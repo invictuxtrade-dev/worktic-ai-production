@@ -71,11 +71,11 @@ window.WorkticOfferCheckoutV2734=(p,offer)=>{
 const render=offer=>{
  const root=document.getElementById('plansGrid');if(!root||!document.getElementById('planes'))return;
  const year=(()=>{const annualBtn=document.getElementById('billingAnnual');if(annualBtn)return annualBtn.classList.contains('active');try{return localStorage.getItem('worktic_public_billing_cycle')==='annual'}catch{return false}})();
- const cards=offer.plans.map(p=>{
+ const cards=offer.plans.length?offer.plans.map(p=>{
   const paid=p.code!=='free';const featured=p.code==='business';const price=year?p.annual_usdt:p.monthly_usdt;
   const href=paid?`/login.html?tab=register&plan=${encodeURIComponent(p.code)}&billing=${year?'annual':'monthly'}`:'/login.html?tab=register';
   return `<article class="card plan wts34-plan ${featured?'pop':''}" data-plan="${esc(p.code)}">${featured?`<span class="flag">${words('Más popular','Most popular')}</span>`:''}<h3>${esc(p.name)}</h3><p class="wts34-plan-desc">${esc(p.description)}</p><div class="price wts34-price">${paid?cash(price)+' USDT':'0 USDT'}<small>${paid?(year?words('/año','/year'):words('/mes','/month')):''}</small></div>${paid?`<p class="wts34-equivalent">${year?words(`Equivale a ${cash(p.annual_usdt/12)} USDT/mes · pago anual`,`Equivalent to ${cash(p.annual_usdt/12)} USDT/month · billed annually`):words('Facturado mensualmente','Billed monthly')}</p>`:''}<div class="wts34-entitle-title">${words('Capacidades de tu plan','Your plan capacities')}</div><ul class="wts34-benefit-list">${benefits(p,offer,false)}</ul><a class="btn ${featured?'primary':''} plan-cta" href="${href}">${paid?words('Elegir '+esc(p.name),'Choose '+esc(p.name)):words('Crear cuenta Free','Start free')}</a></article>`;
- }).join('');
+ }).join(''):`<div class="wts34-unavailable" role="status">${words('Los planes están temporalmente ocultos por administración. Vuelve pronto.','Plans are temporarily unpublished by the administrator. Check back soon.')}</div>`;
  root.innerHTML=cards;
  const cmp=document.getElementById('wts34Compare');if(cmp){
   const fields=[
@@ -131,7 +131,7 @@ async function init(){const root=document.getElementById('planes');if(!root)retu
  try{
   const resp=await fetch('/api/public/offer/v2734',{headers:{Accept:'application/json'},cache:'no-store',credentials:'same-origin'});
   if(!resp.ok)throw new Error('HTTP '+resp.status);
-  const offer=await resp.json();if(!Array.isArray(offer.plans)||offer.plans.length!==4)throw new Error('incomplete offer');
+  const offer=await resp.json();if(!Array.isArray(offer.plans))throw new Error('invalid offer');
   window.__wtCommercialOfferV2734=offer;render(offer);
   for(const id of ['billingMonthly','billingAnnual'])document.getElementById(id)?.addEventListener('click',()=>setTimeout(()=>render(offer),0));
   window.addEventListener('worktic:langchange',()=>setTimeout(()=>render(offer),0));

@@ -33,12 +33,12 @@ async function loadGrowthDashboardV27(){
     const name=d.user?.name||'equipo';
     q('#v27Greeting').textContent=`${new Date().getHours()<12?'Buenos días':new Date().getHours()<19?'Buenas tardes':'Buenas noches'}, ${name} 👋`;
     const primary=[
-      {label:'Revenue',value:money(k.revenue),change:k.revenue_change,icon:'$',series:series.map(x=>x.revenue||0)},
-      {label:'Ventas',value:num(k.sales),change:k.sales_change,icon:'▣',series:series.map(x=>x.sales||0)},
-      {label:'Leads',value:num(k.leads),change:k.leads_change,icon:'♙',series:series.map(x=>x.leads||0)},
-      {label:'Conversaciones',value:num(k.conversations),change:k.conversations_change,icon:'◌',series:series.map(x=>x.conversations||0)}
+      {label:'Ingresos',hint:'Valor de ventas ganadas registradas en el CRM.',value:money(k.revenue),change:k.revenue_change,icon:'$',series:series.map(x=>x.revenue||0)},
+      {label:'Ventas',hint:'Oportunidades cerradas como ganadas en el periodo.',value:num(k.sales),change:k.sales_change,icon:'▣',series:series.map(x=>x.sales||0)},
+      {label:'Leads',hint:'Contactos potenciales captados por los canales.',value:num(k.leads),change:k.leads_change,icon:'♙',series:series.map(x=>x.leads||0)},
+      {label:'Conversaciones',hint:'Conversaciones registradas en la bandeja omnicanal.',value:num(k.conversations),change:k.conversations_change,icon:'◌',series:series.map(x=>x.conversations||0)}
     ];
-    q('#v27Kpis').innerHTML=primary.map((x,i)=>`<article class="v276-kpi v276-kpi-${i}"><div class="v276-kpi-icon">${x.icon}</div><div class="v276-kpi-copy"><small>${x.label}</small><b>${x.value}</b>${delta(x.change)}</div><div class="v276-spark">${sparklineV274(x.series)}</div></article>`).join('');
+    q('#v27Kpis').innerHTML=primary.map((x,i)=>`<article class="v276-kpi v276-kpi-${i}"><div class="v276-kpi-icon">${x.icon}</div><div class="v276-kpi-copy"><small>${x.label} <span class="wua58-kpi-info" title="${x.hint}" aria-label="${x.hint}" tabindex="0">ⓘ</span></small><b>${x.value}</b>${delta(x.change)}<span class="wua58-kpi-hint">${x.hint}</span></div><div class="v276-spark">${sparklineV274(x.series)}</div></article>`).join('');
 
     const src=(d.sources||[]).slice(0,6), maxSrc=Math.max(1,...src.map(x=>Number(x.leads||0)));
     q('#v276ChannelBars').innerHTML=src.length?`<div class="v276-bars-grid">${src.map((x,i)=>{const v=Number(x.leads||0);const pct=Math.max(8,Math.round(v*100/maxSrc));return `<div class="v276-bar-col"><div class="v276-bar-value">${num(v)}</div><div class="v276-bar-track"><i style="height:${pct}%"></i></div><span>${esc(x.source||'Fuente')}</span></div>`}).join('')}</div>`:`<div class="v276-empty-chart"><b>Aún no hay captación suficiente</b><span>Cuando ingresen leads, aquí verás el rendimiento de cada fuente.</span></div>`;

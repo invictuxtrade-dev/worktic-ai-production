@@ -1,1 +1,1 @@
-WorkticAI V27.35.7 — Administracion / Billetera de Creditos y tarifas Studio + Llamadas IA
+WorkticAI V27.35.8 — UX Agentes IA, KPIs explicativos y publicacion de planes

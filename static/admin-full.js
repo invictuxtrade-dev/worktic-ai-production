@@ -183,12 +183,25 @@
     const el=q('#wtAdminPlansTable'); el.innerHTML='<div class="wt-admin-empty">Cargando planes…</div>';
     try {
       const data=await api('/api/admin/full/plans?'+query(state.plans)); const items=data.items||[];
-      el.innerHTML=items.length?`<div class="wt-admin-table-wrap"><table class="wt-admin-table"><thead><tr><th>Plan</th><th>Precio</th><th>Vigencia</th><th>Capacidades</th><th>Suscripciones</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${items.map(p=>`<tr><td><div class="wt-admin-plan-name"><b>${safe(p.name)}</b><small>${safe(p.code)} · ${safe(p.description)}</small></div></td><td><b>${money(p.price_usdt)}</b></td><td>${p.billing_days} días</td><td>${p.max_users} usuarios · ${p.max_channels} canales<br><small>${p.max_contacts} contactos · ${p.max_ai_responses} respuestas IA</small></td><td><b>${p.active_subscriptions}</b> activas<br><small>${p.subscriptions} históricas</small></td><td>${p.deleted_at?'<span class="wt-admin-badge deleted">Eliminado</span>':p.active?'<span class="wt-admin-badge active">Activo</span>':'<span class="wt-admin-badge blocked">Inactivo</span>'}</td><td><div class="wt-admin-actions">${p.deleted_at?`<button data-plan-restore="${p.id}">Restaurar</button>`:`<button class="secondary" data-plan-edit="${p.id}">Editar</button>${p.code!=='free'?`<button class="wt-danger" data-plan-delete="${p.id}">Eliminar</button>`:''}`}</div></td></tr>`).join('')}</tbody></table></div>${paginationHTML(data.pagination,'plans')}`:'<div class="wt-admin-empty"><b>No hay planes</b><span>Crea un plan comercial para comenzar.</span></div>';
+      el.innerHTML=items.length?`<div class="wt-admin-table-wrap"><table class="wt-admin-table"><thead><tr><th>Plan</th><th>Precio</th><th>Vigencia</th><th>Capacidades</th><th>Suscripciones</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${items.map(p=>`<tr><td><div class="wt-admin-plan-name"><b>${safe(p.name)}</b><small>${safe(p.code)} · ${safe(p.description)}</small></div></td><td><b>${money(p.price_usdt)}</b></td><td>${p.billing_days} días</td><td>${p.max_users} usuarios · ${p.max_channels} canales<br><small>${p.max_contacts} contactos · ${p.max_ai_responses} respuestas IA</small></td><td><b>${p.active_subscriptions}</b> activas<br><small>${p.subscriptions} históricas</small></td><td>${p.deleted_at?'<span class="wt-admin-badge deleted">Eliminado</span>':p.active?'<span class="wt-admin-badge active">Activo</span>':'<span class="wt-admin-badge blocked">Inactivo</span>'}</td><td><div class="wt-admin-actions">${p.deleted_at?`<button data-plan-restore="${p.id}">Restaurar</button>`:`<button class="secondary" data-plan-edit="${p.id}">Editar</button>${p.code!=='free'?`<button type="button" class="${p.active?'wt-warn':''}" data-plan-publish="${p.id}">${p.active?'Ocultar de la web':'Publicar en web'}</button>`:''}${p.code!=='free'?`<button class="wt-danger" data-plan-delete="${p.id}">Eliminar</button>`:''}`}</div></td></tr>`).join('')}</tbody></table></div>${paginationHTML(data.pagination,'plans')}`:'<div class="wt-admin-empty"><b>No hay planes</b><span>Crea un plan comercial para comenzar.</span></div>';
       bindPagination(el,loadPlans);
       qa('[data-plan-edit]',el).forEach(b=>b.onclick=()=>planForm(items.find(x=>x.id===Number(b.dataset.planEdit))));
+      qa('[data-plan-publish]',el).forEach(b=>b.onclick=()=>planPublish(items.find(x=>x.id===Number(b.dataset.planPublish))));
       qa('[data-plan-delete]',el).forEach(b=>b.onclick=()=>planDelete(Number(b.dataset.planDelete)));
       qa('[data-plan-restore]',el).forEach(b=>b.onclick=()=>planRestore(Number(b.dataset.planRestore)));
     } catch(e){el.innerHTML=`<div class="wt-admin-empty"><b>Error al cargar</b><span>${safe(errMsg(e))}</span></div>`;}
+  }
+
+  async function planPublish(p){
+    if(!p||p.code==='free')return notify('El plan Free se mantiene disponible como respaldo del sistema.');
+    const next=!Boolean(p.active);
+    if(!await ask(next?'Publicar plan en la web':'Ocultar plan de la web',next?`¿Publicar ${p.name} para nuevas compras con su precio actual?`:`¿Ocultar ${p.name}? Se impedirán nuevas compras, pero las licencias existentes conservan su vigencia.`,next?'Publicar':'Ocultar'))return;
+    try{
+      const payload={...p,active:next};
+      await api('/api/admin/full/plans',{method:'PUT',body:JSON.stringify(payload)});
+      notify(next?'Plan publicado en la web':'Plan ocultado de la web');
+      await Promise.all([loadPlans(),loadPlansAll(),loadOverview()]);
+    }catch(e){notify('No se pudo cambiar la publicación: '+errMsg(e))}
   }
 
   function planForm(p) {
