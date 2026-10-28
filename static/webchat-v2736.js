@@ -3,20 +3,21 @@
 const $=(s)=>document.querySelector(s);
 const E=(v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const moduleURL='/api/webchat/channels';
-const state={channels:[],agents:[],feature:false,aiAvailable:false};
+const state={channels:[],agents:[],feature:false,aiAvailable:false,error:''};
 function notice(message,cls=''){const n=$('#ww36Notice');if(n){n.className='ww36-notice '+cls;n.textContent=message}}
 const nav=()=>document.querySelector('nav button[data-view="webchat"]');
 const open=()=>nav()?.click();
 const planNotice='Si el servicio aún no está habilitado en Render, mantén WORKTIC_WEBCHAT_ENABLED=false y realiza primero las pruebas de seguridad.';
 async function load(){
- if(!$('#ww36List'))return;
+ if(!$('#ww36List'))return {...state,feature:false,error:'No está disponible el formulario de administración del canal.'};
  notice('Consultando canales de tu empresa…');
  let data;
  try{data=await window.api(moduleURL)}catch(e){
-   state.feature=false;notice('Chat Web aún no está habilitado en este servidor. '+planNotice,'error');
-   $('#ww36Stats').replaceChildren();$('#ww36List').innerHTML='<div class="ww36-empty"><strong>Canal pendiente de activación</strong>La administración aparecerá cuando el backend Chat Web esté desplegado y autorizado.</div>';return;
+   state.feature=false;state.agents=[];state.error=e?.message||'El servidor no respondió';notice('Chat Web aún no está habilitado en este servidor. '+planNotice,'error');
+   $('#ww36Stats').replaceChildren();$('#ww36List').innerHTML='<div class="ww36-empty"><strong>Canal pendiente de activación</strong>La administración aparecerá cuando el backend Chat Web esté desplegado y autorizado.</div>';return {...state};
  }
- state.feature=true;state.channels=data.channels||[];state.aiAvailable=!!data.ai_available;
+ state.feature=data.feature_enabled!==false;state.error=state.feature?'':'Chat Web deshabilitado en el servidor';state.channels=data.channels||[];state.aiAvailable=!!data.ai_available;
+ if(!state.feature){notice('Chat Web está deshabilitado. Debes activar WORKTIC_WEBCHAT_ENABLED en Render.','error');return {...state};}
  try{const r=await window.api('/api/agents');state.agents=(r.agents||[]).filter(a=>a.status==='active')}catch(e){state.agents=[]}
  const active=state.channels.filter(c=>c.enabled).length;
  $('#ww36Stats').innerHTML=[['Canales configurados',state.channels.length],['Activos',active],['Con agente asignado',state.channels.filter(c=>c.agent_id).length]].map(x=>`<div class="ww36-stat"><b>${x[1]}</b><small>${x[0]}</small></div>`).join('');
@@ -25,6 +26,7 @@ async function load(){
  <div class="ww36-card-top"><strong>${E(c.name)}</strong><span class="ww36-label ${c.enabled?'on':''}">${c.enabled?'Activo':'Inactivo'}</span></div>
  <p>${E(c.origin)}</p><dl><div><dt>Agente asignado</dt><dd>${E(state.agents.find(x=>x.id===c.agent_id)?.name||'#'+c.agent_id)}</dd></div><div><dt>Atención automática</dt><dd>${c.auto_ai?'IA habilitada':'Respuesta humana'}</dd></div><div><dt>ID del canal</dt><dd>${c.id}</dd></div></dl>
  <div class="ww36-actions"><button type="button" data-ww-edit="${c.id}">Configurar</button><button type="button" class="secondary" data-ww-code="${c.id}">Instalar</button><button type="button" class="secondary" data-ww-inbox="${c.id}">Conversaciones</button>${c.enabled?`<button type="button" class="secondary" data-ww-stop="${c.id}">Pausar</button>`:''}</div></article>`).join(''):'<div class="ww36-empty"><strong>Conecta tu primer Chat Web</strong>Tu sitio puede atender visitantes y guardar conversaciones en WorkticAI.<p><button type="button" data-ww-create>Crear canal</button></p></div>';
+ return {...state};
 }
 function form(c={}){
  if(!state.feature){notice('El administrador debe habilitar primero el canal en el servidor.','error');return}

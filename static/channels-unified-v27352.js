@@ -1,4 +1,4 @@
-/* WorkticAI V27.35.2 — Canales unificados.
+/* WorkticAI V27.35.3 — Corrección de formulario Chat Web sobre Canales unificados.
  * Una sola experiencia de creación/listado. Las API de telefonía y chat web
  * siguen siendo sus fuentes de verdad: no se duplican registros ni saldos.
  */
@@ -21,6 +21,7 @@ async function voiceForm(ch={}){
  if(!agents.length){notice('Primero crea y activa un agente IA en Agentes IA');return}
  const vs=d.voices||[];
  if(!vs.length){notice('El proveedor de voz no devolvió voces disponibles');return}
+ closeModal();
  window.modal(`<h2>${ch.id?'Configurar':'Nueva conexión'} · Llamadas IA</h2><div class="form wt-channel-form">
  <label>Nombre de la conexión<input id="ucVoiceName" maxlength="80" value="${esc(ch.name||'Atención telefónica IA')}" required></label>
  <label>Agente asignado<select id="ucVoiceAgent">${agents.map(a=>`<option value="${esc(a.id)}" ${String(a.id)===String(ch.agent_id)?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>
@@ -39,11 +40,28 @@ async function voiceForm(ch={}){
   catch(error){e.currentTarget.disabled=false;notice(error.message)}
  };
 }
+function inlineError(message){
+ const field=$('#ucDescription');
+ if(field){field.textContent=message;field.setAttribute('role','alert');field.style.color='#9f1239';field.style.borderColor='#fda4af';field.style.background='#fff1f2';}
+ notice(message);
+}
 async function createWeb(c){
- if(!webAvailable){notice('Chat Web no está habilitado en el servidor. Verifica WORKTIC_WEBCHAT_ENABLED.');return}
- if(!window.workticWebChat){notice('Configuración Chat Web no disponible');return}
- try{await window.workticWebChat.prepare();if(c)window.workticWebChat.edit(c.id);else window.workticWebChat.create()}
- catch(e){notice('Chat Web: '+e.message)}
+ if(!window.workticWebChat?.prepare||!window.workticWebChat?.create){
+  inlineError('No se cargó la configuración de Chat Web. Actualiza la página (Ctrl+F5) e inténtalo de nuevo.');return false;
+ }
+ let info;
+ try{info=await window.workticWebChat.prepare()}
+ catch(e){inlineError('No se pudo consultar Chat Web: '+(e.message||'Error de conexión'));return false}
+ if(!info?.feature){
+  inlineError('Chat Web no está habilitado en el servidor. En Render cambia WORKTIC_WEBCHAT_ENABLED a true y espera el nuevo despliegue.'+(info?.error?' Detalle: '+info.error:''));
+  return false;
+ }
+ if(!info.agents?.length){
+  inlineError('No tienes agentes IA activos. Crea o activa uno desde Agentes IA para conectar el Chat Web.');return false;
+ }
+ closeModal();
+ try{if(c)window.workticWebChat.edit(c.id);else window.workticWebChat.create();return true}
+ catch(e){notice('Error abriendo configuración Chat Web: '+(e.message||e));return false}
 }
 async function createConnection(){
  window.modal(`<h2>Nueva conexión</h2><p class="muted">Todos los canales se administran desde aquí. Selecciona el tipo de conexión.</p>
@@ -53,12 +71,16 @@ async function createConnection(){
  <div class="actions"><button type="button" id="ucContinue">Crear conexión</button><button value="cancel" class="secondary">Cancelar</button></div></div>`);
  api('/api/agents').then(d=>{const s=$('#ucAgent');if(s)s.replaceChildren(new Option('Agente principal (sin asignación)','0'),...(d.agents||[]).filter(a=>a.status==='active').map(a=>new Option(a.name,a.id)))}).catch(()=>{});
  const input=$('#ucType'), fields=$('#ucNativeFields'), btn=$('#ucContinue'),desc=$('#ucDescription');
- const update=()=>{const web=input.value==='webchat',voice=input.value==='voice_ai';fields.hidden=web||voice;btn.textContent=web||voice?'Continuar a configuración':'Crear conexión';desc.textContent=web?'Configura el dominio HTTPS, el agente y el código de instalación.':voice?'Selecciona la voz, el agente y los permisos de telefonía.': 'El backend validará tu plan y la asignación del agente.'};
+ const update=()=>{desc.removeAttribute('role');desc.removeAttribute('style');const web=input.value==='webchat',voice=input.value==='voice_ai';fields.hidden=web||voice;btn.textContent=web||voice?'Continuar a configuración':'Crear conexión';desc.textContent=web?'Configura el dominio HTTPS, el agente y el código de instalación.':voice?'Selecciona la voz, el agente y los permisos de telefonía.': 'El backend validará tu plan y la asignación del agente.'};
  input.onchange=update;update();
  btn.onclick=async()=>{
   const type=input.value;
-  if(type==='webchat'){closeModal();await createWeb();return}
-  if(type==='voice_ai'){closeModal();await voiceForm();return}
+  if(type==='webchat'){
+   btn.disabled=true;btn.textContent='Comprobando Chat Web…';
+   try{await createWeb()}finally{if($('#ucContinue')===btn){btn.disabled=false;btn.textContent='Continuar a configuración'}}
+   return;
+  }
+  if(type==='voice_ai'){await voiceForm();return}
   const p={type,name:$('#ucName').value.trim(),assigned_agent_id:Number($('#ucAgent').value||0)};
   if(!p.name){notice('Escribe el nombre del canal');return}
   btn.disabled=true;

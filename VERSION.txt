@@ -1,2 +1,2 @@
-WorkticAI V27.35.2 — Canales unificados (Chat Web y Llamadas IA dentro de Nueva conexión)
-Base: V27.35.1 · Sin cambios de esquema SQL ni facturación.
+WorkticAI V27.35.3 — Corrección de configuración Chat Web en selector unificado
+Base: V27.35.2 · Solo interfaz JS, sin migraciones SQL ni cambios de APIs.
