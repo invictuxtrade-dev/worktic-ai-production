@@ -35,7 +35,7 @@ function form(c={}){
  save.onclick=async()=>{
    const payload={id:c.id||0,name:$('#wwName').value.trim(),origin:$('#wwOrigin').value.trim(),agent_id:Number($('#wwAgent').value),enabled:$('#wwEnabled').checked,auto_ai:$('#wwAI').checked};
    if(!/^https:\/\/[^/\s]+\/?$/.test(payload.origin)){window.toast('Indica un dominio HTTPS válido, sin rutas.');return}
-   save.disabled=true;try{await window.api(moduleURL,{method:c.id?'PUT':'POST',body:JSON.stringify(payload)});$('#modal')?.close();await load();window.toast('Chat Web guardado')}catch(e){window.toast(e.message);save.disabled=false}
+   save.disabled=true;try{await window.api(moduleURL,{method:c.id?'PUT':'POST',body:JSON.stringify(payload)});$('#modal')?.close();await load();await window.workticUnified?.refresh?.();window.toast('Chat Web guardado')}catch(e){window.toast(e.message);save.disabled=false}
  };
 }
 function snippet(c){
@@ -45,7 +45,7 @@ function snippet(c){
  $('#wwCopy').onclick=async()=>{try{await navigator.clipboard.writeText(code);window.toast('Código copiado')}catch(e){$('#wwSnippet').select();document.execCommand('copy');window.toast('Código seleccionado')}};
 }
 async function pause(c){if(!confirm(`¿Pausar el canal ${c.name}? Los visitantes dejarán de poder iniciar y continuar conversaciones.`))return;
- try{await window.api(moduleURL+'?id='+encodeURIComponent(c.id),{method:'DELETE'});await load();window.toast('Chat Web pausado')}catch(e){window.toast(e.message)}
+ try{await window.api(moduleURL+'?id='+encodeURIComponent(c.id),{method:'DELETE'});await load();await window.workticUnified?.refresh?.();window.toast('Chat Web pausado')}catch(e){window.toast(e.message)}
 }
 document.addEventListener('click',(e)=>{
  const n=e.target.closest('[data-open-webchat]');if(n){open();return}
@@ -58,6 +58,7 @@ document.addEventListener('click',(e)=>{
  else if(e.target.closest('[data-ww-code]'))snippet(c);
  else if(e.target.closest('[data-ww-stop]'))pause(c);
 });
+window.workticWebChat={prepare:load,create:()=>form(),edit:id=>{const c=state.channels.find(x=>Number(x.id)===Number(id));if(c)form(c);else notice('Conexión no encontrada','error')},install:id=>{const c=state.channels.find(x=>Number(x.id)===Number(id));if(c)snippet(c);else notice('Conexión no encontrada','error')}};
 nav()?.addEventListener('click',()=>{load()});
 $('#refreshChannels')?.addEventListener('click',()=>{if(state.feature)load()});
 })();

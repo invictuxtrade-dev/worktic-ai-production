@@ -1,2 +1,2 @@
-WorkticAI V27.35.1 STAGING — Llamadas IA + Chat Web omnicanal
-Base: V27.35.0. Conservar controles de voz y desactivar Chat Web hasta pruebas de staging.
+WorkticAI V27.35.2 — Canales unificados (Chat Web y Llamadas IA dentro de Nueva conexión)
+Base: V27.35.1 · Sin cambios de esquema SQL ni facturación.
