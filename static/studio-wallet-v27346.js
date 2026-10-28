@@ -75,7 +75,7 @@
  function ensureDialog(){
   if(popup&&popup.isConnected)return popup;
   popup=document.createElement('div');popup.id='wcc48Overlay';popup.className='wcc48-overlay';popup.hidden=true;
-  popup.innerHTML='<section class="wcc48-dialog" role="dialog" aria-modal="true" aria-labelledby="wcc48Title" tabindex="-1"><div class="wcc48-header"><div><div class="wcc48-eyebrow">WORKTIC STUDIO · CRÉDITOS</div><h2 id="wcc48Title"></h2></div><button type="button" id="wcc48Close" aria-label="Cerrar panel">✕</button></div><div class="wcc48-content" id="wcc48Content" aria-live="polite"></div></section>';
+  popup.innerHTML='<section class="wcc48-dialog" role="dialog" aria-modal="true" aria-labelledby="wcc48Title" tabindex="-1"><div class="wcc48-header"><div><div class="wcc48-eyebrow">WORKTIC AI · BILLETERA DE CRÉDITOS</div><h2 id="wcc48Title"></h2></div><button type="button" id="wcc48Close" aria-label="Cerrar panel">✕</button></div><div class="wcc48-content" id="wcc48Content" aria-live="polite"></div></section>';
   popup.addEventListener('click',e=>{if(e.target===popup)closeDialog()});
   $('#wcc48Close',popup).addEventListener('click',closeDialog);
   document.addEventListener('keydown',e=>{

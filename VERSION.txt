@@ -1,1 +1,1 @@
-WorkticAI V27.35.5 — Billetera de Créditos unificada y QR de recargas
+WorkticAI V27.35.6 — QR/checkout responsivo y venta de créditos de voz desde la Billetera

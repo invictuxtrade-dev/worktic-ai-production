@@ -11,3 +11,60 @@
 /* Voice configuration remains functional, but credit management belongs only to Billetera de Créditos */
 #voice-ai [data-voice-tab="wallet"]{display:none!important}
 @media(max-width:650px){.wcc55-balance-grid{grid-template-columns:1fr}.wcc55-qr-layout{grid-template-columns:1fr;justify-items:center}.wcc55-qr-aside{width:100%}.wcc55-payment-total{align-items:flex-start}.wcc55-qr-container{width:206px;height:206px}}
+
+/* V27.35.6 — protect recharge dialog layout from legacy form and label rules */
+.wcc48-dialog:has(.wcc55-store){box-sizing:border-box;overflow-x:hidden;width:min(760px,calc(100vw - 24px));}
+#wcc48Content:has(.wcc55-store),
+#wcc48Content .wcc55-store,
+#wcc48Content .wcc55-payment,
+#wcc48Content .wcc55-payment > *,
+#wcc48Content .wcc55-qr-aside{
+  box-sizing:border-box;min-width:0;max-width:100%;
+}
+#wcc48Content .wcc55-payment{width:100%;overflow:visible;}
+#wcc48Content .wcc55-qr-layout{width:100%;min-width:0;grid-template-columns:minmax(0,220px) minmax(0,1fr);}
+#wcc48Content .wcc55-qr-aside{width:100%;overflow-wrap:anywhere;}
+#wcc48Content .wcc55-destination{white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
+#wcc48Content .wcc55-payment label.wcc55-accept{
+  box-sizing:border-box!important;display:grid!important;
+  grid-template-columns:20px minmax(0,1fr)!important;
+  gap:12px!important;align-items:start!important;
+  justify-content:initial!important;align-content:start!important;
+  width:100%!important;max-width:100%!important;min-width:0!important;
+  margin:0!important;padding:13px 15px!important;
+  border:1px solid #3d5579;border-radius:11px;background:#1b2e4d;
+  color:#dce8fb;font-size:12px!important;font-weight:550!important;line-height:1.55!important;
+}
+#wcc48Content .wcc55-accept > input[type=checkbox]{
+  appearance:auto!important;box-sizing:border-box!important;
+  width:18px!important;min-width:18px!important;max-width:18px!important;
+  height:18px!important;min-height:18px!important;max-height:18px!important;
+  padding:0!important;margin:1px 0 0!important;position:static!important;
+}
+#wcc48Content .wcc55-accept > span{
+  display:block!important;box-sizing:border-box!important;
+  width:auto!important;min-width:0!important;max-width:100%!important;
+  position:static!important;margin:0!important;padding:0!important;
+  white-space:normal!important;word-break:normal!important;
+  overflow-wrap:break-word!important;text-align:left!important;
+  line-height:1.55!important;letter-spacing:normal!important;
+}
+#wcc48Content .wcc55-payment-total{width:100%;}
+.wcc56-sales-admin{min-width:0;margin:14px 0 17px;border:1px solid #455f8c;border-radius:13px;background:#152b4c;color:#e7f2ff}
+.wcc56-sales-admin > summary{cursor:pointer;padding:13px 16px;font-size:13px;font-weight:850;list-style-position:inside}
+.wcc56-sales-content{border-top:1px solid #3c5275;padding:14px 16px 16px;display:grid;gap:10px}
+.wcc56-sales-content p{margin:0;font-size:11.5px;color:#b5ccec;line-height:1.6}
+.wcc56-sales-field{display:grid;gap:6px;font-size:12px;color:#e4eeff;font-weight:680;min-width:0}
+.wcc56-sales-field textarea{box-sizing:border-box;width:100%;max-width:100%;min-height:76px;resize:vertical;background:#0e203a;color:#fff;border:1px solid #546d94;border-radius:9px;padding:10px;font:inherit;font-weight:450}
+.wcc56-toggle{display:grid;grid-template-columns:18px minmax(0,1fr);align-items:start;gap:11px;font-size:12px;color:#e4f0ff;line-height:1.5}
+.wcc56-toggle input{width:17px;height:17px;min-height:17px;margin:2px 0 0;accent-color:#8e62f9}
+.wcc56-sales-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.wcc56-sales-actions button{cursor:pointer;border:0;background:linear-gradient(110deg,#3d69eb,#9a32df);border-radius:9px;padding:11px 15px;color:#fff;font-weight:800;font-size:12px}
+.wcc56-sales-status{font-size:12px;color:#ffdda9;line-height:1.5}
+.wcc56-sales-status.ready{color:#9ef5d3}
+@media(max-width:650px){
+  .wcc48-dialog:has(.wcc55-store){width:calc(100vw - 16px);}
+  #wcc48Content .wcc55-qr-layout{grid-template-columns:minmax(0,1fr);}
+  #wcc48Content .wcc55-payment-total{display:grid;grid-template-columns:1fr;gap:4px;}
+  #wcc48Content .wcc55-accept > span{font-size:12px!important;}
+}

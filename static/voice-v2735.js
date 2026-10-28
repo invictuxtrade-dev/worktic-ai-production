@@ -30,6 +30,7 @@ function channelEdit(id){const c=data.channels.find(v=>v.id===id);if(!c)return;$
 async function requestTopup(code){
  // V27.35.5: both products recharge from the same wallet checkout.
  const wallet=window.WorkticWalletV27346;
+ if(window.WorkticUnifiedCreditsV27355?.open){window.WorkticUnifiedCreditsV27355.open('voice');return}
  if(wallet?.open){wallet.open('topups');return}
  document.querySelector('nav button[data-view="studio-credits"]')?.click();
 }
