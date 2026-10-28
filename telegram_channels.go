@@ -441,11 +441,10 @@ func (a *App) maybeTenantTelegramAIReply(c ChannelConnection, token, telegramCha
 	a.autoLast[key] = time.Now()
 	a.mu.Unlock()
 
-	agentID := c.AssignedAgentID
-	if agentID == 0 {
-		if resolved, err := a.resolveAgent(c.TenantID, "telegram", "", text, 0, 0, 0); err == nil {
-			agentID = resolved
-		}
+	agentID, agentErr := a.securityTenantResolveAgent(c.TenantID, c.AssignedAgentID, "telegram", text)
+	if agentErr != nil {
+		_, _ = a.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=? AND tenant_id=?`, agentErr.Error(), time.Now().UTC().Format(time.RFC3339), c.ID, c.TenantID)
+		return
 	}
 	history := a.channelManager.tenantRecentHistory(c.TenantID, c.ID, storedChat, 10)
 	system := ""
@@ -467,12 +466,8 @@ func (a *App) maybeTenantTelegramAIReply(c ChannelConnection, token, telegramCha
 		}
 	}
 	if system == "" {
-		legacy := a.loadAgent()
-		if !legacy.Enabled {
-			_, _ = a.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=?`, "Activa el Asistente Principal o asigna un Agente Especializado activo", time.Now().UTC().Format(time.RFC3339), c.ID)
-			return
-		}
-		system = fmt.Sprintf("Eres %s, asistente principal de %s. Objetivo: %s. Tono: %s. Instrucciones: %s. Conocimiento verificado: %s. No inventes datos y responde de forma humana, clara y breve. Historial reciente:\n%s", legacy.Name, legacy.Company, legacy.Objective, legacy.Tone, legacy.Instructions, legacy.Knowledge, history)
+		_, _ = a.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=? AND tenant_id=?`, "Agente propio activo requerido", time.Now().UTC().Format(time.RFC3339), c.ID, c.TenantID)
+		return
 	}
 	log.Printf("[TG-AI] generando tenant=%d conexion=%d agente=%d", c.TenantID, c.ID, agentID)
 	reply, err := a.callOpenAI(system, text, c.TenantID)

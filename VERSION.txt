@@ -1,2 +1,2 @@
-WorkticAI V27.35.3 — Corrección de configuración Chat Web en selector unificado
-Base: V27.35.2 · Solo interfaz JS, sin migraciones SQL ni cambios de APIs.
+WorkticAI V27.35.4 — Seguridad multitenant de Agentes IA
+Base: V27.35.3. No modifica facturación ni Chat Web; bloqueo de fallback global y borradores automáticos.

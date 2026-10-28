@@ -93,6 +93,11 @@ func (a *App) agentV22ProfileHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("agent_id obligatorio"), 400)
 		return
 	}
+	var profileOwner int64
+	if a.db.QueryRow(`SELECT tenant_id FROM ai_agents WHERE id=?`, agentID).Scan(&profileOwner) != nil || profileOwner != tenant {
+		writeError(w, errors.New("agente no pertenece a la empresa"), 403)
+		return
+	}
 	if r.Method == http.MethodGet {
 		var p AgentV22Profile
 		var m, c, cr, ag, pl, ta, hh int
@@ -173,6 +178,13 @@ func (a *App) agentV22KnowledgeHandler(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(q.Title) == "" || strings.TrimSpace(q.Content) == "" {
 			writeError(w, errors.New("título y contenido obligatorios"), 400)
 			return
+		}
+		if q.AgentID != 0 {
+			var owner int64
+			if a.db.QueryRow(`SELECT tenant_id FROM ai_agents WHERE id=?`, q.AgentID).Scan(&owner) != nil || owner != tenant {
+				writeError(w, errors.New("agente no pertenece a la empresa"), 403)
+				return
+			}
 		}
 		if q.Kind == "" {
 			q.Kind = "note"

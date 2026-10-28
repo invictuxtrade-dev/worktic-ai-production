@@ -426,12 +426,10 @@ func main() {
 
 	ensureSocialProviderSchema(db)
 
-	if err = migrateAgentTenants(db); err != nil {
-		log.Fatalf("agent tenant migration: %v", err)
-	}
-	if err = migrateClassicAgentToUnifiedAgents(db); err != nil {
-		log.Fatalf("agent unification migration: %v", err)
-	}
+	// V27.35.4 SECURITY: Do not reassign existing agent ownership from user IDs
+	// during every restart. Tenant IDs can overlap user IDs. Historic migrations
+	// are deliberately disabled: inconsistencies require an audited manual repair.
+	// Also never auto-create draft agents during startup/onboarding.
 	if len(os.Args) > 1 && os.Args[1] == "--schema-only" {
 		log.Printf("schema V26 preparado correctamente (%s)", cfg.DatabaseDriver)
 		_ = db.Close()
@@ -1785,6 +1783,11 @@ func (a *App) loadAgent() AgentConfig {
 	return x
 }
 func (a *App) agentHandler(w http.ResponseWriter, r *http.Request) {
+	u := a.currentUser(r)
+	if u == nil || u.Role != "superadmin" {
+		writeError(w, errors.New("la configuración global está restringida al superadministrador"), 403)
+		return
+	}
 	if r.Method == http.MethodGet {
 		x := a.loadAgent()
 		writeJSON(w, map[string]any{"agent": x, "openai_configured": a.openAIKey() != "", "model": a.cfg.OpenAIModel})
@@ -1836,6 +1839,11 @@ func (a *App) agentTestHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"reply": out})
 }
 func (a *App) maybeAIReply(channel, chat, text string) {
+	// Legacy WhatsApp has no reliable tenant/channel identity. Never auto-reply
+	// using a global agent in a multi-tenant installation.
+	if a.securityLegacyAgentSingleTenant() != nil {
+		return
+	}
 	agent := a.loadAgent()
 	if !agent.Enabled || a.openAIKey() == "" {
 		return
@@ -1881,6 +1889,9 @@ func (a *App) recentHistory(chat string, n int) string {
 	return strings.Join(lines, "\n")
 }
 func (a *App) aiResponse(userText, history string, tenantID int64) (string, error) {
+	if err := a.securityLegacyAgentSingleTenant(); err != nil {
+		return "", err
+	}
 	key := a.openAIKey()
 	if key == "" {
 		return "", errors.New("falta OPENAI_API_KEY")

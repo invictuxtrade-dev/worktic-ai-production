@@ -400,12 +400,10 @@ func (cm *ChannelManager) maybeTenantAIReply(rt *channelRuntime, recipient types
 	if !cm.app.inboxAIAllowed(rt.conn.TenantID, storedChat) {
 		return
 	}
-	agentID := rt.conn.AssignedAgentID
-	if agentID == 0 {
-		resolved, err := cm.app.resolveAgent(rt.conn.TenantID, "whatsapp", "", text, 0, 0, 0)
-		if err == nil {
-			agentID = resolved
-		}
+	agentID, agentErr := cm.app.securityTenantResolveAgent(rt.conn.TenantID, rt.conn.AssignedAgentID, "whatsapp", text)
+	if agentErr != nil {
+		_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=? AND tenant_id=?`, agentErr.Error(), time.Now().UTC().Format(time.RFC3339), rt.conn.ID, rt.conn.TenantID)
+		return
 	}
 	history := cm.tenantRecentHistory(rt.conn.TenantID, rt.conn.ID, storedChat, 10)
 	system := ""
@@ -429,12 +427,8 @@ func (cm *ChannelManager) maybeTenantAIReply(rt *channelRuntime, recipient types
 		}
 	}
 	if system == "" {
-		legacy := cm.app.loadAgent()
-		if !legacy.Enabled {
-			_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=?`, "Activa el Asistente Principal o asigna un Agente Especializado activo", time.Now().UTC().Format(time.RFC3339), rt.conn.ID)
-			return
-		}
-		system = fmt.Sprintf("Eres %s, asistente principal de %s. Objetivo: %s. Tono: %s. Instrucciones: %s. Conocimiento verificado: %s. No inventes datos y responde de forma humana, clara y breve. Historial reciente:\n%s", legacy.Name, legacy.Company, legacy.Objective, legacy.Tone, legacy.Instructions, legacy.Knowledge, history)
+		_, _ = cm.app.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=? AND tenant_id=?`, "Agente propio activo requerido", time.Now().UTC().Format(time.RFC3339), rt.conn.ID, rt.conn.TenantID)
+		return
 	}
 	log.Printf("[WA-AI] generando respuesta tenant=%d conexion=%d agente=%d", rt.conn.TenantID, rt.conn.ID, agentID)
 	reply, err := cm.app.callOpenAI(system, text, rt.conn.TenantID)
@@ -536,6 +530,12 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 		}
 		var q ChannelConnection
 		_ = json.NewDecoder(r.Body).Decode(&q)
+		if q.AssignedAgentID > 0 {
+			if err := a.securityTenantAgentActive(tid, q.AssignedAgentID); err != nil {
+				writeError(w, err, 403)
+				return
+			}
+		}
 		q.Type = strings.ToLower(strings.TrimSpace(q.Type))
 		if q.Type != "whatsapp_qr" && q.Type != "whatsapp_cloud" && q.Type != "telegram" && q.Type != "messenger" {
 			writeError(w, errors.New("tipo de canal no soportado"), 400)
@@ -630,6 +630,12 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 		PhoneNumberID string `json:"phone_number_id"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&q)
+	if q.AgentID > 0 {
+		if err := a.securityTenantAgentActive(tid, q.AgentID); err != nil {
+			writeError(w, err, 403)
+			return
+		}
+	}
 	var c ChannelConnection
 	if a.db.QueryRow(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,encrypted_credentials,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE id=? AND tenant_id=?`, q.ID, tid).Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.EncryptedCredentials, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt) != nil {
 		writeError(w, errors.New("conexión no encontrada"), 404)

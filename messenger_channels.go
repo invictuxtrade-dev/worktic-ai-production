@@ -1305,7 +1305,11 @@ func (a *App) maybeMessengerAIReply(c ChannelConnection, psid, chat, text string
 		return
 	}
 	history := a.channelManager.tenantRecentHistory(c.TenantID, c.ID, chat, 10)
-	agentID := c.AssignedAgentID
+	agentID, agentErr := a.securityTenantResolveAgent(c.TenantID, c.AssignedAgentID, "messenger", text)
+	if agentErr != nil {
+		a.recordMessengerChannelEvent(c, "messenger_ai_reply", "tenant_agent_invalid", map[string]any{"error": agentErr.Error()})
+		return
+	}
 	system := ""
 	if agentID > 0 {
 		var ag AIAgent
@@ -1319,12 +1323,8 @@ func (a *App) maybeMessengerAIReply(c ChannelConnection, psid, chat, text string
 		}
 	}
 	if system == "" {
-		ag := a.loadAgent()
-		if !ag.Enabled {
-			a.recordMessengerChannelEvent(c, "messenger_ai_reply", "agent_disabled", map[string]any{"psid": psid})
-			return
-		}
-		system = fmt.Sprintf("Eres %s, asistente principal de %s. Objetivo: %s. Tono: %s. Instrucciones: %s. Conocimiento: %s. Historial:\n%s", ag.Name, ag.Company, ag.Objective, ag.Tone, ag.Instructions, ag.Knowledge, history)
+		a.recordMessengerChannelEvent(c, "messenger_ai_reply", "tenant_agent_invalid", map[string]any{"error": "agente propio activo requerido"})
+		return
 	}
 	reply, err := a.callOpenAI(system, text, c.TenantID)
 	if err == nil && agentID > 0 {

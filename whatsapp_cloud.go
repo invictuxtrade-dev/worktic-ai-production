@@ -117,6 +117,12 @@ func (a *App) inspectWhatsAppCloud(ctx context.Context, wabaID, phoneNumberID, t
 }
 
 func (a *App) configureWhatsAppCloud(ctx context.Context, c ChannelConnection, wabaID, phoneNumberID, token string, agentID int64) (map[string]any, error) {
+	if agentID > 0 {
+		if err := a.securityTenantAgentActive(c.TenantID, agentID); err != nil {
+			return nil, err
+		}
+	}
+
 	if token == "" {
 		old, err := a.whatsappCloudCredentialsFor(c)
 		if err != nil {

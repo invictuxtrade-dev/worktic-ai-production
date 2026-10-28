@@ -419,6 +419,10 @@ func (a *App) agentRoutesHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, errors.New("nombre y agente son obligatorios"), 400)
 			return
 		}
+		if err := a.securityTenantAgentActive(tenant, q.AgentID); err != nil {
+			writeError(w, err, 403)
+			return
+		}
 		en := 0
 		if q.Enabled {
 			en = 1
@@ -515,6 +519,12 @@ func (a *App) agentPermissionsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			return 0
 		}
+		var agentOwner, userOwner int64
+		if a.db.QueryRow(`SELECT tenant_id FROM ai_agents WHERE id=?`, q.AgentID).Scan(&agentOwner) != nil || agentOwner != tenant ||
+			a.db.QueryRow(`SELECT tenant_id FROM app_users WHERE id=?`, q.UserID).Scan(&userOwner) != nil || userOwner != tenant {
+			writeError(w, errors.New("agente o usuario fuera de esta empresa"), 403)
+			return
+		}
 		_, e := a.db.Exec(`INSERT INTO ai_agent_permissions(tenant_id,agent_id,user_id,can_view,can_edit,can_test,can_pause) VALUES(?,?,?,?,?,?,?) ON CONFLICT(tenant_id,agent_id,user_id) DO UPDATE SET can_view=excluded.can_view,can_edit=excluded.can_edit,can_test=excluded.can_test,can_pause=excluded.can_pause`, tenant, q.AgentID, q.UserID, b(q.CanView), b(q.CanEdit), b(q.CanTest), b(q.CanPause))
 		if e != nil {
 			writeError(w, e, 500)
@@ -532,7 +542,7 @@ func (a *App) auditAgent(tenant, agent, user int64, action, detail string) {
 
 // resolveAgent selects the most specific enabled route and falls back to the default agent.
 func (a *App) resolveAgent(tenant int64, channel, intent, text string, campaign, landing, group int64) (int64, error) {
-	rows, e := a.db.Query(`SELECT agent_id,channel,intent,keyword,campaign_id,landing_id,group_id FROM ai_agent_routes WHERE tenant_id=? AND enabled=1 ORDER BY priority,id`, tenant)
+	rows, e := a.db.Query(`SELECT r.agent_id,r.channel,r.intent,r.keyword,r.campaign_id,r.landing_id,r.group_id FROM ai_agent_routes r JOIN ai_agents a ON a.id=r.agent_id AND a.tenant_id=r.tenant_id AND a.status='active' WHERE r.tenant_id=? AND r.enabled=1 ORDER BY r.priority,r.id`, tenant)
 	if e != nil {
 		return 0, e
 	}
@@ -561,6 +571,8 @@ func (a *App) resolveAgent(tenant int64, channel, intent, text string, campaign,
 		}
 		return aid, nil
 	}
+	// Explicitly close the route cursor before fallback query; SQLite uses a single connection.
+	_ = rows.Close()
 	var id int64
 	e = a.db.QueryRow(`SELECT id FROM ai_agents WHERE tenant_id=? AND is_default=1 AND status='active' ORDER BY id LIMIT 1`, tenant).Scan(&id)
 	return id, e
