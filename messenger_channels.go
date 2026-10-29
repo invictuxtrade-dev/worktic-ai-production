@@ -1333,6 +1333,9 @@ func (a *App) maybeMessengerAIReply(c ChannelConnection, psid, chat, text string
 		if linkErr := a.catalogAutoLinkFromMessageV273517(c.TenantID, agentID, chat, text, "messenger"); linkErr != nil {
 			log.Printf("[CATALOG-CRM] asociación no realizada: %v", linkErr)
 		}
+		if hubErr := a.agentSalesHubFromMessageV273519(c.TenantID, agentID, chat, text, "messenger"); hubErr != nil {
+			log.Printf("[AGENT-SALES-HUB] seguimiento no registrado: %v", hubErr)
+		}
 	}
 	if err == nil && agentID > 0 {
 		a.agentV22Remember(c.TenantID, agentID, chat, text, reply)

@@ -407,6 +407,9 @@ func main() {
 	if err = initOpportunitySalesHubV273518(db); err != nil {
 		log.Fatalf("sales hub schema: %v", err)
 	}
+	if err = initAgentSalesHubV273519(db); err != nil {
+		log.Fatalf("agent sales hub schema: %v", err)
+	}
 	if err = initAnalyticsV24Schema(db); err != nil {
 		log.Fatalf("analytics v24 schema: %v", err)
 	}
@@ -646,6 +649,7 @@ func main() {
 	mux.HandleFunc("/api/crm/contacts", app.crmContactsPremiumHandler)
 	mux.HandleFunc("/api/crm/opportunities", app.opportunitiesPremiumHandler)
 	mux.HandleFunc("/api/crm/sales-hub", app.opportunitySalesHubV273518)
+	mux.HandleFunc("/api/agents/sales-hub-automation", app.agentSalesHubSettingsHandlerV273519)
 	mux.HandleFunc("/api/dashboard", app.dashboardHandler)
 	mux.HandleFunc("/api/plans", app.plansHandler)
 	mux.HandleFunc("/api/billing/entitlements", app.entitlementsHandler)

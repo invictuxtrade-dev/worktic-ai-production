@@ -477,6 +477,9 @@ func (a *App) maybeTenantTelegramAIReply(c ChannelConnection, token, telegramCha
 		if linkErr := a.catalogAutoLinkFromMessageV273517(c.TenantID, agentID, storedChat, text, "telegram"); linkErr != nil {
 			log.Printf("[CATALOG-CRM] asociación no realizada: %v", linkErr)
 		}
+		if hubErr := a.agentSalesHubFromMessageV273519(c.TenantID, agentID, storedChat, text, "telegram"); hubErr != nil {
+			log.Printf("[AGENT-SALES-HUB] seguimiento no registrado: %v", hubErr)
+		}
 	}
 	if err == nil && agentID > 0 {
 		a.agentV22Remember(c.TenantID, agentID, storedChat, text, reply)

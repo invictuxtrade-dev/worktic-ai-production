@@ -470,6 +470,9 @@ func (a *App) webChatAutoRespond(tenant, channel, agent int64, chat, text string
 		if linkErr := a.catalogAutoLinkFromMessageV273517(tenant, agent, chat, text, "web"); linkErr != nil {
 			log.Printf("[CATALOG-CRM] asociación no realizada: %v", linkErr)
 		}
+		if hubErr := a.agentSalesHubFromMessageV273519(tenant, agent, chat, text, "web"); hubErr != nil {
+			log.Printf("[AGENT-SALES-HUB] seguimiento no registrado: %v", hubErr)
+		}
 	}
 	period := time.Now().UTC().Format("2006-01")
 	if callErr != nil {

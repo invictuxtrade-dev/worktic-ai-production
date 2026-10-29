@@ -438,6 +438,9 @@ func (cm *ChannelManager) maybeTenantAIReply(rt *channelRuntime, recipient types
 		if linkErr := cm.app.catalogAutoLinkFromMessageV273517(rt.conn.TenantID, agentID, storedChat, text, "whatsapp"); linkErr != nil {
 			log.Printf("[CATALOG-CRM] asociación no realizada: %v", linkErr)
 		}
+		if hubErr := cm.app.agentSalesHubFromMessageV273519(rt.conn.TenantID, agentID, storedChat, text, "whatsapp"); hubErr != nil {
+			log.Printf("[AGENT-SALES-HUB] seguimiento no registrado: %v", hubErr)
+		}
 	}
 	if err == nil && agentID > 0 {
 		cm.app.agentV22Remember(rt.conn.TenantID, agentID, storedChat, text, reply)

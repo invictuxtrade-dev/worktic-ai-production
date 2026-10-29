@@ -1,1 +1,1 @@
-WorkticAI V27.35.18 — Sales Hub Premium (seguimiento, embudo, lista, tareas, notas y auditoría)
+WorkticAI V27.35.19 — Agentes IA + Sales Hub Automation (seguimiento configurable)
