@@ -1,0 +1,61 @@
+/* WorkticAI V27.35.16.1: scoped catalog workflow UI; no global sidebar/toolbar changes. */
+.catalog-ux-dialog{border:1px solid #e3daf8;padding:0;background:#fff;color:#201a36;width:min(760px,calc(100vw - 24px));max-width:min(760px,calc(100vw - 24px));max-height:min(88dvh,850px);border-radius:21px;box-shadow:0 26px 100px #1d133d50;overflow:hidden}
+.catalog-ux-dialog::backdrop{background:rgba(8,8,28,.66);backdrop-filter:blur(3px)}
+.catalog-ux-dialog .catalog-ux-frame{display:flex;flex-direction:column;min-width:0;max-height:min(88dvh,850px);height:auto}
+.catalog-ux-dialog .catalog-ux-header{padding:23px 26px 17px;border-bottom:1px solid #ebe7f4;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;background:linear-gradient(115deg,#fff,#f8f3ff)}
+.catalog-ux-dialog .catalog-ux-header small{display:block;color:#8135e6;font-size:10px;font-weight:800;letter-spacing:1.1px}
+.catalog-ux-dialog .catalog-ux-header h2{font-size:23px;line-height:1.2;margin:6px 0 6px;font-weight:800}
+.catalog-ux-dialog .catalog-ux-header p{margin:0;color:#746c8a;font-size:13px;line-height:1.5}
+.catalog-ux-dialog .catalog-ux-close{display:grid;place-items:center;flex-shrink:0;width:37px;height:37px;border-radius:12px;border:1px solid #e1dceb;background:white;color:#483d64;padding:0}
+.catalog-ux-dialog .catalog-ux-scroll{min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;gap:17px;padding:21px 26px;scrollbar-gutter:stable}
+.catalog-ux-dialog .catalog-ux-footer{padding:15px 26px;background:#fff;border-top:1px solid #ece7f2;display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;flex-shrink:0}
+.catalog-ux-dialog button,.catalog-ux-dialog a.catalog-ux-secondary{cursor:pointer;font:inherit;font-weight:700;font-size:13px;min-height:39px}
+.catalog-ux-dialog .catalog-ux-primary{background:linear-gradient(100deg,#285ef7,#b12ff1);color:white;border:0;border-radius:11px;padding:10px 18px}
+.catalog-ux-dialog .catalog-ux-secondary{background:#fff;color:#352550;border:1px solid #dcd6ee;border-radius:11px;padding:10px 16px;display:inline-flex;gap:6px;align-items:center;text-decoration:none}
+.catalog-ux-dialog button:disabled{opacity:.5;cursor:not-allowed}
+.catalog-ux-dialog .catalog-ux-product{display:flex;gap:13px;align-items:center;min-width:0;background:#f8f6fd;border:1px solid #e8e1fa;border-radius:14px;padding:11px}
+.catalog-ux-dialog .catalog-ux-product img,.catalog-ux-dialog .catalog-ux-placeholder{width:70px;height:70px;flex-shrink:0;border-radius:11px;object-fit:cover;background:#ede6ff;display:grid;place-items:center}
+.catalog-ux-dialog .catalog-ux-product>div:last-child{min-width:0;display:grid;gap:4px}
+.catalog-ux-dialog .catalog-ux-product strong{font-size:14px;overflow-wrap:anywhere}
+.catalog-ux-dialog .catalog-ux-product span{color:#6023c0;font-size:13px;font-weight:700}
+.catalog-ux-dialog .catalog-ux-product small{color:#706a80;font-size:11px}
+.catalog-ux-dialog label:not(.catalog-ux-choice):not(.catalog-ux-check){display:grid;gap:7px;color:#36304d;font-size:12px;font-weight:750;min-width:0}
+.catalog-ux-dialog input[type=search],.catalog-ux-dialog input[type=number],.catalog-ux-dialog input[type=text],.catalog-ux-dialog input[type=file],.catalog-ux-dialog select,.catalog-ux-dialog textarea{background:#fff;border:1px solid #d8d1e9;border-radius:10px;width:100%;min-width:0;min-height:41px;padding:10px 12px;font-size:13px;color:#201a36;box-sizing:border-box;font-family:inherit}
+.catalog-ux-dialog input:focus-visible,.catalog-ux-dialog select:focus-visible,.catalog-ux-dialog textarea:focus-visible{outline:2px solid #904cf5;outline-offset:1px}
+.catalog-ux-dialog em{font-size:10px;color:#746c85;font-style:normal;font-weight:500}
+.catalog-ux-dialog label small,.catalog-ux-dialog .catalog-ux-hint{font-weight:400;color:#77718b;font-size:11px;margin:0}
+.catalog-ux-dialog .catalog-ux-options{display:grid;gap:8px;max-height:235px;overflow:auto;padding:2px}
+.catalog-ux-dialog .catalog-ux-choice{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #dfdaed;background:#fff;border-radius:12px;cursor:pointer;min-width:0}
+.catalog-ux-dialog .catalog-ux-choice.selected{background:#f6f0ff;border-color:#8447eb}
+.catalog-ux-dialog .catalog-ux-choice input{accent-color:#7942ec;width:17px;height:17px;flex-shrink:0}
+.catalog-ux-dialog .catalog-ux-choice-body{flex:1;min-width:0;display:grid;gap:3px}
+.catalog-ux-dialog .catalog-ux-choice-body strong{font-size:13px;overflow-wrap:anywhere}
+.catalog-ux-dialog .catalog-ux-choice-body small{font-size:11px;color:#716987;overflow-wrap:anywhere}
+.catalog-ux-dialog .catalog-ux-choice-mark{color:#823ee8;opacity:0;display:grid}
+.catalog-ux-dialog .catalog-ux-choice.selected .catalog-ux-choice-mark{opacity:1}
+.catalog-ux-dialog .catalog-ux-fieldrow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.catalog-ux-dialog .catalog-ux-step{border:1px solid #ebe5f5;border-radius:14px;padding:15px;display:grid;gap:12px}
+.catalog-ux-dialog .catalog-ux-step>b{font-size:14px;display:flex;gap:10px;align-items:center}
+.catalog-ux-dialog .catalog-ux-step>b span{display:grid;place-items:center;color:#7131df;background:#eee5ff;width:27px;height:27px;border-radius:9px}
+.catalog-ux-dialog .catalog-ux-total{display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between;align-items:center;background:#f1ecfd;padding:13px;border-radius:11px}
+.catalog-ux-dialog .catalog-ux-total span{font-size:12px;color:#6b6480}
+.catalog-ux-dialog .catalog-ux-total strong{font-size:17px;color:#4e1aa6}
+.catalog-ux-dialog .catalog-ux-warning{background:#fff9e8;border:1px solid #f1dca1;border-radius:12px;padding:12px;display:flex;align-items:start;gap:8px;color:#795b21;font-size:12px;line-height:1.45}
+.catalog-ux-dialog .catalog-ux-warning svg{flex-shrink:0}
+.catalog-ux-dialog .catalog-ux-error{background:#fff1f2;border:1px solid #f5a7ad;border-radius:10px;padding:10px;color:#b22c38;font-size:12px}
+.catalog-ux-dialog .catalog-ux-success{color:#087e50;background:#e9fbf2;border-radius:12px;padding:15px;display:flex;align-items:center;gap:8px;font-weight:700}
+.catalog-ux-dialog .catalog-ux-sales-list{display:grid;gap:10px;max-height:390px;overflow:auto}
+.catalog-ux-dialog .catalog-ux-sale{border:1px solid #e6e1ee;border-radius:12px;padding:14px;display:grid;gap:10px}
+.catalog-ux-dialog .catalog-ux-sale-row{display:flex;align-items:start;justify-content:space-between;gap:12px}
+.catalog-ux-dialog .catalog-ux-sale-row strong{font-size:13px}
+.catalog-ux-dialog .catalog-ux-sale-row small{display:block;font-size:11px;color:#776f88;padding-top:6px}
+.catalog-ux-dialog .catalog-ux-muted{color:#77718b;font-size:11px;overflow-wrap:anywhere}
+.catalog-ux-dialog .catalog-ux-sale-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.catalog-ux-dialog .catalog-ux-status{font-size:10px;font-weight:700;white-space:nowrap;background:#eee5ff;color:#6840bc;padding:6px 8px;border-radius:40px}
+.catalog-ux-dialog .catalog-ux-status.pending_review{background:#fff1d8;color:#9a6200}
+.catalog-ux-dialog .catalog-ux-status.approved_manual{background:#dff8ec;color:#137b4d}
+.catalog-ux-dialog .catalog-ux-status.rejected{background:#fff0f0;color:#ab3a3a}
+.catalog-ux-dialog .catalog-ux-empty{padding:25px;text-align:center;border:1px dashed #ded5ee;border-radius:12px;font-size:13px;color:#6f6880}
+.catalog-ux-dialog .catalog-ux-check{display:flex;align-items:start;gap:10px;font-size:12px;color:#524961;line-height:1.5;cursor:pointer}
+.catalog-ux-dialog .catalog-ux-check input{flex-shrink:0;width:18px;height:18px;accent-color:#7842e8}
+@media(max-width:620px){.catalog-ux-dialog{width:calc(100vw - 12px);max-width:calc(100vw - 12px);max-height:94dvh;border-radius:16px}.catalog-ux-dialog .catalog-ux-frame{max-height:94dvh}.catalog-ux-dialog .catalog-ux-header{padding:17px 15px 13px}.catalog-ux-dialog .catalog-ux-header h2{font-size:20px}.catalog-ux-dialog .catalog-ux-scroll{padding:15px;gap:13px}.catalog-ux-dialog .catalog-ux-footer{padding:12px 15px}.catalog-ux-dialog .catalog-ux-fieldrow{grid-template-columns:1fr}.catalog-ux-dialog .catalog-ux-sale-row{flex-wrap:wrap}}

@@ -204,6 +204,7 @@ func initCatalogCommerceV273516(db *DB) error {
 		`CREATE TABLE IF NOT EXISTS catalog_share_links_v273516 (token TEXT PRIMARY KEY,tenant_id INTEGER NOT NULL,product_id INTEGER NOT NULL DEFAULT 0,actor_id INTEGER NOT NULL DEFAULT 0,expires_at TEXT NOT NULL,created_at TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS catalog_sales_v273516 (id INTEGER PRIMARY KEY AUTOINCREMENT,tenant_id INTEGER NOT NULL,product_id INTEGER NOT NULL,opportunity_id INTEGER NOT NULL DEFAULT 0,quantity INTEGER NOT NULL,unit_price REAL NOT NULL,currency TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending_review',payment_reference TEXT NOT NULL,confirmed_by INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,reviewed_at TEXT NOT NULL DEFAULT '',UNIQUE(tenant_id,payment_reference))`,
 		`CREATE INDEX IF NOT EXISTS idx_catalog_sales_tenant_v273516 ON catalog_sales_v273516(tenant_id,status,created_at)`,
+		`CREATE TABLE IF NOT EXISTS catalog_sale_evidence_v2735161 (tenant_id INTEGER NOT NULL,sale_id INTEGER NOT NULL,media_type TEXT NOT NULL,content BLOB NOT NULL,sha256 TEXT NOT NULL,uploaded_by INTEGER NOT NULL,uploaded_at TEXT NOT NULL,PRIMARY KEY(tenant_id,sale_id))`,
 	}
 	for _, q := range schema {
 		if _, e := db.Exec(q); e != nil {
@@ -492,7 +493,7 @@ func (a *App) catalogSalesV273516(w http.ResponseWriter, r *http.Request, tenant
 		return
 	}
 	if r.Method == http.MethodGet {
-		rows, e := a.db.Query(`SELECT id,product_id,opportunity_id,quantity,unit_price,currency,status,payment_reference,confirmed_by,created_at,reviewed_at FROM catalog_sales_v273516 WHERE tenant_id=? ORDER BY id DESC LIMIT 200`, tenant)
+		rows, e := a.db.Query(`SELECT s.id,s.product_id,s.opportunity_id,s.quantity,s.unit_price,s.currency,s.status,s.payment_reference,s.confirmed_by,s.created_at,s.reviewed_at,CASE WHEN EXISTS(SELECT 1 FROM catalog_sale_evidence_v2735161 e WHERE e.tenant_id=s.tenant_id AND e.sale_id=s.id) THEN 1 ELSE 0 END FROM catalog_sales_v273516 s WHERE s.tenant_id=? ORDER BY s.id DESC LIMIT 200`, tenant)
 		if e != nil {
 			writeError(w, e, 500)
 			return
@@ -501,14 +502,14 @@ func (a *App) catalogSalesV273516(w http.ResponseWriter, r *http.Request, tenant
 		items := []map[string]any{}
 		for rows.Next() {
 			var id, p, opp, who int64
-			var qty int
+			var qty, hasEvidence int
 			var price float64
 			var cur, status, ref, created, reviewed string
-			if e = rows.Scan(&id, &p, &opp, &qty, &price, &cur, &status, &ref, &who, &created, &reviewed); e != nil {
+			if e = rows.Scan(&id, &p, &opp, &qty, &price, &cur, &status, &ref, &who, &created, &reviewed, &hasEvidence); e != nil {
 				writeError(w, e, 500)
 				return
 			}
-			items = append(items, map[string]any{"id": id, "product_id": p, "opportunity_id": opp, "quantity": qty, "unit_price": price, "total": price * float64(qty), "currency": cur, "status": status, "payment_reference": ref, "confirmed_by": who, "created_at": created, "reviewed_at": reviewed})
+			items = append(items, map[string]any{"id": id, "product_id": p, "opportunity_id": opp, "quantity": qty, "unit_price": price, "total": price * float64(qty), "currency": cur, "status": status, "payment_reference": ref, "confirmed_by": who, "created_at": created, "reviewed_at": reviewed, "has_evidence": hasEvidence == 1})
 		}
 		writeJSON(w, items)
 		return

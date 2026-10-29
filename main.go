@@ -549,6 +549,7 @@ func main() {
 	for _, route := range []string{"/api/catalog/commerce", "/api/catalog/share", "/api/catalog/opportunity-link", "/api/catalog/service-link", "/api/catalog/sales", "/api/catalog/sales/review", "/api/catalog/audit", "/api/catalog/metrics"} {
 		mux.HandleFunc(route, app.catalogCommerceHandlerV273516)
 	}
+	mux.HandleFunc("/api/catalog/sales/evidence", app.catalogSaleEvidenceV2735161)
 	mux.HandleFunc("/api/catalog/upload", app.catalogImageUploadHandler)
 	mux.HandleFunc("/uploads/catalog/", app.catalogUploadFileHandler)
 	mux.HandleFunc("/catalogo/", app.catalogPublicShareV273516)
