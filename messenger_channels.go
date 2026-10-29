@@ -1327,6 +1327,9 @@ func (a *App) maybeMessengerAIReply(c ChannelConnection, psid, chat, text string
 		return
 	}
 	reply, err := a.callOpenAI(system, text, c.TenantID)
+	if err == nil {
+		reply = a.catalogAugmentReplyV273516(c.TenantID, agentID, text, reply)
+	}
 	if err == nil && agentID > 0 {
 		a.agentV22Remember(c.TenantID, agentID, chat, text, reply)
 	}

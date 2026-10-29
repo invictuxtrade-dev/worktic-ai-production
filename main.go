@@ -398,6 +398,9 @@ func main() {
 	if err = initCatalogPremiumSchema(db); err != nil {
 		log.Fatal(err)
 	}
+	if err = initCatalogCommerceV273516(db); err != nil {
+		log.Fatalf("catalog commerce schema: %v", err)
+	}
 	if err = initAnalyticsV24Schema(db); err != nil {
 		log.Fatalf("analytics v24 schema: %v", err)
 	}
@@ -543,8 +546,12 @@ func main() {
 	mux.HandleFunc("/api/team/invitations", app.teamInvitationsHandler)
 	mux.HandleFunc("/api/team/invitations/accept", app.acceptTeamInvitationHandler)
 	mux.HandleFunc("/api/products", app.catalogProductsHandler)
+	for _, route := range []string{"/api/catalog/commerce", "/api/catalog/share", "/api/catalog/opportunity-link", "/api/catalog/service-link", "/api/catalog/sales", "/api/catalog/sales/review", "/api/catalog/audit", "/api/catalog/metrics"} {
+		mux.HandleFunc(route, app.catalogCommerceHandlerV273516)
+	}
 	mux.HandleFunc("/api/catalog/upload", app.catalogImageUploadHandler)
 	mux.HandleFunc("/uploads/catalog/", app.catalogUploadFileHandler)
+	mux.HandleFunc("/catalogo/", app.catalogPublicShareV273516)
 	mux.HandleFunc("/api/appointments", app.appointmentsHandler)
 	mux.HandleFunc("/api/agenda/settings", app.agendaSettingsHandler)
 	mux.HandleFunc("/api/agenda/activity", app.agendaActivityHandlerV273515)
@@ -1960,14 +1967,14 @@ func (a *App) aiResponse(userText, history string, tenantID int64) (string, erro
 		}
 		_ = a.db.QueryRow(`SELECT id FROM tenants ORDER BY id LIMIT 1`).Scan(&tid)
 	}
-	if rows, err := a.db.Query(`SELECT name,description,CASE WHEN promotional_price>0 THEN promotional_price ELSE price END,currency,stock FROM crm_products WHERE tenant_id=? AND active=1 ORDER BY featured DESC,name`, tid); err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var name, desc, currency string
-			var price float64
-			var stock int
-			if rows.Scan(&name, &desc, &price, &currency, &stock) == nil {
-				products = append(products, fmt.Sprintf("- %s: %s | Precio: %s %.2f | Stock/cupos: %d", name, desc, currency, price, stock))
+	if items, err := catalogReadV273516(a.db, tid, true); err == nil {
+		for _, p := range items {
+			if !p.Available {
+				continue
+			}
+			products = append(products, fmt.Sprintf("- %s: %s | Precio: %s %.2f | Imagen: %s | Stock/cupos: %d", p.Name, p.Description, p.Currency, p.EffectivePrice, p.ImageURL, p.Stock))
+			if len(products) >= 35 {
+				break
 			}
 		}
 	}

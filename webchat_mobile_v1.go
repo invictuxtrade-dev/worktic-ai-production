@@ -463,6 +463,9 @@ func (a *App) webChatAutoRespond(tenant, channel, agent int64, chat, text string
 		system += "\n" + context
 	}
 	reply, callErr := a.callOpenAI(system, text, tenant)
+	if callErr == nil {
+		reply = a.catalogAugmentReplyV273516(tenant, agent, text, reply)
+	}
 	period := time.Now().UTC().Format("2006-01")
 	if callErr != nil {
 		_, _ = a.db.Exec(`INSERT INTO ai_agent_usage(tenant_id,agent_id,period,channel,conversations,responses,errors) VALUES(?,?,?,'web',1,0,1) ON CONFLICT(tenant_id,agent_id,period,channel) DO UPDATE SET conversations=conversations+1,errors=errors+1`, tenant, agent, period)

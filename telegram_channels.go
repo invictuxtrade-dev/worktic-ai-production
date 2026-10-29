@@ -471,6 +471,9 @@ func (a *App) maybeTenantTelegramAIReply(c ChannelConnection, token, telegramCha
 	}
 	log.Printf("[TG-AI] generando tenant=%d conexion=%d agente=%d", c.TenantID, c.ID, agentID)
 	reply, err := a.callOpenAI(system, text, c.TenantID)
+	if err == nil {
+		reply = a.catalogAugmentReplyV273516(c.TenantID, agentID, text, reply)
+	}
 	if err == nil && agentID > 0 {
 		a.agentV22Remember(c.TenantID, agentID, storedChat, text, reply)
 	}
@@ -494,6 +497,19 @@ func (a *App) maybeTenantTelegramAIReply(c ChannelConnection, token, telegramCha
 	if err := telegramAPICall(ctx, token, "sendMessage", vals, &sent); err != nil {
 		_, _ = a.db.Exec(`UPDATE channel_connections SET last_error=?,updated_at=? WHERE id=?`, err.Error(), time.Now().UTC().Format(time.RFC3339), c.ID)
 		return
+	}
+	// Telegram supports native image messages by URL; failure does not discard the text reply.
+	for _, photoURL := range a.catalogRequestedPhotosV273516(c.TenantID, agentID, text) {
+		if strings.HasPrefix(photoURL, "/uploads/catalog/") {
+			photoURL = "https://www.workticai.com" + photoURL
+		}
+		photoCtx, cancelPhoto := context.WithTimeout(context.Background(), 15*time.Second)
+		errPhoto := telegramAPICall(photoCtx, token, "sendPhoto", url.Values{"chat_id": {telegramChatID}, "photo": {photoURL}}, nil)
+		cancelPhoto()
+		if errPhoto != nil {
+			_, _ = a.db.Exec(`UPDATE channel_connections SET last_error=? WHERE id=? AND tenant_id=?`, "Imagen de catálogo: "+errPhoto.Error(), c.ID, c.TenantID)
+			break
+		}
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	outID := "tg-" + strconv.FormatInt(sent.MessageID, 10)

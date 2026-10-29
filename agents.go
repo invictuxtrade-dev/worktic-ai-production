@@ -373,6 +373,9 @@ func (a *App) agentInstanceTestHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	reply, e := a.callOpenAI(system, q.Text, tenant)
 	if e == nil {
+		reply = a.catalogAugmentReplyV273516(tenant, ag.ID, q.Text, reply)
+	}
+	if e == nil {
 		a.agentV22Remember(tenant, ag.ID, "simulator", q.Text, reply)
 	}
 	if e != nil {

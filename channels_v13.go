@@ -432,6 +432,9 @@ func (cm *ChannelManager) maybeTenantAIReply(rt *channelRuntime, recipient types
 	}
 	log.Printf("[WA-AI] generando respuesta tenant=%d conexion=%d agente=%d", rt.conn.TenantID, rt.conn.ID, agentID)
 	reply, err := cm.app.callOpenAI(system, text, rt.conn.TenantID)
+	if err == nil {
+		reply = cm.app.catalogAugmentReplyV273516(rt.conn.TenantID, agentID, text, reply)
+	}
 	if err == nil && agentID > 0 {
 		cm.app.agentV22Remember(rt.conn.TenantID, agentID, storedChat, text, reply)
 	}

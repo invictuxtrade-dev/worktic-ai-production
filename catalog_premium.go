@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -84,6 +86,9 @@ func canManageCatalog(role string) bool {
 
 func normalizeCatalogProduct(x *CatalogProduct) error {
 	x.Name = strings.TrimSpace(x.Name)
+	if len([]rune(x.Name)) > 160 || len([]rune(x.Description)) > 4000 {
+		return errors.New("nombre o descripción demasiado largos")
+	}
 	if x.Name == "" {
 		return errors.New("el nombre es obligatorio")
 	}
@@ -95,11 +100,32 @@ func normalizeCatalogProduct(x *CatalogProduct) error {
 	if x.Currency == "" {
 		x.Currency = "COP"
 	}
-	if x.Price < 0 || x.PromotionalPrice < 0 || x.Stock < 0 {
+	if math.IsNaN(x.Price) || math.IsInf(x.Price, 0) || math.IsNaN(x.PromotionalPrice) || math.IsInf(x.PromotionalPrice, 0) || x.Price < 0 || x.PromotionalPrice < 0 || x.Stock < 0 {
 		return errors.New("precio y stock no pueden ser negativos")
 	}
 	if x.PromotionalPrice > 0 && x.Price > 0 && x.PromotionalPrice >= x.Price {
 		return errors.New("el precio promocional debe ser menor al precio normal")
+	}
+	from, ef := catalogDateV273516(x.PromotionStarts, false)
+	to, et := catalogDateV273516(x.PromotionEnds, true)
+	if ef != nil || et != nil || (!from.IsZero() && !to.IsZero() && to.Before(from)) {
+		return errors.New("revisa las fechas de promoción")
+	}
+	if x.PaymentURL != "" {
+		u, err := url.Parse(x.PaymentURL)
+		if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil {
+			return errors.New("el enlace de pago debe ser HTTPS válido")
+		}
+	}
+	if x.TenantID > 0 {
+		if x.ImageURL != "" && !catalogMediaAllowedV273516(x.ImageURL, x.TenantID) {
+			return errors.New("imagen: URL HTTPS o carga de esta empresa")
+		}
+		for _, v := range x.Gallery {
+			if v != "" && !catalogMediaAllowedV273516(v, x.TenantID) {
+				return errors.New("galería: URL inválida o de otra empresa")
+			}
+		}
 	}
 	if len(x.Gallery) > 8 {
 		x.Gallery = x.Gallery[:8]
@@ -125,27 +151,10 @@ func (a *App) catalogProductsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
-		rows, e := a.db.Query(`SELECT id,tenant_id,type,name,sku,category,description,price,promotional_price,promotion_starts,promotion_ends,currency,stock,unlimited_stock,image_url,gallery_json,payment_url,delivery_info,faq,variants,locations,featured,active,updated_at FROM crm_products WHERE tenant_id=? ORDER BY featured DESC,updated_at DESC`, tid)
+		out, e := catalogReadV273516(a.db, tid, false)
 		if e != nil {
 			writeError(w, e, 500)
 			return
-		}
-		defer rows.Close()
-		out := []CatalogProduct{}
-		for rows.Next() {
-			var x CatalogProduct
-			var unlimited, featured, active int
-			var gallery string
-			if rows.Scan(&x.ID, &x.TenantID, &x.Type, &x.Name, &x.SKU, &x.Category, &x.Description, &x.Price, &x.PromotionalPrice, &x.PromotionStarts, &x.PromotionEnds, &x.Currency, &x.Stock, &unlimited, &x.ImageURL, &gallery, &x.PaymentURL, &x.DeliveryInfo, &x.FAQ, &x.Variants, &x.Locations, &featured, &active, &x.UpdatedAt) == nil {
-				x.UnlimitedStock = unlimited == 1
-				x.Featured = featured == 1
-				x.Active = active == 1
-				_ = json.Unmarshal([]byte(gallery), &x.Gallery)
-				if x.Gallery == nil {
-					x.Gallery = []string{}
-				}
-				out = append(out, x)
-			}
 		}
 		writeJSON(w, out)
 	case http.MethodPost:
@@ -162,11 +171,11 @@ func (a *App) catalogProductsHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, errors.New("datos inválidos"), 400)
 			return
 		}
+		x.TenantID = tid
 		if err := normalizeCatalogProduct(&x); err != nil {
 			writeError(w, err, 400)
 			return
 		}
-		x.TenantID = tid
 		x.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 		gallery, _ := json.Marshal(x.Gallery)
 		query := `INSERT INTO crm_products(tenant_id,type,name,sku,category,description,price,promotional_price,promotion_starts,promotion_ends,currency,stock,unlimited_stock,image_url,gallery_json,payment_url,delivery_info,faq,variants,locations,featured,active,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
@@ -187,6 +196,7 @@ func (a *App) catalogProductsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		x.ID, _ = res.LastInsertId()
+		_ = a.catalogAuditV273516(tid, u.ID, "create", "product", x.ID, fmt.Sprintf("name=%s price=%.2f", x.Name, x.Price))
 		writeJSON(w, x)
 	case http.MethodPut:
 		if !canManageCatalog(u.Role) {
@@ -198,6 +208,7 @@ func (a *App) catalogProductsHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, errors.New("producto inválido"), 400)
 			return
 		}
+		x.TenantID = tid
 		if err := normalizeCatalogProduct(&x); err != nil {
 			writeError(w, err, 400)
 			return
@@ -214,6 +225,7 @@ func (a *App) catalogProductsHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, errors.New("producto no encontrado"), 404)
 			return
 		}
+		_ = a.catalogAuditV273516(tid, u.ID, "update", "product", x.ID, fmt.Sprintf("name=%s price=%.2f stock=%d", x.Name, x.Price, x.Stock))
 		writeJSON(w, map[string]any{"ok": true})
 	case http.MethodDelete:
 		if !canManageCatalog(u.Role) {
@@ -225,7 +237,7 @@ func (a *App) catalogProductsHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, errors.New("id inválido"), 400)
 			return
 		}
-		res, e := a.db.Exec(`DELETE FROM crm_products WHERE id=? AND tenant_id=?`, id, tid)
+		res, e := a.db.Exec(`UPDATE crm_products SET active=0,updated_at=? WHERE id=? AND tenant_id=?`, time.Now().UTC().Format(time.RFC3339), id, tid)
 		if e != nil {
 			writeError(w, e, 500)
 			return
@@ -235,6 +247,7 @@ func (a *App) catalogProductsHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, errors.New("producto no encontrado"), 404)
 			return
 		}
+		_ = a.catalogAuditV273516(tid, u.ID, "archive", "product", id, "producto desactivado")
 		writeJSON(w, map[string]any{"ok": true})
 	default:
 		http.Error(w, "Método no permitido", 405)

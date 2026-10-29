@@ -267,7 +267,7 @@ func (a *App) agentV22Context(tenant, agent int64, contactKey string) string {
 		parts = append(parts, "Rol operativo: "+p.RoleName)
 	}
 	tools := []string{}
-	if cat == 1 {
+	if cat == 1 && catalogAgentEnabledV273516(a.db, tenant, agent) {
 		tools = append(tools, "catálogo")
 	}
 	if crm == 1 {
@@ -307,6 +307,9 @@ func (a *App) agentV22Context(tenant, agent int64, contactKey string) string {
 		if a.db.QueryRow(`SELECT summary,facts_json,turn_count FROM ai_agent_memory_v22 WHERE tenant_id=? AND agent_id=? AND contact_key=?`, tenant, agent, contactKey).Scan(&summary, &facts, &turns) == nil {
 			parts = append(parts, fmt.Sprintf("Memoria de este cliente (turnos %d): %s. Hechos: %s", turns, summary, facts))
 		}
+	}
+	if context := a.catalogAgentContextV273516(tenant, agent); context != "" {
+		parts = append(parts, context)
 	}
 	return strings.Join(parts, "\n")
 }
