@@ -452,7 +452,7 @@ func (a *App) syncExistingOpportunitiesForTenant(tenant int64) error {
 }
 
 func (a *App) opportunitiesPremiumHandler(w http.ResponseWriter, r *http.Request) {
-	tenant, _, err := a.tenantFor(r)
+	tenant, u, err := a.tenantFor(r)
 	if err != nil {
 		writeError(w, err, http.StatusUnauthorized)
 		return
@@ -464,7 +464,7 @@ func (a *App) opportunitiesPremiumHandler(w http.ResponseWriter, r *http.Request
 			o.id,o.tenant_id,o.contact_id,o.title,o.stage,o.value,o.owner,o.source,o.source_ref,o.channel,o.interest,
 			o.score,o.probability,o.automation_state,o.first_seen_at,o.last_activity_at,o.created_at,o.updated_at,o.closed_at,o.manual_lock,
 			COALESCE(c.name,''),COALESCE(c.phone,''),COALESCE(c.email,''),COALESCE(c.channel,''),
-			CASE WHEN COALESCE(c.external_id,'')<>'' THEN COALESCE((SELECT m.text FROM worktic_messages m WHERE m.chat_jid=c.external_id AND (m.tenant_id=c.tenant_id OR m.tenant_id=0) ORDER BY m.id DESC LIMIT 1),'') ELSE '' END
+			CASE WHEN COALESCE(c.external_id,'')<>'' THEN COALESCE((SELECT m.text FROM worktic_messages m WHERE m.chat_jid=c.external_id AND m.tenant_id=c.tenant_id ORDER BY m.id DESC LIMIT 1),'') ELSE '' END
 		FROM crm_opportunities o
 		LEFT JOIN crm_contacts c ON c.id=o.contact_id AND c.tenant_id=o.tenant_id
 		WHERE o.tenant_id=? AND COALESCE(o.deleted_at,'')=''
@@ -521,6 +521,7 @@ func (a *App) opportunitiesPremiumHandler(w http.ResponseWriter, r *http.Request
 					return
 				}
 				_, _ = a.db.Exec(`UPDATE crm_contacts SET stage=?,updated_at=? WHERE id=? AND tenant_id=?`, item.Stage, now, item.ContactID, tenant)
+				_ = salesHubAuditV273518(a.db, tenant, existingID, u.ID, "opportunity.updated", fmt.Sprintf("merged stage=%s amount=%.2f", item.Stage, item.Value))
 				writeJSON(w, map[string]any{"ok": true, "id": existingID, "merged": true})
 				return
 			}
@@ -539,12 +540,17 @@ func (a *App) opportunitiesPremiumHandler(w http.ResponseWriter, r *http.Request
 		if item.ContactID > 0 {
 			_, _ = a.db.Exec(`UPDATE crm_contacts SET stage=?,updated_at=? WHERE id=? AND tenant_id=?`, item.Stage, now, item.ContactID, tenant)
 		}
+		_ = salesHubAuditV273518(a.db, tenant, item.ID, u.ID, "opportunity.created", fmt.Sprintf("stage=%s amount=%.2f", item.Stage, item.Value))
 		writeJSON(w, map[string]any{"ok": true, "id": item.ID, "merged": false})
 
 	case http.MethodPut:
 		var item CRMOpportunityRecord
 		if err := json.NewDecoder(r.Body).Decode(&item); err != nil || item.ID <= 0 {
 			writeError(w, errors.New("oportunidad inválida"), http.StatusBadRequest)
+			return
+		}
+		if !salesHubCanEditV273518(a.db, tenant, item.ID, u.ID, u.Role) {
+			writeError(w, errors.New("sin permiso para modificar esta oportunidad"), http.StatusForbidden)
 			return
 		}
 		item.Title = strings.TrimSpace(item.Title)
@@ -580,12 +586,17 @@ func (a *App) opportunitiesPremiumHandler(w http.ResponseWriter, r *http.Request
 		if item.ContactID > 0 {
 			_, _ = a.db.Exec(`UPDATE crm_contacts SET stage=?,updated_at=? WHERE id=? AND tenant_id=?`, item.Stage, now, item.ContactID, tenant)
 		}
+		_ = salesHubAuditV273518(a.db, tenant, item.ID, u.ID, "opportunity.updated", fmt.Sprintf("stage=%s amount=%.2f", item.Stage, item.Value))
 		writeJSON(w, map[string]any{"ok": true, "id": item.ID})
 
 	case http.MethodDelete:
 		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
 		if id <= 0 {
 			writeError(w, errors.New("oportunidad inválida"), http.StatusBadRequest)
+			return
+		}
+		if !salesHubCanEditV273518(a.db, tenant, id, u.ID, u.Role) {
+			writeError(w, errors.New("sin permiso para eliminar esta oportunidad"), http.StatusForbidden)
 			return
 		}
 		now := time.Now().UTC().Format(time.RFC3339)
@@ -599,6 +610,7 @@ func (a *App) opportunitiesPremiumHandler(w http.ResponseWriter, r *http.Request
 			writeError(w, errors.New("oportunidad no encontrada"), http.StatusNotFound)
 			return
 		}
+		_ = salesHubAuditV273518(a.db, tenant, id, u.ID, "opportunity.archived", "soft delete")
 		writeJSON(w, map[string]any{"ok": true})
 
 	default:

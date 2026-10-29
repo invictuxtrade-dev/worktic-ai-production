@@ -404,6 +404,9 @@ func main() {
 	if err = initCatalogCRMV273517(db); err != nil {
 		log.Fatalf("catalog CRM schema: %v", err)
 	}
+	if err = initOpportunitySalesHubV273518(db); err != nil {
+		log.Fatalf("sales hub schema: %v", err)
+	}
 	if err = initAnalyticsV24Schema(db); err != nil {
 		log.Fatalf("analytics v24 schema: %v", err)
 	}
@@ -642,6 +645,7 @@ func main() {
 	mux.HandleFunc("/api/agents/v22/memory", app.agentV22MemoryHandler)
 	mux.HandleFunc("/api/crm/contacts", app.crmContactsPremiumHandler)
 	mux.HandleFunc("/api/crm/opportunities", app.opportunitiesPremiumHandler)
+	mux.HandleFunc("/api/crm/sales-hub", app.opportunitySalesHubV273518)
 	mux.HandleFunc("/api/dashboard", app.dashboardHandler)
 	mux.HandleFunc("/api/plans", app.plansHandler)
 	mux.HandleFunc("/api/billing/entitlements", app.entitlementsHandler)

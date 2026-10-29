@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const opportunityStages = ['Nuevo','Interesado','Calificado','Cotización','Negociación','Ganado','Perdido'];
+  const opportunityStages = ['Nuevo','Contactado','Interesado','Calificado','Cotización','Negociación','Ganado','Perdido'];
   let opportunityItems = [];
   let opportunityContacts = [];
 
@@ -177,7 +177,7 @@
     try {
       await api('/api/crm/opportunities', {method:'PUT', body:JSON.stringify({...item, stage})});
       item.stage = stage;
-      item.probability = ({Nuevo:10,Interesado:25,Calificado:45,'Cotización':65,'Negociación':80,Ganado:100,Perdido:0})[stage] ?? item.probability;
+      item.probability = ({Nuevo:10,Contactado:15,Interesado:25,Calificado:45,'Cotización':65,'Negociación':80,Ganado:100,Perdido:0})[stage] ?? item.probability;
       item.updated_at = new Date().toISOString();
       renderStats();
       renderOpportunities();
@@ -239,7 +239,7 @@
       </div>`);
 
     if (item.id && typeof window.workticLoadOpportunityProductsV273517 === 'function') { window.workticLoadOpportunityProductsV273517(Number(item.id)); }
-    const probabilities = {Nuevo:10,Interesado:25,Calificado:45,'Cotización':65,'Negociación':80,Ganado:100,Perdido:0};
+    const probabilities = {Nuevo:10,Contactado:15,Interesado:25,Calificado:45,'Cotización':65,'Negociación':80,Ganado:100,Perdido:0};
     qs('#ofStage').onchange = event => { qs('#ofProbability').textContent = `${probabilities[event.target.value] ?? 10}%`; };
     qs('#ofContact').onchange = event => {
       if (qs('#ofTitle').value.trim()) return;
