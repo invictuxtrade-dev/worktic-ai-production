@@ -35,7 +35,7 @@ var postgresSerialTables = map[string]bool{
 	"mobile_web_channels_v1": true, "mobile_web_sessions_v1": true,
 	"ads_campaigns_v25": true, "ads_connections_v25": true, "ads_daily_metrics_v25": true, "ads_entities_v25": true,
 	"ads_oauth_states_v25": true, "ads_sync_log_v25": true, "agenda_blocks": true, "agenda_hours": true,
-	"agenda_professionals": true, "agenda_services": true, "ai_agent_audit": true, "ai_agent_knowledge_v22": true,
+	"agenda_professionals": true, "agenda_services": true, "agenda_appointment_audit_v273515": true, "ai_agent_audit": true, "ai_agent_knowledge_v22": true,
 	"ai_agent_memory_v22": true, "ai_agent_permissions": true, "ai_agent_routes": true, "ai_agent_tool_audit_v22": true,
 	"ai_agent_usage": true, "ai_agents": true, "analytics_attribution_events_v24": true, "app_users": true,
 	"automation_events": true, "automation_execution_steps": true, "automation_executions": true, "automation_workflows": true,

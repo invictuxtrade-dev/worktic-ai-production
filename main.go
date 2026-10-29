@@ -547,6 +547,7 @@ func main() {
 	mux.HandleFunc("/uploads/catalog/", app.catalogUploadFileHandler)
 	mux.HandleFunc("/api/appointments", app.appointmentsHandler)
 	mux.HandleFunc("/api/agenda/settings", app.agendaSettingsHandler)
+	mux.HandleFunc("/api/agenda/activity", app.agendaActivityHandlerV273515)
 	mux.HandleFunc("/api/agenda/professionals", app.agendaProfessionalsHandler)
 	mux.HandleFunc("/api/agenda/services", app.agendaServicesHandler)
 	mux.HandleFunc("/api/agenda/hours", app.agendaHoursHandler)
@@ -2865,7 +2866,7 @@ func (a *App) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
-		rows, e := a.db.Query(`SELECT id,contact_name,contact_phone,service,starts_at,duration_minutes,status,notes,created_at,professional_id,service_id,timezone FROM crm_appointments WHERE tenant_id=? ORDER BY starts_at`, tid)
+		rows, e := a.db.Query(`SELECT id,contact_name,contact_phone,service,starts_at,duration_minutes,status,notes,created_at,professional_id,service_id,timezone,COALESCE(source,''),COALESCE(source_ref,'') FROM crm_appointments WHERE tenant_id=? ORDER BY starts_at`, tid)
 		if e != nil {
 			writeError(w, e, 500)
 			return
@@ -2875,9 +2876,9 @@ func (a *App) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
 		for rows.Next() {
 			var x Appointment
 			var professionalID, serviceID int64
-			var timezone string
-			_ = rows.Scan(&x.ID, &x.ContactName, &x.ContactPhone, &x.Service, &x.StartsAt, &x.DurationMinutes, &x.Status, &x.Notes, &x.CreatedAt, &professionalID, &serviceID, &timezone)
-			out = append(out, map[string]any{"id": x.ID, "contact_name": x.ContactName, "contact_phone": x.ContactPhone, "service": x.Service, "starts_at": x.StartsAt, "duration_minutes": x.DurationMinutes, "status": x.Status, "notes": x.Notes, "created_at": x.CreatedAt, "professional_id": professionalID, "service_id": serviceID, "timezone": timezone})
+			var timezone, source, sourceRef string
+			_ = rows.Scan(&x.ID, &x.ContactName, &x.ContactPhone, &x.Service, &x.StartsAt, &x.DurationMinutes, &x.Status, &x.Notes, &x.CreatedAt, &professionalID, &serviceID, &timezone, &source, &sourceRef)
+			out = append(out, map[string]any{"id": x.ID, "contact_name": x.ContactName, "contact_phone": x.ContactPhone, "service": x.Service, "starts_at": x.StartsAt, "duration_minutes": x.DurationMinutes, "status": x.Status, "notes": x.Notes, "created_at": x.CreatedAt, "professional_id": professionalID, "service_id": serviceID, "timezone": timezone, "source": source, "source_ref": sourceRef})
 		}
 		writeJSON(w, out)
 	case http.MethodPost:
@@ -2908,8 +2909,8 @@ func (a *App) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		q.CreatedAt = time.Now().UTC().Format(time.RFC3339)
-		query := `INSERT INTO crm_appointments(tenant_id,contact_name,contact_phone,service,starts_at,duration_minutes,status,notes,created_at,professional_id,service_id,timezone) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`
-		args := []any{tid, q.ContactName, q.ContactPhone, q.Service, q.StartsAt, q.DurationMinutes, q.Status, q.Notes, q.CreatedAt, q.ProfessionalID, q.ServiceID, q.Timezone}
+		query := `INSERT INTO crm_appointments(tenant_id,contact_name,contact_phone,service,starts_at,duration_minutes,status,notes,created_at,professional_id,service_id,timezone,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`
+		args := []any{tid, q.ContactName, q.ContactPhone, q.Service, q.StartsAt, q.DurationMinutes, q.Status, q.Notes, q.CreatedAt, q.ProfessionalID, q.ServiceID, q.Timezone, "manual"}
 		var res sql.Result
 		var e error
 		if resourceGuardV2724Enabled() && u.Role != "superadmin" {
@@ -2926,6 +2927,7 @@ func (a *App) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		q.ID, _ = res.LastInsertId()
+		a.agendaAuditV273515(tid, u, q.ID, "create", "", q)
 		writeJSON(w, q)
 	case http.MethodPut:
 		var q struct {
@@ -2957,6 +2959,7 @@ func (a *App) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, errors.New("ese horario ya está ocupado para el profesional seleccionado"), 409)
 			return
 		}
+		beforeJSON := a.agendaSnapshotV273515(tid, q.ID)
 		res, e := a.db.Exec(`UPDATE crm_appointments SET contact_name=?,contact_phone=?,service=?,starts_at=?,duration_minutes=?,status=?,notes=?,professional_id=?,service_id=?,timezone=? WHERE id=? AND tenant_id=?`, q.ContactName, q.ContactPhone, q.Service, q.StartsAt, q.DurationMinutes, q.Status, q.Notes, q.ProfessionalID, q.ServiceID, q.Timezone, q.ID, tid)
 		if e != nil {
 			writeError(w, e, 500)
@@ -2967,13 +2970,18 @@ func (a *App) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, errors.New("cita no encontrada"), 404)
 			return
 		}
+		a.agendaAuditV273515(tid, u, q.ID, "update", beforeJSON, q)
 		writeJSON(w, map[string]any{"ok": true})
 	case http.MethodDelete:
 		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+		beforeJSON := a.agendaSnapshotV273515(tid, id)
 		_, e := a.db.Exec(`DELETE FROM crm_appointments WHERE id=? AND tenant_id=?`, id, tid)
 		if e != nil {
 			writeError(w, e, 500)
 			return
+		}
+		if beforeJSON != "" {
+			a.agendaAuditV273515(tid, u, id, "delete", beforeJSON, nil)
 		}
 		writeJSON(w, map[string]any{"ok": true})
 	default:

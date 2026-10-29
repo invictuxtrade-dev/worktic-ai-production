@@ -51,6 +51,8 @@ func initAgendaPremiumSchema(db *DB) error {
 		`ALTER TABLE crm_appointments ADD COLUMN professional_id INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE crm_appointments ADD COLUMN service_id INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE crm_appointments ADD COLUMN timezone TEXT NOT NULL DEFAULT 'America/Bogota'`,
+		`ALTER TABLE crm_appointments ADD COLUMN source TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE crm_appointments ADD COLUMN source_ref TEXT NOT NULL DEFAULT ''`,
 	}
 	for _, s := range stmts {
 		_, _ = db.Exec(s)
@@ -64,6 +66,8 @@ CREATE INDEX IF NOT EXISTS idx_agenda_service_tenant ON agenda_services(tenant_i
 CREATE TABLE IF NOT EXISTS agenda_hours(id INTEGER PRIMARY KEY AUTOINCREMENT,tenant_id INTEGER NOT NULL,professional_id INTEGER NOT NULL DEFAULT 0,weekday INTEGER NOT NULL,start_time TEXT NOT NULL,end_time TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_agenda_hours_unique ON agenda_hours(tenant_id,professional_id,weekday,start_time,end_time);
 CREATE TABLE IF NOT EXISTS agenda_blocks(id INTEGER PRIMARY KEY AUTOINCREMENT,tenant_id INTEGER NOT NULL,professional_id INTEGER NOT NULL DEFAULT 0,starts_at TEXT NOT NULL,ends_at TEXT NOT NULL,reason TEXT NOT NULL DEFAULT 'Bloqueo',created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS agenda_appointment_audit_v273515(id INTEGER PRIMARY KEY AUTOINCREMENT,tenant_id INTEGER NOT NULL,appointment_id INTEGER NOT NULL,actor_id INTEGER NOT NULL DEFAULT 0,actor_name TEXT NOT NULL DEFAULT '',action TEXT NOT NULL,before_json TEXT NOT NULL DEFAULT '',after_json TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_agenda_audit_tenant_time ON agenda_appointment_audit_v273515(tenant_id,created_at);
 `)
 	return err
 }
