@@ -196,6 +196,18 @@ func catalogShareTextV273516(items []catalogCommercialItemV273516, selected int6
 	}
 	return strings.TrimSpace(strings.Join(lines, "\n")), images
 }
+
+// catalogSaleEvidenceDDLV2735162 emits the native binary column type for each DB.
+// SQLite uses BLOB; PostgreSQL requires BYTEA. Keep this migration additive
+// so failed deployments can restart without dropping catalog data.
+func catalogSaleEvidenceDDLV2735162(postgres bool) string {
+	binaryType := "BLOB"
+	if postgres {
+		binaryType = "BYTEA"
+	}
+	return fmt.Sprintf(`CREATE TABLE IF NOT EXISTS catalog_sale_evidence_v2735161 (tenant_id INTEGER NOT NULL,sale_id INTEGER NOT NULL,media_type TEXT NOT NULL,content %s NOT NULL,sha256 TEXT NOT NULL,uploaded_by INTEGER NOT NULL,uploaded_at TEXT NOT NULL,PRIMARY KEY(tenant_id,sale_id))`, binaryType)
+}
+
 func initCatalogCommerceV273516(db *DB) error {
 	schema := []string{
 		`CREATE TABLE IF NOT EXISTS catalog_audit_v273516 (id INTEGER PRIMARY KEY AUTOINCREMENT,tenant_id INTEGER NOT NULL,actor_id INTEGER NOT NULL DEFAULT 0,action TEXT NOT NULL,entity_type TEXT NOT NULL,entity_id INTEGER NOT NULL,details TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL)`,
@@ -204,7 +216,7 @@ func initCatalogCommerceV273516(db *DB) error {
 		`CREATE TABLE IF NOT EXISTS catalog_share_links_v273516 (token TEXT PRIMARY KEY,tenant_id INTEGER NOT NULL,product_id INTEGER NOT NULL DEFAULT 0,actor_id INTEGER NOT NULL DEFAULT 0,expires_at TEXT NOT NULL,created_at TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS catalog_sales_v273516 (id INTEGER PRIMARY KEY AUTOINCREMENT,tenant_id INTEGER NOT NULL,product_id INTEGER NOT NULL,opportunity_id INTEGER NOT NULL DEFAULT 0,quantity INTEGER NOT NULL,unit_price REAL NOT NULL,currency TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending_review',payment_reference TEXT NOT NULL,confirmed_by INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,reviewed_at TEXT NOT NULL DEFAULT '',UNIQUE(tenant_id,payment_reference))`,
 		`CREATE INDEX IF NOT EXISTS idx_catalog_sales_tenant_v273516 ON catalog_sales_v273516(tenant_id,status,created_at)`,
-		`CREATE TABLE IF NOT EXISTS catalog_sale_evidence_v2735161 (tenant_id INTEGER NOT NULL,sale_id INTEGER NOT NULL,media_type TEXT NOT NULL,content BLOB NOT NULL,sha256 TEXT NOT NULL,uploaded_by INTEGER NOT NULL,uploaded_at TEXT NOT NULL,PRIMARY KEY(tenant_id,sale_id))`,
+		catalogSaleEvidenceDDLV2735162(db.IsPostgres()),
 	}
 	for _, q := range schema {
 		if _, e := db.Exec(q); e != nil {
