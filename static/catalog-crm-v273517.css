@@ -1,0 +1,17 @@
+/* V27.35.17 — Solo un panel secundario dentro del CRM existente. */
+.opp-products-v273517{border:1px solid #dedbf0;border-radius:16px;padding:16px;background:#f9f8ff;min-width:0;display:grid;gap:12px}
+.opp-products-header strong{font-size:15px;color:#252044}
+.opp-products-header p{font-size:12px;color:#74708f;margin:4px 0 0}
+.opp-products-list{display:grid;gap:7px;max-height:220px;overflow:auto}
+.opp-product-row{background:#fff;border:1px solid #e3dff1;border-radius:12px;padding:10px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.opp-product-row div{min-width:0}.opp-product-row strong{font-size:13px;display:block;overflow-wrap:anywhere}.opp-product-row small{font-size:11px;color:#79728d;display:block;margin-top:3px}
+.opp-product-row button{flex:none;width:auto!important;padding:7px 11px!important;font-size:12px!important}
+.opp-products-add{display:grid;grid-template-columns:minmax(0,1fr) 90px auto;align-items:end;gap:8px}
+.opp-products-add label{display:grid;gap:5px;font-size:12px;min-width:0}
+.opp-products-add select,.opp-products-add input{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.opp-products-add button{width:auto!important;white-space:nowrap}
+.opp-product-empty{color:#746e85;margin:0;font-size:13px}
+.opp-products-error{color:#b61b4b;font-size:12px}
+.catalog-auto-crm-option{border:1px solid #dfd8f5!important;padding:10px 14px!important;border-radius:12px;background:#f8f5ff}
+.catalog-auto-crm-option small{display:block;color:#77718b;font-size:11px;margin-top:4px}
+@media(max-width:650px){.opp-products-add{grid-template-columns:minmax(0,1fr) 85px}.opp-products-add button{grid-column:1/-1}.opp-products-v273517{padding:12px}}

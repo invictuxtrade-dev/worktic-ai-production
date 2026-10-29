@@ -1,1 +1,1 @@
-WorkticAI V27.35.16.2 - Hotfix PostgreSQL comprobantes BYTEA (2026-10-29)
+WorkticAI V27.35.17 — Catálogo + CRM inteligente por agente (opt-in)

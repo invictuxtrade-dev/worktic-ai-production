@@ -434,6 +434,10 @@ func (cm *ChannelManager) maybeTenantAIReply(rt *channelRuntime, recipient types
 	reply, err := cm.app.callOpenAI(system, text, rt.conn.TenantID)
 	if err == nil {
 		reply = cm.app.catalogAugmentReplyV273516(rt.conn.TenantID, agentID, text, reply)
+		// CRM asociacion opcional; no crea pagos, no descuenta inventario.
+		if linkErr := cm.app.catalogAutoLinkFromMessageV273517(rt.conn.TenantID, agentID, storedChat, text, "whatsapp"); linkErr != nil {
+			log.Printf("[CATALOG-CRM] asociación no realizada: %v", linkErr)
+		}
 	}
 	if err == nil && agentID > 0 {
 		cm.app.agentV22Remember(rt.conn.TenantID, agentID, storedChat, text, reply)

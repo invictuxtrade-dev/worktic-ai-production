@@ -68,7 +68,7 @@
       const match=edit.getAttribute('onclick')?.match(/"id"\s*:\s*(\d+)/);if(!match)return;
       const id=Number(match[1]);const target=card.querySelector('.actions');if(!target||target.dataset.commerce)return;target.dataset.commerce='1';
       target.append(newButton('Compartir',()=>window.catalogShareV273516(id)));
-      target.append(newButton('Vincular a CRM',()=>window.catalogLinkOpportunityV273516(id)));
+      target.append(newButton('Agregar a oportunidad',()=>window.catalogLinkOpportunityV273516(id)));
       if(edit.getAttribute('onclick')?.includes('"service"'))target.append(newButton('Vincular a Agenda',()=>window.catalogLinkServiceV273516(id)));
       target.append(newButton('Registrar pago',()=>window.catalogSaleV273516(id)));
     });

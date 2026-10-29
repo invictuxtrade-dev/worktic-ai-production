@@ -473,6 +473,10 @@ func (a *App) maybeTenantTelegramAIReply(c ChannelConnection, token, telegramCha
 	reply, err := a.callOpenAI(system, text, c.TenantID)
 	if err == nil {
 		reply = a.catalogAugmentReplyV273516(c.TenantID, agentID, text, reply)
+		// CRM asociacion opcional; no crea pagos, no descuenta inventario.
+		if linkErr := a.catalogAutoLinkFromMessageV273517(c.TenantID, agentID, storedChat, text, "telegram"); linkErr != nil {
+			log.Printf("[CATALOG-CRM] asociación no realizada: %v", linkErr)
+		}
 	}
 	if err == nil && agentID > 0 {
 		a.agentV22Remember(c.TenantID, agentID, storedChat, text, reply)

@@ -233,10 +233,12 @@
         <div class="grid2"><label>Etapa<select id="ofStage">${opportunityStages.map(stage => `<option value="${stage}" ${item.stage === stage ? 'selected' : ''}>${safe(stageText(stage))}</option>`).join('')}</select></label><label>Valor estimado<input id="ofValue" type="number" min="0" step="1" value="${Number(item.value || 0)}"></label></div>
         <div class="grid2"><label>Responsable<input id="ofOwner" value="${safe(item.owner || '')}" placeholder="Nombre del asesor"></label><label>Canal<select id="ofChannel">${['manual','whatsapp','telegram','messenger','landing'].map(channel => `<option value="${channel}" ${(item.channel || item.contact_channel || 'manual') === channel ? 'selected' : ''}>${safe(channelText(channel))}</option>`).join('')}</select></label></div>
         <label>Interés o necesidad<input id="ofInterest" value="${safe(item.interest || '')}" placeholder="Producto, servicio, cotización o necesidad principal"></label>
+        ${item.id ? '<section id="oppProductsV273517" class="opp-products-v273517" aria-label="Productos de esta oportunidad"><p>Cargando productos vinculados…</p></section>' : ''}
         <div class="grid2"><label>Puntuación comercial<input id="ofScore" type="number" min="0" max="100" value="${Number(item.score ?? 50)}"></label><div class="opp-probability"><span>Probabilidad según etapa</span><b id="ofProbability">${Number(item.probability || 10)}%</b></div></div>
         <div class="actions"><button type="button" id="saveOpportunity">Guardar oportunidad</button><button value="cancel" class="secondary">Cancelar</button></div>
       </div>`);
 
+    if (item.id && typeof window.workticLoadOpportunityProductsV273517 === 'function') { window.workticLoadOpportunityProductsV273517(Number(item.id)); }
     const probabilities = {Nuevo:10,Interesado:25,Calificado:45,'Cotización':65,'Negociación':80,Ganado:100,Perdido:0};
     qs('#ofStage').onchange = event => { qs('#ofProbability').textContent = `${probabilities[event.target.value] ?? 10}%`; };
     qs('#ofContact').onchange = event => {

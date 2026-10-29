@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -465,6 +466,10 @@ func (a *App) webChatAutoRespond(tenant, channel, agent int64, chat, text string
 	reply, callErr := a.callOpenAI(system, text, tenant)
 	if callErr == nil {
 		reply = a.catalogAugmentReplyV273516(tenant, agent, text, reply)
+		// CRM asociacion opcional; no crea pagos, no descuenta inventario.
+		if linkErr := a.catalogAutoLinkFromMessageV273517(tenant, agent, chat, text, "web"); linkErr != nil {
+			log.Printf("[CATALOG-CRM] asociación no realizada: %v", linkErr)
+		}
 	}
 	period := time.Now().UTC().Format("2006-01")
 	if callErr != nil {

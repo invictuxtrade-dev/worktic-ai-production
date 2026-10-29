@@ -401,6 +401,9 @@ func main() {
 	if err = initCatalogCommerceV273516(db); err != nil {
 		log.Fatalf("catalog commerce schema: %v", err)
 	}
+	if err = initCatalogCRMV273517(db); err != nil {
+		log.Fatalf("catalog CRM schema: %v", err)
+	}
 	if err = initAnalyticsV24Schema(db); err != nil {
 		log.Fatalf("analytics v24 schema: %v", err)
 	}
@@ -549,6 +552,8 @@ func main() {
 	for _, route := range []string{"/api/catalog/commerce", "/api/catalog/share", "/api/catalog/opportunity-link", "/api/catalog/service-link", "/api/catalog/sales", "/api/catalog/sales/review", "/api/catalog/audit", "/api/catalog/metrics"} {
 		mux.HandleFunc(route, app.catalogCommerceHandlerV273516)
 	}
+	mux.HandleFunc("/api/catalog/agent-crm-settings", app.catalogCRMSettingsV273517)
+	mux.HandleFunc("/api/catalog/opportunity-items", app.catalogOpportunityItemsV273517)
 	mux.HandleFunc("/api/catalog/sales/evidence", app.catalogSaleEvidenceV2735161)
 	mux.HandleFunc("/api/catalog/upload", app.catalogImageUploadHandler)
 	mux.HandleFunc("/uploads/catalog/", app.catalogUploadFileHandler)

@@ -1329,6 +1329,10 @@ func (a *App) maybeMessengerAIReply(c ChannelConnection, psid, chat, text string
 	reply, err := a.callOpenAI(system, text, c.TenantID)
 	if err == nil {
 		reply = a.catalogAugmentReplyV273516(c.TenantID, agentID, text, reply)
+		// CRM asociacion opcional; no crea pagos, no descuenta inventario.
+		if linkErr := a.catalogAutoLinkFromMessageV273517(c.TenantID, agentID, chat, text, "messenger"); linkErr != nil {
+			log.Printf("[CATALOG-CRM] asociación no realizada: %v", linkErr)
+		}
 	}
 	if err == nil && agentID > 0 {
 		a.agentV22Remember(c.TenantID, agentID, chat, text, reply)
