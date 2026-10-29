@@ -1,0 +1,12 @@
+/* Worktic AI V27.35.20 - Identidad premium. Sin redisenar el sistema. */
+:root{--wtp-blue:#196cff;--wtp-cyan:#05daff;--wtp-violet:#a329ef}
+#appSidebar>.brand{min-height:76px;display:flex;gap:10px;align-items:center;overflow:visible}
+#appSidebar>.brand .brand-mark{width:48px;height:48px;object-fit:contain;flex:0 0 48px;filter:drop-shadow(0 3px 10px rgba(58,112,255,.32))}
+#appSidebar>.brand b{letter-spacing:-.02em}
+.v276-robot img,.v276-hero-visual img{object-fit:contain!important}
+body.auth-page .brand.big .brand-mark{width:57px;height:57px;object-fit:contain}
+body.auth-page .brand-lockup{width:min(310px,90%);max-height:124px;object-fit:contain;object-position:left center;filter:drop-shadow(0 10px 23px rgba(75,87,235,.33))}
+body.auth-page .brand.big{gap:13px}
+body:not(.auth-page) .mobile-appbar .wtp-mobile-brand{width:32px;height:32px;object-fit:contain}
+.wtp-public-brand>img{height:48px;width:48px;object-fit:contain;filter:drop-shadow(0 4px 9px rgba(31,112,255,.2))}
+@media(max-width:780px){#appSidebar>.brand .brand-mark{width:42px;height:42px;flex-basis:42px}}

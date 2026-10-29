@@ -102,7 +102,7 @@ var I18N = {
 "nav.contacts":{es:"Contactos",en:"Contacts"},
 "nav.pipeline":{es:"Oportunidades",en:"Pipeline"},
 "nav.products":{es:"Catálogo",en:"Catalog"},
-"nav.appointments":{es:"Agenda",en:"Appointments"},
+"nav.appointments":{es:"Agenda IA",en:"AI Agenda"},
 "nav.agent":{es:"Agente Principal (legacy)",en:"Primary Agent (legacy)"},
 "nav.agents":{es:"Agentes IA",en:"AI Agents"},
 "nav.channels":{es:"Canales",en:"Channels"},
