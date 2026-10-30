@@ -1,0 +1,41 @@
+/* Worktic AI V27.35.26 - Armonizacion cromatica con el logotipo 3D.
+   ALCANCE: SOLO COLORES. No modifica geometria, tipografia, imagenes o contenidos.
+   Se carga al final de static/index.html para aprovechar las variables existentes. */
+:root {
+  --wt-brand-navy: #04122B;
+  --wt-brand-deep: #0A1F4F;
+  --wt-brand-blue: #1F6BFF;
+  --wt-brand-cyan: #27D8FF;
+  --wt-brand-violet: #7A4DFF;
+  --wt-brand-magenta: #E13CFF;
+  --wt-brand-gradient: linear-gradient(90deg,#3A63FF 0%,#7C4DFF 45%,#E33CFF 100%);
+
+  /* Variables publicas originales (no se cambia el layout). */
+  --p: #7A4DFF;
+  --p2: #E13CFF;
+  --ink: #181437;
+  --muted: #6B7294;
+  --line: #E6E8F6;
+  --soft: #F5F7FD;
+  --grad: var(--wt-brand-gradient);
+}
+/* Solo acentos ya existentes. Mantener contrastes legibles. */
+body :is(a,button,input,select,textarea):focus-visible {
+  outline-color: #7A4DFF;
+}
+body :is(input,textarea,select):focus {
+  border-color: #7A4DFF;
+}
+nav .brand span, header .grad, .grad {
+  background-image: var(--wt-brand-gradient);
+}
+.btn.primary, .channel .icon, .flag, .step::before {
+  background-image: var(--wt-brand-gradient);
+}
+.btn.primary:hover {
+  box-shadow: 0 12px 30px rgba(88,83,230,.24);
+}
+.plan.pop { border-color: #7A4DFF; }
+.badge { background-color: #F0EDFF; color: #5330C4; }
+.icon:not(.channel .icon) { background-color:#F0EDFF; }
+/* No modificar logos SVG/PNG, marcas de canales, imagenes, tamanos ni posiciones. */

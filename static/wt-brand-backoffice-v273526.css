@@ -1,0 +1,58 @@
+/* Worktic AI V27.35.26 - Identidad 3D en el backoffice.
+   Solo propiedades de COLOR: ninguna dimension, posicion, fuente ni animacion cambia.
+   Mantener colores semanticos de peligro/exito/alertas y marcas de terceros. */
+:root,
+body.v276-premium-shell {
+  --wt-brand-navy:#04122B;
+  --wt-brand-deep:#0A1F4F;
+  --wt-brand-blue:#1F6BFF;
+  --wt-brand-cyan:#27D8FF;
+  --wt-brand-violet:#7A4DFF;
+  --wt-brand-magenta:#E13CFF;
+  --wt-brand-gradient:linear-gradient(90deg,#3A63FF 0%,#7C4DFF 45%,#E33CFF 100%);
+
+  /* Mapeo comprobado en static/styles.css de produccion. */
+  --ink:#04122B;
+  --ink-2:#0A1F4F;
+  --paper:#FAFBFF;
+  --paper-2:#F4F6FD;
+  --card:#FFFFFF;
+  --line:#E7EAF5;
+  --line-2:#DDE2F2;
+  --text:#15182C;
+  --text-soft:#58647D;
+  --text-mute:#818BA4;
+  --accent:#7A4DFF;
+  --accent-ink:#5330C4;
+  --accent-tint:#F0EDFF;
+  --brand-grad:var(--wt-brand-gradient);
+  --acid:#7A4DFF;
+  --blue:#1F6BFF;
+  --blue-ink:#2050BF;
+  --blue-bg:#EAF1FF;
+  --wtp-blue:#1F6BFF;
+  --wtp-cyan:#27D8FF;
+  --wtp-violet:#7A4DFF;
+}
+/* Navegacion existente: solo tonos, no estados ni interacciones. */
+#appSidebar nav button.active { border-left-color:#27D8FF; }
+#appSidebar nav button:hover { background-color:rgba(39,216,255,.07); }
+#appSidebar nav button.active { background-color:rgba(122,77,255,.13); }
+#appSidebar .brand-mark { filter:drop-shadow(0 3px 10px rgba(31,107,255,.23)); }
+.mobile-appbar { background-color:#04122B; }
+/* Focus visible consistente con la marca y accesible sobre papel claro. */
+body.v276-premium-shell :is(input,textarea,select):focus {
+  border-color:#7A4DFF;
+  box-shadow:0 0 0 3px rgba(39,216,255,.17);
+}
+body.v276-premium-shell :is(button,a):focus-visible { outline-color:#7A4DFF; }
+/* Superadministrador: las pestanas tenian un fondo fijo fuera del tema. */
+#admin .wt-admin-tab.active { background:#0A1F4F; color:#FFFFFF; }
+#admin .wt-admin-avatar { background:#ECEBFF; color:#5330C4; }
+#admin .wt-admin-badge.courtesy { background:#F0EDFF; color:#5330C4; }
+#admin .wt-admin-courtesy-user.selected {
+  border-color:#7A4DFF;
+  background:#F6F3FF;
+}
+#admin .wt-admin-hero { background:linear-gradient(135deg,#FFFFFF 0%,#F6F8FF 100%); }
+/* Nunca recolorear .danger, .wt-danger, .blocked, .deleted ni badges de estado. */
