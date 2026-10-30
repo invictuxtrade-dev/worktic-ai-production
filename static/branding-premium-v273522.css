@@ -1,0 +1,17 @@
+/* WorkticAI V27.35.22: branding visible and centered login. */
+.wtp21-public-nav>.wrap{min-height:86px;height:86px}
+.wtp21-public-nav .brand{display:flex;align-items:center;gap:8px;flex:0 0 auto;white-space:nowrap}
+.wtp21-public-nav .brand img{width:68px;height:68px;max-height:none;flex:0 0 68px;object-fit:contain;display:block;filter:drop-shadow(0 3px 7px rgba(90,39,195,.13))}
+.wtp21-public-nav .brand span{font-family:'Bricolage Grotesque',sans-serif;font-size:1.47rem;font-weight:800;letter-spacing:-.045em}
+.wtp21-public-nav .links{min-width:0;gap:clamp(8px,1vw,16px)}
+.mobile-nav-head .brand img{width:58px;height:58px;max-height:none;object-fit:contain}
+.mobile-nav-head .brand span{font-size:1.25rem;font-weight:800}
+.auth-page .auth-card{width:min(460px,100%);padding:34px 32px 28px}
+.auth-page .auth-card .wtp21-auth-brand{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;width:100%;max-width:390px;margin:0 auto 24px!important;gap:0;text-align:center!important}
+.auth-page .auth-card .wtp21-auth-logo{display:block!important;width:108px!important;height:108px!important;max-width:none!important;object-fit:contain!important;margin:0 auto 3px!important;filter:drop-shadow(0 8px 14px rgba(86,67,219,.16))}
+.auth-page .auth-card .wtp21-auth-wordmark{display:block!important;width:100%;text-align:center!important;margin:0 auto 14px!important;font-size:26px;line-height:1.12;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;letter-spacing:-.04em;color:#1b103d}
+.auth-page .auth-card .wtp21-auth-headline{display:block;width:100%;max-width:350px;margin:0 auto 10px!important;text-align:center!important;font:800 23px/1.2 'Bricolage Grotesque',sans-serif;color:#241340;letter-spacing:-.035em;text-wrap:balance}
+.auth-page .auth-card .wtp21-auth-subtitle{display:block;max-width:350px;margin:0 auto!important;text-align:center!important;color:#786d8e;font:400 13px/1.52 'Instrument Sans',sans-serif}
+@media(max-width:1100px){.wtp21-public-nav>.wrap{height:76px;min-height:76px}.wtp21-public-nav .brand img{width:58px;height:58px;flex-basis:58px}.wtp21-public-nav .brand span{font-size:1.25rem}}
+@media(max-width:760px){.wtp21-public-nav>.wrap{height:72px;min-height:72px}.wtp21-public-nav .brand img{width:54px;height:54px;flex-basis:54px}.wtp21-public-nav .brand span{font-size:1.18rem}.auth-page .auth-card{padding:30px 23px 26px}.auth-page .auth-card .wtp21-auth-logo{width:95px!important;height:95px!important}.auth-page .auth-card .wtp21-auth-headline{font-size:21px}}
+@media(max-width:390px){.wtp21-public-nav .brand img{width:49px;height:49px;flex-basis:49px}.wtp21-public-nav .brand span{font-size:1.09rem}.auth-page .auth-card{padding:28px 18px 24px}.auth-page .auth-card .wtp21-auth-headline{font-size:20px}}
