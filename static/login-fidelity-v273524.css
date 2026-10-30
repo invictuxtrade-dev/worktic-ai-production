@@ -1,0 +1,97 @@
+/* Worktic AI V27.35.24 - Dedicated premium login fidelity layer.
+   Does not alter global styles or the Go auth backend. */
+.wt-login-24{--wt24-ink:#0b1736;--wt24-muted:#687397;--wt24-a:#4257ff;--wt24-b:#ea37e5;margin:0!important;background:#eef1ff;color:#17152d;font-family:'Instrument Sans',Arial,sans-serif}
+.wt-login-24 *{box-sizing:border-box}
+.wt-login-24 button{font-family:inherit;cursor:pointer}
+.wt-login-24 svg{width:21px;height:21px;display:block}
+.wt-login-24 .auth-shell.wt24-shell{width:100%!important;max-width:none!important;min-height:100vh!important;min-height:100svh!important;margin:0!important;display:grid!important;grid-template-columns:minmax(0,58%) minmax(440px,42%)!important;overflow:visible!important;background:#eef1ff}
+.wt-login-24 .auth-visual.wt24-visual{display:block!important;position:relative!important;min-height:100vh!important;min-height:100svh!important;padding:clamp(26px,3.1vw,50px) clamp(30px,3.7vw,66px) 40px!important;overflow:hidden!important;background:radial-gradient(circle at 85% 48%,rgba(18,65,138,.6),transparent 45%),radial-gradient(circle at 24% 75%,rgba(52,26,124,.58),transparent 48%),linear-gradient(121deg,#020a1c 0%,#06122d 57%,#091f4d 100%)!important;color:#fff!important;isolation:isolate}
+.wt24-visual:after{position:absolute;content:'';inset:0;pointer-events:none;background:linear-gradient(120deg,transparent 30%,rgba(30,91,166,.065) 60%,transparent 78%);z-index:-1}
+.wt24-ambient{position:absolute;pointer-events:none;z-index:-1;border-radius:100%;filter:blur(24px)}
+.wt24-ambient-blue{width:66%;height:55%;top:8%;right:-30%;background:radial-gradient(circle,rgba(27,99,238,.30),transparent 66%);animation:wt24-breathe 13s ease-in-out infinite alternate}
+.wt24-ambient-purple{width:70%;height:50%;bottom:-29%;left:8%;background:radial-gradient(circle,rgba(144,43,242,.3),transparent 67%);animation:wt24-breathe 12s ease-in-out infinite alternate-reverse}
+.wt24-orb{width:100%;height:70%;bottom:-54%;right:-24%;border:2px solid rgba(197,68,255,.42);box-shadow:0 -10px 90px rgba(128,29,255,.17),0 0 20px rgba(198,61,255,.4);transform:rotate(-22deg);filter:none}
+.wt24-visual-top{z-index:6;position:relative;display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:60px}
+.wt24-brand{display:flex;align-items:center;gap:20px;min-width:0}
+.wt24-brand img{width:clamp(188px,17.2vw,273px)!important;height:auto!important;max-height:75px!important;object-fit:contain;flex:0 0 auto;filter:drop-shadow(0 0 18px rgba(119,105,255,.13))}
+.wt24-brand span{font-size:clamp(11px,.88vw,13px);line-height:1.4;max-width:135px;color:#c7cdeb;font-weight:500}
+.wt-login-24 .wt24-language{flex:0 0 auto;min-height:40px;padding:0 16px;border-radius:999px;background:rgba(20,28,63,.65)!important;border:1px solid rgba(157,154,245,.6)!important;color:#f5f6ff!important;font-size:13px;font-weight:800;box-shadow:0 10px 28px rgba(0,0,0,.09)}
+.wt-login-24 .wt24-language:focus-visible,.wt-login-24 button:focus-visible{outline:3px solid #92a6ff;outline-offset:3px}
+.wt24-hero-copy{position:relative;z-index:4;margin-top:clamp(66px,8vh,104px);max-width:665px}
+.wt24-eyebrow{width:max-content;max-width:100%;font-weight:700;font-size:clamp(10px,.79vw,12px);line-height:1.2;letter-spacing:.035em;border-radius:100px;padding:9px 17px;color:#d1d8ff;border:1px solid rgba(170,94,255,.72);background:linear-gradient(90deg,rgba(28,68,154,.23),rgba(105,35,161,.16))}
+.wt24-hero-copy h1{font-family:'Bricolage Grotesque','Instrument Sans',Arial,sans-serif;font-size:clamp(41px,3.9vw,66px)!important;line-height:1.08!important;letter-spacing:-.057em!important;font-weight:800!important;color:#fff!important;max-width:690px!important;margin:24px 0 20px!important;text-wrap:balance}
+.wt24-hero-copy h1 span{background:linear-gradient(92deg,#379eff 0%,#9467ff 48%,#ee43db 100%);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.wt24-intro{color:#c2cde7!important;max-width:500px!important;line-height:1.55!important;font-size:clamp(14px,1.13vw,18px)!important;margin:0 0 32px!important;font-weight:500}
+.wt24-benefits{display:grid;gap:19px;width:min(100%,425px)}
+.wt24-benefit{display:flex;align-items:center;gap:18px;min-height:55px}
+.wt24-benefit-icon{display:grid;place-items:center;flex:0 0 62px;width:62px;height:62px;border-radius:18px;border:1px solid rgba(255,255,255,.18);box-shadow:0 12px 27px rgba(0,0,0,.2),inset 0 1px rgba(255,255,255,.09)}
+.wt24-benefit-icon svg{width:29px;height:29px;filter:drop-shadow(0 4px 10px currentColor)}
+.wt24-benefit-icon.green{color:#4af4a3;background:linear-gradient(135deg,#074c45,#064026);border-color:#1ca76b}
+.wt24-benefit-icon.violet{color:#ce9aff;background:linear-gradient(135deg,#2b2884,#3c177c);border-color:#654ed2}
+.wt24-benefit-icon.amber{color:#ffcc70;background:linear-gradient(135deg,#3c3441,#704018);border-color:#8b6840}
+.wt24-benefit-icon.blue{color:#5db6ff;background:linear-gradient(135deg,#093f7d,#142d77);border-color:#2c75e2}
+.wt24-benefit strong{font-size:15px;color:#fff;line-height:1.25;display:block;font-weight:800}
+.wt24-benefit p{font-size:12.5px;line-height:1.45;color:#c5cee7;margin:5px 0 0;font-weight:400}
+.wt24-footer-note{position:absolute;bottom:26px;left:clamp(30px,3.7vw,66px);color:#8698c1;font-size:12px;font-weight:500;z-index:4}
+.wt24-footer-note span{color:#d250f5}
+.wt24-showcase{position:absolute;z-index:2;bottom:8%;right:-2%;width:min(47%,460px);height:min(69%,690px);pointer-events:none;filter:drop-shadow(0 15px 40px rgba(1,4,24,.38))}
+.wt24-phone-picture{width:85%;height:auto;position:absolute;bottom:0;left:-3%;transform:perspective(900px) rotateY(-5deg) rotate(-2deg);animation:wt24-float 7.5s ease-in-out infinite alternate;filter:drop-shadow(0 0 17px rgba(54,111,244,.35))}
+.wt24-phone-picture img{width:100%;height:auto;display:block}
+.wt24-orbit{position:absolute;pointer-events:none;border-radius:100%;left:-16%;bottom:2%;width:125%;height:30%;transform:rotate(-21deg);border:2px solid rgba(201,61,254,.74);box-shadow:0 0 22px rgba(199,58,249,.58),0 0 48px rgba(65,91,255,.37)}
+.wt24-orbit-two{left:15%;bottom:-4%;width:90%;height:24%;border-color:rgba(55,110,255,.58);opacity:.65;transform:rotate(18deg)}
+.wt24-glass-panel{position:absolute;border:1px solid rgba(135,157,250,.5);background:linear-gradient(130deg,rgba(21,37,99,.9),rgba(4,13,48,.92));box-shadow:0 18px 50px rgba(0,0,15,.5),inset 0 1px rgba(255,255,255,.08);backdrop-filter:blur(12px);border-radius:18px;color:#e6ebff}
+.wt24-panel-top{right:5%;top:7%;width:46%;height:29%;transform:rotate(8deg);padding:18px 16px;animation:wt24-panel 8s ease-in-out infinite alternate}
+.wt24-panel-top small{display:block;color:#b9c8f3;font-size:10px;letter-spacing:.05em;font-weight:800}
+.wt24-panel-line{height:60%;display:flex;align-items:flex-end;gap:8px;padding:17px 5px 7px}
+.wt24-panel-line i{display:block;width:12%;height:34%;background:linear-gradient(0deg,#1162ed,#21dbf2);border-radius:4px 4px 0 0;box-shadow:0 0 12px rgba(13,154,255,.25)}
+.wt24-panel-line i:nth-child(2){height:48%}.wt24-panel-line i:nth-child(3){height:39%}.wt24-panel-line i:nth-child(4){height:69%}.wt24-panel-line i:nth-child(5){height:82%}.wt24-panel-line i:nth-child(6){height:97%}
+.wt24-mini-pill{font-size:9px;color:#64ffca}
+.wt24-panel-right{right:0;bottom:23%;display:flex;align-items:center;gap:9px;padding:11px 12px;font-size:11px;font-weight:700;transform:rotate(4deg);animation:wt24-panel 6s ease-in-out infinite alternate-reverse}
+.wt24-panel-right svg{color:#d972ff;width:15px;height:15px}.wt24-status-dot{width:8px;height:8px;border-radius:50%;background:#44f2ab;box-shadow:0 0 9px #4df3b2}
+.wt24-scene-spark{position:absolute;z-index:4;color:#89c1ff;text-shadow:0 0 10px #56a7ff;font-size:24px;animation:wt24-breathe 4s infinite alternate}.wt24-scene-spark-a{top:23%;left:-2%}.wt24-scene-spark-b{bottom:27%;right:1%;color:#ef7dff}
+.wt-login-24 .auth-card-wrap.wt24-card-wrap{display:flex!important;align-items:center!important;justify-content:center!important;position:relative!important;min-height:100vh!important;min-height:100svh!important;padding:70px clamp(20px,3.1vw,55px) 28px!important;background:radial-gradient(circle at 88% 8%,rgba(215,225,255,.88),transparent 38%),radial-gradient(circle at 9% 75%,rgba(228,221,255,.8),transparent 53%),linear-gradient(142deg,#eef2ff 0%,#f6f8ff 45%,#eaedfa 100%)!important;overflow-x:hidden}
+.wt24-card-wrap:before{content:'';position:absolute;left:-110px;top:10%;bottom:0;width:160px;pointer-events:none;background:linear-gradient(90deg,rgba(70,87,210,.1),transparent);filter:blur(20px)}
+.wt24-signup-corner{position:absolute;top:26px;right:clamp(20px,3.3vw,56px);display:flex;align-items:center;gap:14px;font-size:12px;color:#566083;z-index:4;white-space:nowrap}
+.wt24-signup-corner button{padding:12px 19px!important;min-height:39px!important;border-radius:14px!important;border:0!important;color:#fff!important;background:linear-gradient(100deg,#253ac8,#9135e7,#ed39e8)!important;font-weight:800;font-size:12px!important;box-shadow:0 9px 21px rgba(106,62,228,.24)}
+.wt-login-24 .auth-card.wt24-card{position:relative!important;width:min(100%,540px)!important;max-width:540px!important;height:auto!important;min-height:0!important;margin:0!important;padding:clamp(32px,3.4vw,53px) clamp(30px,3.5vw,54px) 30px!important;background:linear-gradient(144deg,rgba(255,255,255,.97),rgba(247,248,255,.98))!important;border:1px solid rgba(255,255,255,.98)!important;border-radius:39px!important;box-shadow:0 28px 75px rgba(56,52,121,.16),0 7px 20px rgba(64,71,121,.08),inset 0 1px 1px #fff!important;backdrop-filter:blur(20px);animation:wt24-entrance .8s cubic-bezier(.2,.8,.15,1) both}
+.wt-login-24 .auth-card .wt24-lang-card{position:absolute!important;top:21px!important;right:23px!important;z-index:3;min-height:29px!important;min-width:42px!important;border-radius:999px!important;background:#f0f1fa!important;border:1px solid #d9dff6!important;color:#51587c!important;font-size:11px!important;padding:3px 10px!important;font-weight:800!important}
+.wt24-auth-heading{text-align:center;display:flex;flex-direction:column;align-items:center}
+.wt24-logo-mark{display:block!important;object-fit:contain!important;width:clamp(75px,6.5vw,92px)!important;height:clamp(75px,6.5vw,92px)!important;margin:0 auto 1px!important;filter:drop-shadow(0 9px 12px rgba(113,76,220,.17))}
+.wt24-wordmark{font-family:'Bricolage Grotesque','Instrument Sans',Arial,sans-serif;font-size:clamp(29px,2.4vw,37px);line-height:1.2;letter-spacing:-.055em;color:#0d0d14;font-weight:800;margin:0 0 8px}
+.wt24-wordmark span{background:linear-gradient(100deg,#7a35ff,#e22ce8);background-clip:text;-webkit-background-clip:text;color:transparent}
+.wt24-auth-heading h2{font-family:'Instrument Sans',sans-serif;font-size:clamp(17px,1.35vw,21px)!important;line-height:1.32!important;color:#435173!important;font-weight:750!important;max-width:345px!important;margin:0 0 10px!important;letter-spacing:-.023em}
+.wt24-auth-heading p{font-family:'Instrument Sans',sans-serif;font-size:12px!important;line-height:1.55!important;color:#7f88a8!important;max-width:335px!important;margin:0 auto 31px!important}
+.wt-login-24 .tabs.wt24-tabs{display:grid!important;grid-template-columns:1fr 1fr!important;gap:5px!important;background:#edf0fa!important;border:1px solid rgba(255,255,255,.7)!important;border-radius:17px!important;padding:5px!important;margin:0 0 28px!important;min-height:54px}
+.wt-login-24 .tabs.wt24-tabs button{width:100%!important;border-radius:12px!important;border:none!important;min-height:42px!important;padding:9px 5px!important;background:transparent!important;color:#626d8c!important;font-size:13px!important;font-weight:800!important;box-shadow:none!important}
+.wt-login-24 .tabs.wt24-tabs button.active{background:linear-gradient(100deg,#354fff,#9130f1,#ed3cde)!important;color:#fff!important;box-shadow:0 9px 16px rgba(140,49,232,.23)!important}
+.wt-login-24 .form.wt24-form{display:flex;flex-direction:column;gap:16px;margin:0!important;padding:0!important}
+.wt-login-24 .form.wt24-form[hidden]{display:none!important}
+.wt-login-24 .form.wt24-form>label{display:block!important;min-width:0!important;margin:0!important;padding:0!important}
+.wt-login-24 .form.wt24-form>label>span:first-child{display:block;margin:0 0 10px!important;color:#18203a!important;font-size:12px!important;font-weight:750!important}
+.wt24-field{position:relative;display:flex;align-items:center;width:100%;min-height:54px;border:1px solid #d9e0f8;border-radius:14px;background:#f8faff;box-shadow:inset 0 1px 0 #fff;transition:border-color .2s,box-shadow .2s}
+.wt24-field:focus-within{border-color:#7d79ec;box-shadow:0 0 0 4px rgba(112,109,246,.13),inset 0 1px #fff}
+.wt24-field>svg{margin:0 0 0 15px!important;flex:0 0 19px!important;color:#8290bb}
+.wt-login-24 .form.wt24-form .wt24-field input,.wt-login-24 .form.wt24-form .wt24-field select{margin:0!important;padding:12px 13px!important;display:block!important;width:100%!important;flex:1!important;min-width:0!important;height:52px!important;min-height:52px!important;outline:none!important;border:0!important;background:transparent!important;color:#222945!important;font-family:'Instrument Sans',sans-serif!important;font-size:13px!important;box-shadow:none!important;border-radius:14px!important}
+.wt-login-24 .form.wt24-form .wt24-field input::placeholder{color:#9da9cb;opacity:1}
+.wt-login-24 .form.wt24-form .wt24-field select{appearance:auto}
+.wt-login-24 .wt24-password-toggle{background:none!important;border:0!important;box-shadow:none!important;color:#687da7!important;min-width:45px!important;min-height:45px!important;padding:12px!important;margin:0 1px 0 0!important;border-radius:10px!important}
+.wt-login-24 .wt24-password-toggle:hover{color:#5a41db!important;background:#eaf0ff!important}
+.wt-login-24 .form.wt24-form>button.wt24-primary{width:100%!important;min-height:56px!important;border-radius:13px!important;margin:10px 0 0!important;border:0!important;background:linear-gradient(98deg,#3153ff 0%,#7141ee 49%,#e92edd 100%)!important;box-shadow:0 10px 22px rgba(125,55,226,.25)!important;color:#fff!important;font-weight:800!important;font-size:14px!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:10px!important;transition:transform .2s,filter .2s,box-shadow .2s}
+.wt-login-24 .wt24-primary svg{width:18px;height:18px;transition:transform .2s}
+.wt-login-24 .wt24-primary:hover{transform:translateY(-2px);filter:brightness(1.04);box-shadow:0 14px 30px rgba(125,55,226,.33)!important}
+.wt-login-24 .wt24-primary:hover svg{transform:translateX(3px)}
+.wt-login-24 .form.wt24-form .notice{font-size:11px;line-height:1.45;background:#f1f3ff;color:#686fa2;border-radius:10px;padding:10px 12px}
+.wt24-trust{display:flex!important;align-items:center;justify-content:center;gap:7px;margin:23px 0 0!important;color:#8c95b1!important;font-size:11px!important;text-align:center}
+.wt24-trust svg{width:15px;height:15px;color:#6578cd}
+.wt-login-24 #authError{width:100%;min-height:0;margin-top:8px;font-size:12px}
+.wt24-small-print{position:absolute;bottom:10px;right:0;left:0;color:#a1aac9;text-align:center;font-size:11px}
+@keyframes wt24-entrance{0%{opacity:0;transform:translateY(22px) scale(.985)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes wt24-breathe{0%{opacity:.7;transform:scale(.94)}100%{opacity:1;transform:scale(1.08)}}
+@keyframes wt24-float{0%{transform:perspective(900px) rotateY(-5deg) rotate(-2deg) translateY(0)}100%{transform:perspective(900px) rotateY(-3deg) rotate(-1deg) translateY(-12px)}}
+@keyframes wt24-panel{0%{translate:0 0}100%{translate:0 -12px}}
+@media(max-width:1400px){.wt-login-24 .auth-shell.wt24-shell{grid-template-columns:minmax(0,58%) minmax(0,42%)!important}.wt24-hero-copy{margin-top:clamp(48px,7vh,85px)}.wt24-hero-copy h1{font-size:clamp(38px,3.55vw,56px)!important;max-width:660px!important}.wt24-benefits{gap:14px}.wt24-benefit-icon{width:51px;height:51px;flex-basis:51px;border-radius:14px}.wt24-benefit-icon svg{width:24px;height:24px}.wt24-showcase{width:46%;right:-3%;bottom:9%}.wt-login-24 .auth-card.wt24-card{padding:36px 37px 27px!important;border-radius:32px!important}.wt24-auth-heading p{margin-bottom:22px!important}}
+@media(max-height:830px) and (min-width:961px){.wt24-hero-copy{margin-top:40px}.wt24-hero-copy h1{font-size:clamp(37px,3.35vw,49px)!important;margin:17px 0 14px!important}.wt24-intro{font-size:14px!important;margin-bottom:22px!important}.wt24-benefits{gap:12px}.wt24-benefit{gap:13px;min-height:47px}.wt24-benefit-icon{width:47px;height:47px;flex-basis:47px}.wt24-benefit p{font-size:11.5px}.wt24-showcase{height:67%;bottom:3%}.wt-login-24 .auth-card-wrap.wt24-card-wrap{padding:60px 28px 21px!important}.wt-login-24 .auth-card.wt24-card{padding:24px 36px 19px!important}.wt24-logo-mark{height:68px!important;width:68px!important}.wt24-wordmark{font-size:29px}.wt24-auth-heading h2{font-size:16px!important}.wt24-auth-heading p{margin-bottom:18px!important;font-size:11px!important}.wt-login-24 .tabs.wt24-tabs{margin-bottom:19px!important}.wt-login-24 .form.wt24-form{gap:12px}.wt24-field{min-height:47px}.wt-login-24 .form.wt24-form .wt24-field input,.wt-login-24 .form.wt24-form .wt24-field select{height:47px!important;min-height:47px!important}.wt-login-24 .form.wt24-form>button.wt24-primary{min-height:51px!important;margin-top:7px!important}.wt24-trust{margin-top:15px!important}}
+@media(max-width:1180px){.wt-login-24 .auth-shell.wt24-shell{grid-template-columns:minmax(0,52%) minmax(0,48%)!important}.wt24-brand span{display:none}.wt24-hero-copy h1{font-size:clamp(35px,3.7vw,45px)!important}.wt24-showcase{width:47%;right:-8%;opacity:.72}.wt24-intro{max-width:370px!important}.wt24-benefits{max-width:380px}.wt24-benefit p{max-width:270px}.wt24-signup-corner>span{display:none}}
+@media(max-width:960px){.wt-login-24 .auth-shell.wt24-shell{display:block!important;min-height:100svh!important}.wt-login-24 .auth-visual.wt24-visual{display:none!important}.wt-login-24 .auth-card-wrap.wt24-card-wrap{min-height:100svh!important;padding:65px 16px 28px!important}.wt24-signup-corner{top:15px;right:18px}.wt-login-24 .auth-card.wt24-card{width:min(100%,520px)!important;padding:37px 29px 26px!important}.wt24-small-print{display:none}}
+@media(max-width:500px){.wt-login-24 .auth-card-wrap.wt24-card-wrap{padding:64px 12px 18px!important}.wt-login-24 .auth-card.wt24-card{padding:31px 21px 22px!important;border-radius:24px!important}.wt24-auth-heading h2{font-size:18px!important}.wt24-auth-heading p{font-size:11.5px!important;margin-bottom:20px!important}.wt24-logo-mark{width:72px!important;height:72px!important}.wt24-wordmark{font-size:29px}.wt24-signup-corner{font-size:11px}.wt24-signup-corner button{padding:10px 14px!important}.wt-login-24 .tabs.wt24-tabs{margin-bottom:20px!important}.wt-login-24 .form.wt24-form{gap:13px}}
+@media(prefers-reduced-motion:reduce){.wt-login-24 *, .wt-login-24 *::before,.wt-login-24 *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

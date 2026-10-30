@@ -1,84 +1,66 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acceso · Worktic AI</title><meta name="theme-color" content="#0a0a12"><link rel="icon" type="image/png" href="/assets/favicon-32.png"><link rel="apple-touch-icon" href="/assets/favicon-180.png"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/styles.css">
-<style>
-/* Ajustes exclusivos de esta página: eleva la vista móvil sin tocar el
-   sistema de estilos compartido ni la vista de escritorio. */
-.mobile-badge{display:none}
-.lang-switch-auth{position:absolute;top:20px;right:20px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#fff;padding:7px 13px;border-radius:999px;font-size:12px;font-weight:800;box-shadow:none;min-height:auto;z-index:2}
-.lang-switch-card{position:absolute;top:18px;right:18px;background:var(--paper-2);border:1px solid var(--line-2);color:var(--text-soft);padding:6px 12px;border-radius:999px;font-size:11.5px;font-weight:800;box-shadow:none;min-height:auto}
-.auth-card{position:relative}
-@media(max-width:820px){
-  .auth-page{background:radial-gradient(120% 55% at 50% -8%,rgba(139,18,214,.11),transparent 55%),var(--paper)}
-  .auth-card{box-shadow:0 22px 54px rgba(20,10,45,.16),0 4px 12px rgba(20,10,45,.06)}
-  .tabs{background:var(--paper-2)}
-  .tabs button{font-weight:700;color:var(--text-soft);border-radius:9px}
-  .tabs button.active{background:var(--brand-grad);color:#fff;box-shadow:0 8px 20px rgba(139,18,214,.32)}
-  .mobile-badge{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;background:var(--accent-tint);border:1px solid #e3d6fb;color:var(--accent-ink);font-size:12px;font-weight:700;margin-bottom:18px}
-  .mobile-badge b{width:6px;height:6px;border-radius:50%;background:var(--acid);display:inline-block;box-shadow:0 0 8px rgba(251,123,255,.6)}
-}
-</style>
-<link rel="stylesheet" href="/brand-premium-v273520.css?v=273520"><link rel="stylesheet" href="/branding-commercial-v273521.css?v=273521"><link rel="stylesheet" href="/branding-premium-v273522.css?v=273522"><style id="wtp22-branding-fallback">
-/* WorkticAI V27.35.22: branding visible and centered login. */
-.wtp21-public-nav>.wrap{min-height:86px;height:86px}
-.wtp21-public-nav .brand{display:flex;align-items:center;gap:8px;flex:0 0 auto;white-space:nowrap}
-.wtp21-public-nav .brand img{width:68px;height:68px;max-height:none;flex:0 0 68px;object-fit:contain;display:block;filter:drop-shadow(0 3px 7px rgba(90,39,195,.13))}
-.wtp21-public-nav .brand span{font-family:'Bricolage Grotesque',sans-serif;font-size:1.47rem;font-weight:800;letter-spacing:-.045em}
-.wtp21-public-nav .links{min-width:0;gap:clamp(8px,1vw,16px)}
-.mobile-nav-head .brand img{width:58px;height:58px;max-height:none;object-fit:contain}
-.mobile-nav-head .brand span{font-size:1.25rem;font-weight:800}
-.auth-page .auth-card{width:min(460px,100%);padding:34px 32px 28px}
-.auth-page .auth-card .wtp21-auth-brand{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;width:100%;max-width:390px;margin:0 auto 24px!important;gap:0;text-align:center!important}
-.auth-page .auth-card .wtp21-auth-logo{display:block!important;width:108px!important;height:108px!important;max-width:none!important;object-fit:contain!important;margin:0 auto 3px!important;filter:drop-shadow(0 8px 14px rgba(86,67,219,.16))}
-.auth-page .auth-card .wtp21-auth-wordmark{display:block!important;width:100%;text-align:center!important;margin:0 auto 14px!important;font-size:26px;line-height:1.12;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;letter-spacing:-.04em;color:#1b103d}
-.auth-page .auth-card .wtp21-auth-headline{display:block;width:100%;max-width:350px;margin:0 auto 10px!important;text-align:center!important;font:800 23px/1.2 'Bricolage Grotesque',sans-serif;color:#241340;letter-spacing:-.035em;text-wrap:balance}
-.auth-page .auth-card .wtp21-auth-subtitle{display:block;max-width:350px;margin:0 auto!important;text-align:center!important;color:#786d8e;font:400 13px/1.52 'Instrument Sans',sans-serif}
-@media(max-width:1100px){.wtp21-public-nav>.wrap{height:76px;min-height:76px}.wtp21-public-nav .brand img{width:58px;height:58px;flex-basis:58px}.wtp21-public-nav .brand span{font-size:1.25rem}}
-@media(max-width:760px){.wtp21-public-nav>.wrap{height:72px;min-height:72px}.wtp21-public-nav .brand img{width:54px;height:54px;flex-basis:54px}.wtp21-public-nav .brand span{font-size:1.18rem}.auth-page .auth-card{padding:30px 23px 26px}.auth-page .auth-card .wtp21-auth-logo{width:95px!important;height:95px!important}.auth-page .auth-card .wtp21-auth-headline{font-size:21px}}
-@media(max-width:390px){.wtp21-public-nav .brand img{width:49px;height:49px;flex-basis:49px}.wtp21-public-nav .brand span{font-size:1.09rem}.auth-page .auth-card{padding:28px 18px 24px}.auth-page .auth-card .wtp21-auth-headline{font-size:20px}}
-</style><link rel="stylesheet" href="/login-experience-v273523.css?v=273523"></head><body class="auth-page wt-login-23">
-<div class="auth-shell">
-  <div class="auth-visual wt23-visual">
-    <div class="wt23-stars" aria-hidden="true"></div><div class="wt23-glow" aria-hidden="true"></div>
-    <div class="wt23-left-top"><img src="/assets/logo-full.png" alt="Worktic AI" class="wt23-lockup"><span class="wt23-tagline">Tu motor de ventas con IA</span></div>
-    <button type="button" class="lang-switch-auth" data-lang-switch>EN</button>
-    <div class="wt23-copy"><span class="wt23-eyebrow">TODO TU NEGOCIO. UNA SOLA PLATAFORMA.</span><h2>Automatiza tus ventas<br>y <em>haz crecer</em> tu negocio</h2><p>Convierte conversaciones en clientes con inteligencia artificial, desde todos tus canales y en un solo lugar.</p>
-      <div class="wt23-features">
-        <div class="wt23-feature"><span class="wt23-fi green" aria-hidden="true">◉</span><div><strong>Canales conectados</strong><small>Gestiona tus conversaciones desde una sola bandeja</small></div></div>
-        <div class="wt23-feature"><span class="wt23-fi purple" aria-hidden="true">✦</span><div><strong>Agentes de IA</strong><small>Atiende, responde y acompaña a tus prospectos</small></div></div>
-        <div class="wt23-feature"><span class="wt23-fi amber" aria-hidden="true">◎</span><div><strong>CRM y oportunidades</strong><small>Organiza tus clientes y el seguimiento comercial</small></div></div>
-        <div class="wt23-feature"><span class="wt23-fi blue" aria-hidden="true">ϟ</span><div><strong>Automatizaciones</strong><small>Conecta procesos, campañas y seguimientos</small></div></div>
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#07122e"><title>Acceso · Worktic AI</title>
+<link rel="icon" type="image/png" href="/assets/favicon-32.png"><link rel="apple-touch-icon" href="/assets/favicon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700;800&family=Instrument+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/brand-premium-v273520.css?v=273520"><link rel="stylesheet" href="/branding-commercial-v273521.css?v=273521"><link rel="stylesheet" href="/branding-premium-v273522.css?v=273522">
+<link rel="stylesheet" href="/login-fidelity-v273524.css?v=273524">
+</head><body class="auth-page wt-login-24">
+<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><symbol id="wt24-message" viewBox="0 0 24 24"><path d="M20 11.5c0 4.5-3.6 8-8 8a9.7 9.7 0 0 1-3.4-.6L4 20l1.2-4.3A8.3 8.3 0 0 1 4 11.5a8 8 0 1 1 16 0Z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/><path d="M8.5 11.5h7" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/></symbol><symbol id="wt24-brain" viewBox="0 0 24 24"><path d="M12 5.2a4 4 0 0 0-7.7 1.4 4.3 4.3 0 0 0-1 6.7 4.2 4.2 0 0 0 3.9 6.1c1.5 0 2.8-.7 3.5-1.8V5.2Zm0 0a4 4 0 0 1 7.7 1.4 4.3 4.3 0 0 1 1 6.7 4.2 4.2 0 0 1-3.9 6.1c-1.5 0-2.8-.7-3.5-1.8V5.2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" fill="none"/><path d="M8 9c-2 0-3 1-3 3m3 3c-2 0-2 2-2 2m10-8c2 0 3 1 3 3m-3 3c2 0 2 2 2 2M12 8v7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></symbol><symbol id="wt24-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M2.5 20v-1.8a5.7 5.7 0 0 1 11.4 0V20H2.5Zm12.8-14a3 3 0 0 1 .7 5.8M17 14.5c2.5.3 4.5 2.1 4.5 4.8V20H16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="wt24-zap" viewBox="0 0 24 24"><path d="m13.5 2-9 11h7l-1 9 9-11h-7l1-9Z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/></symbol><symbol id="wt24-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol><symbol id="wt24-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></symbol><symbol id="wt24-eye" viewBox="0 0 24 24"><path d="M2 12s3.3-6 10-6 10 6 10 6-3.3 6-10 6S2 12 2 12Z" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" fill="none"/></symbol><symbol id="wt24-spark" viewBox="0 0 24 24"><path d="m12 1 2.3 8.7L23 12l-8.7 2.3L12 23l-2.3-8.7L1 12l8.7-2.3L12 1Z" fill="currentColor"/></symbol><symbol id="wt24-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-7-7 7 7-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol></svg>
+<main class="auth-shell wt24-shell">
+  <section class="auth-visual wt24-visual" aria-label="Worktic AI: automatización de ventas">
+    <div class="wt24-ambient wt24-ambient-blue" aria-hidden="true"></div><div class="wt24-ambient wt24-ambient-purple" aria-hidden="true"></div><div class="wt24-ambient wt24-orb" aria-hidden="true"></div>
+    <header class="wt24-visual-top"><div class="wt24-brand"><img src="/assets/logo-full.png" alt="Worktic AI"><span data-wt24-en="Your AI sales engine">Tu motor de ventas con IA</span></div>
+      <button type="button" class="wt24-language" data-lang-switch aria-label="Cambiar idioma">EN</button></header>
+    <div class="wt24-hero-copy"><div class="wt24-eyebrow" data-wt24-en="YOUR ENTIRE BUSINESS. ONE PLATFORM.">TODO TU NEGOCIO. UNA SOLA PLATAFORMA.</div>
+      <h1 data-wt24-en="Automate your sales and grow your business">Automatiza tus ventas<br>y <span>haz crecer</span> tu negocio</h1>
+      <p class="wt24-intro" data-wt24-en="Turn conversations into customers with AI, across all your channels, in one place.">Convierte conversaciones en clientes con IA, en todos tus canales, desde un solo lugar.</p>
+      <div class="wt24-benefits">
+        <div class="wt24-benefit"><span class="wt24-benefit-icon green"><svg><use href="#wt24-message"/></svg></span><div><strong data-wt24-en="Connected channels">Canales conectados</strong><p data-wt24-en="Unify every conversation in one inbox">Unifica tus conversaciones en una sola bandeja</p></div></div>
+        <div class="wt24-benefit"><span class="wt24-benefit-icon violet"><svg><use href="#wt24-brain"/></svg></span><div><strong data-wt24-en="AI sales agents">Agentes de IA</strong><p data-wt24-en="Attend, answer and support your leads">Atiende, responde y acompaña a tus prospectos</p></div></div>
+        <div class="wt24-benefit"><span class="wt24-benefit-icon amber"><svg><use href="#wt24-users"/></svg></span><div><strong data-wt24-en="CRM and opportunities">CRM y oportunidades</strong><p data-wt24-en="Organize customers and commercial follow-up">Organiza clientes y oportunidades de venta</p></div></div>
+        <div class="wt24-benefit"><span class="wt24-benefit-icon blue"><svg><use href="#wt24-zap"/></svg></span><div><strong data-wt24-en="Automations">Automatizaciones</strong><p data-wt24-en="Create intelligent campaigns and follow-ups">Crea campañas y seguimientos inteligentes</p></div></div>
       </div>
     </div>
-    <div class="wt23-demo" aria-label="Ilustración de un asistente de inteligencia artificial">
-      <div class="wt23-orbit"></div><div class="wt23-window"><div class="wt23-window-top"><span></span><span></span><span></span><b>Worktic AI · Conversaciones</b></div><div class="wt23-chat"><div class="wt23-chat-avatar">✦</div><div class="wt23-chat-bubble">¡Hola! 👋<br>¿En qué puedo ayudarte hoy?</div></div><div class="wt23-chat-msg">Quiero conocer sus servicios</div><div class="wt23-chat-reply">¡Con gusto! Te comparto la información.</div><div class="wt23-type"><i></i><i></i><i></i></div></div>
-      <div class="wt23-float wt23-float-a">✦ <span>Agente IA activo</span></div><div class="wt23-float wt23-float-b">↗ <span>Automatización inteligente</span></div>
+    <div class="wt24-showcase" aria-hidden="true">
+      <div class="wt24-orbit wt24-orbit-one"></div><div class="wt24-orbit wt24-orbit-two"></div>
+      <div class="wt24-glass-panel wt24-panel-top"><small>VENTAS • IA</small><div class="wt24-panel-line"><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="wt24-mini-pill">● Automatización activa</span></div>
+      <div class="wt24-phone-picture"><img src="/assets/login24-agent-scene.png" width="339" height="491" loading="eager" decoding="async" alt=""></div>
+      <div class="wt24-glass-panel wt24-panel-right"><span class="wt24-status-dot"></span><span>Agente IA activo</span><svg><use href="#wt24-spark"/></svg></div>
+      <div class="wt24-scene-spark wt24-scene-spark-a">✦</div><div class="wt24-scene-spark wt24-scene-spark-b">✧</div>
     </div>
-    <div class="wt23-bottom">Diseñado para hacer crecer tu negocio con IA <span>✦</span></div>
-  </div>
-  <div class="auth-card-wrap wt23-card-wrap">
-    <div class="auth-card wt23-card">
-      <button type="button" class="lang-switch-card" data-lang-switch>EN</button>
-      <div class="wtp21-auth-brand wt23-auth-brand">
-        <img src="/assets/logo-mark.png" alt="Logotipo de Worktic AI" class="wtp21-auth-logo" width="100" height="100">
-        <div class="wtp21-auth-wordmark">Worktic <span>AI</span></div>
-        <h1 class="wtp21-auth-headline" data-i18n="auth.sales_headline">Automatiza tus ventas y convierte más prospectos con IA</h1>
-        <p class="wtp21-auth-subtitle" data-i18n="auth.sales_subtitle">Transforma cada conversación en una oportunidad de venta con automatización inteligente.</p>
+    <div class="wt24-footer-note" data-wt24-en="Your business, connected and powered by AI">Tu negocio conectado y potenciado con IA <span>✦</span></div>
+  </section>
+  <section class="auth-card-wrap wt24-card-wrap" aria-label="Acceso a tu cuenta Worktic AI">
+    <div class="wt24-signup-corner"><span data-wt24-en="New to Worktic AI?">¿Aún no tienes una cuenta?</span><button type="button" id="wt24TopRegister" data-wt24-en="Create account">Crear cuenta</button></div>
+    <div class="auth-card wt24-card">
+      <button type="button" class="lang-switch-card wt24-lang-card" data-lang-switch aria-label="Cambiar idioma">EN</button>
+      <div class="wt24-auth-heading">
+        <img src="/assets/logo-mark.png" alt="Worktic AI" class="wt24-logo-mark" width="87" height="87">
+        <div class="wt24-wordmark">Worktic <span>AI</span></div>
+        <h2 data-i18n="auth.sales_headline">Automatiza tus ventas y convierte más prospectos con IA</h2>
+        <p data-i18n="auth.sales_subtitle">Transforma cada conversación en una oportunidad de venta con automatización inteligente.</p>
       </div>
-      <span class="av-badge mobile-badge"><b></b><span data-i18n="auth.mobile_badge">Todo tu negocio, una sola bandeja</span></span>
-      <div class="tabs"><button type="button" id="loginTab" class="active" aria-controls="loginForm" data-i18n="auth.tab_login">Ingresar</button><button type="button" id="registerTab" aria-controls="registerForm" data-i18n="auth.tab_register">Crear cuenta</button></div>
-      <form id="loginForm" class="form"><label><span data-i18n="auth.email_label">Correo</span><input name="email" type="email" value="" required></label><label><span data-i18n="auth.password_label">Contraseña</span><input name="password" type="password" value="" required></label><button data-i18n="auth.login_btn">Ingresar</button></form>
-      <form id="registerForm" class="form" hidden>
-        <label><span data-i18n="auth.account_type_label">¿Cómo usarás Worktic?</span><select name="account_type" id="accountType"><option value="personal" data-i18n="auth.account_personal">Uso personal</option><option value="company" data-i18n="auth.account_company">Empresa o equipo</option></select></label>
-        <label><span data-i18n="auth.name_label">Tu nombre</span><input name="name" required></label>
-        <label id="companyLabel"><span data-i18n="auth.company_label">Nombre del espacio o negocio</span><input name="company" placeholder="Mi negocio" data-i18n-ph="auth.company_ph"></label>
-        <label><span data-i18n="auth.email_label">Correo</span><input name="email" type="email" required></label>
-        <label><span data-i18n="auth.password_label">Contraseña</span><input name="password" type="password" minlength="12" required></label>
-        <div class="notice" data-i18n="auth.register_notice">Tu cuenta comienza automáticamente en el plan Free. Podrás cambiar de plan desde la plataforma.</div>
-        <button data-i18n="auth.register_btn">Crear cuenta gratis</button>
+      <div class="tabs wt24-tabs" role="tablist" aria-label="Acceso y registro"><button type="button" role="tab" id="loginTab" class="active" aria-controls="loginForm" aria-selected="true" data-i18n="auth.tab_login">Ingresar</button><button type="button" role="tab" id="registerTab" aria-controls="registerForm" aria-selected="false" data-i18n="auth.tab_register">Crear cuenta</button></div>
+      <form id="loginForm" class="form wt24-form" autocomplete="on">
+        <label><span data-i18n="auth.email_label">Correo</span><span class="wt24-field"><svg aria-hidden="true"><use href="#wt24-mail"/></svg><input name="email" type="email" placeholder="tu@correo.com" autocomplete="username" required></span></label>
+        <label><span data-i18n="auth.password_label">Contraseña</span><span class="wt24-field"><svg aria-hidden="true"><use href="#wt24-lock"/></svg><input name="password" type="password" autocomplete="current-password" placeholder="Tu contraseña" required><button class="wt24-password-toggle" type="button" aria-label="Mostrar contraseña" aria-pressed="false"><svg aria-hidden="true"><use href="#wt24-eye"/></svg></button></span></label>
+        <button type="submit" class="wt24-primary"><span data-i18n="auth.login_btn">Ingresar</span> <svg aria-hidden="true"><use href="#wt24-arrow"/></svg></button>
       </form>
-      <p class="hint" data-i18n="auth.hint">Worktic AI · Automatiza, conecta y escala tu negocio.</p>
-      <div id="authError" class="error"></div>
+      <form id="registerForm" class="form wt24-form" hidden autocomplete="on">
+        <label><span data-i18n="auth.account_type_label">¿Cómo usarás Worktic?</span><span class="wt24-field"><select name="account_type" id="accountType"><option value="personal" data-i18n="auth.account_personal">Uso personal</option><option value="company" data-i18n="auth.account_company">Empresa o equipo</option></select></span></label>
+        <label><span data-i18n="auth.name_label">Tu nombre</span><span class="wt24-field"><input name="name" autocomplete="name" required></span></label>
+        <label id="companyLabel"><span data-i18n="auth.company_label">Nombre del espacio o negocio</span><span class="wt24-field"><input name="company" placeholder="Mi negocio" data-i18n-ph="auth.company_ph" autocomplete="organization"></span></label>
+        <label><span data-i18n="auth.email_label">Correo</span><span class="wt24-field"><input name="email" type="email" autocomplete="email" required></span></label>
+        <label><span data-i18n="auth.password_label">Contraseña</span><span class="wt24-field"><input name="password" type="password" autocomplete="new-password" minlength="12" required><button class="wt24-password-toggle" type="button" aria-label="Mostrar contraseña" aria-pressed="false"><svg aria-hidden="true"><use href="#wt24-eye"/></svg></button></span></label>
+        <div class="notice" data-i18n="auth.register_notice">Tu cuenta comienza automáticamente en el plan Free. Podrás cambiar de plan desde la plataforma.</div>
+        <button class="wt24-primary" type="submit"><span data-i18n="auth.register_btn">Crear cuenta gratis</span><svg aria-hidden="true"><use href="#wt24-arrow"/></svg></button>
+      </form>
+      <p class="hint wt24-trust"><svg aria-hidden="true"><use href="#wt24-lock"/></svg><span data-wt24-en="Worktic AI · Secure access to your business">Worktic AI · Acceso seguro a tu negocio</span></p>
+      <div id="authError" class="error" role="alert" aria-live="polite"></div>
     </div>
-  </div>
-</div>
-<script src="/i18n.js"></script>
-<script src="/login.js?v=20261015-v2710"></script></body></html>
+    <div class="wt24-small-print" data-wt24-en="Smart sales start here">Tus ventas inteligentes comienzan aquí</div>
+  </section>
+</main>
+<script src="/i18n.js"></script><script src="/login.js?v=20261015-v2710"></script><script src="/login-fidelity-v273524.js?v=273524"></script>
+</body></html>
