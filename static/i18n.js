@@ -398,6 +398,8 @@ var I18N = {
 
 /* ══════════════════ LOGIN ══════════════════ */
 "auth.tagline":{es:"Atención omnicanal inteligente",en:"Intelligent omnichannel support"},
+"auth.sales_headline":{es:"Automatiza tus ventas y convierte más prospectos con IA",en:"Automate sales and convert more leads with AI"},
+"auth.sales_subtitle":{es:"Transforma cada conversación en una oportunidad de venta con automatización inteligente.",en:"Turn every conversation into a sales opportunity with intelligent automation."},
 "auth.hero_badge":{es:"Todo tu negocio, una sola bandeja",en:"Your whole business, one inbox"},
 "auth.hero_h2":{es:"Convierte cada conversación en un cliente, sin perder ni un mensaje.",en:"Turn every conversation into a customer, without missing a single message."},
 "auth.hero_p":{es:"WhatsApp, Telegram y Messenger unificados con un agente de IA entrenado por ti, CRM, catálogo, agenda y automatizaciones.",en:"WhatsApp, Telegram and Messenger unified with an AI agent trained by you — CRM, catalog, scheduling and automations included."},
