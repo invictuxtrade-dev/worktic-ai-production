@@ -1,4 +1,4 @@
-/* Worktic AI V27.35.32 — mismo lenguaje visual que el estado vacío de Agentes IA */
+/* Worktic AI V27.35.33 — mismo lenguaje visual que el estado vacío de Agentes IA */
 .wt32-channels-empty-slot { display: block; width: 100%; }
 .wt32-channels-empty {
   box-sizing: border-box;
@@ -39,3 +39,13 @@
 @media (max-width: 600px) {
   .wt32-channels-empty { width: 100%; min-height: 0; padding: 22px 18px; margin: 8px 0 14px; }
 }
+
+/* V27.35.33: icono y subtitulo en la tarjeta; no afecta modales ni listas. */
+.wt32-channels-empty { width: min(100%, 470px); min-height: 0; gap: 16px; }
+.wt32-channels-empty-header { display: flex; align-items: center; gap: 12px; }
+.wt32-channels-empty-heading { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
+.wt32-channels-empty-icon { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #3f57fd; background: #f0eeff; border: 1px solid #e4deff; }
+.wt32-channels-empty-icon svg { width: 25px; height: 25px; display: block; }
+.wt32-channels-empty-subtitle { color: #677797; font-family: inherit; font-size: 12.5px; font-weight: 400; line-height: 1.45; }
+.wt32-channels-empty p { font-size: 13.5px; line-height: 1.65; }
+@media (max-width: 600px) { .wt32-channels-empty { width: 100%; } .wt32-channels-empty-header { align-items: flex-start; } }
