@@ -8,6 +8,6 @@
    de escritorio cuando el selector de idioma marca <html lang="en">. */
 @media (min-width: 961px) {
   html[lang="en"] .stage {
-    background-image: url('/assets/login25-approved-background-en-v273530.png?v=273530');
+    background-image: url('/assets/login25-approved-background-en-v273531.png?v=273531');
   }
 }
