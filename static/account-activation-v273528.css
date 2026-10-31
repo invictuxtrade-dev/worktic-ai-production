@@ -24,6 +24,10 @@
 .wt28-resend-link{display:block;margin:8px auto 0;background:none;border:none;color:#6e4ee7;cursor:pointer;font-size:12px;text-decoration:underline}
 @media(max-width:640px){.wt28-captcha{padding:14px}.wt28-tile{min-height:65px}.wt28-activation{padding-top:12px}.wt28-activation h3{font-size:23px}}
 @media(prefers-reduced-motion:reduce){.wt28-tile{transition:none}}
+/* V27.35.29: honor hidden even when author styles set display:grid/block. */
+.wt28-activation__form[hidden],.wt28-resend-link[hidden]{display:none!important}
+.wt28-activation__form button:disabled{cursor:not-allowed;opacity:.64;filter:saturate(.65);box-shadow:none}
+.wt28-activation__form button:not(:disabled):focus-visible,.wt28-activation__back:focus-visible{outline:3px solid #6651ef;outline-offset:3px}
 
 .wt28-tile img{width:42px;height:42px;object-fit:contain;pointer-events:none}
 .wt28-tile{min-height:82px}

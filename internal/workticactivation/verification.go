@@ -86,7 +86,7 @@ func (s Verification) CreatePending(ctx context.Context, tx *sql.Tx, userID, ten
 	if err != nil {
 		return "", err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO worktic_email_activation_state(user_id,tenant_id,name,email,purge_after) VALUES($1,$2,$3,$4,NOW()+INTERVAL '72 hours')`, userID, tenantID, strings.TrimSpace(name), strings.ToLower(strings.TrimSpace(email)))
+	_, err = tx.ExecContext(ctx, `INSERT INTO worktic_email_activation_state(user_id,tenant_id,name,email,purge_after,last_sent_at) VALUES($1,$2,$3,$4,NOW()+INTERVAL '72 hours',NOW())`, userID, tenantID, strings.TrimSpace(name), strings.ToLower(strings.TrimSpace(email)))
 	if err != nil {
 		return "", err
 	}
