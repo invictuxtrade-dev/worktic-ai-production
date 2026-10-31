@@ -1,0 +1,41 @@
+/* Worktic AI V27.35.32 — mismo lenguaje visual que el estado vacío de Agentes IA */
+.wt32-channels-empty-slot { display: block; width: 100%; }
+.wt32-channels-empty {
+  box-sizing: border-box;
+  width: min(100%, 360px);
+  min-height: 178px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  margin: 8px 0 14px;
+  padding: 24px 20px;
+  background: #fff;
+  border: 1px solid #e0e4f5;
+  border-radius: 17px;
+  box-shadow: 0 3px 10px rgba(17, 28, 72, 0.045);
+  color: #091632;
+  text-align: left;
+}
+.wt32-channels-empty h3 {
+  margin: 0;
+  padding: 0;
+  color: #071632;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
+.wt32-channels-empty p {
+  margin: 0;
+  padding: 0;
+  color: #182544;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.65;
+}
+@media (max-width: 600px) {
+  .wt32-channels-empty { width: 100%; min-height: 0; padding: 22px 18px; margin: 8px 0 14px; }
+}

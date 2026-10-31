@@ -1,1 +1,1 @@
-WorkticAI V27.35.31 - Email de activacion, captcha visual y recordatorio 18h
+WorkticAI V27.35.32 - Estado vacio premium de Canales
