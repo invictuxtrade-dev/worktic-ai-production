@@ -1,1 +1,1 @@
-WorkticAI V27.35.26 - Nueva paleta 3D solo web publica y backoffice; login V27.35.25 intacto
+WorkticAI V27.35.27 - Recuperacion segura y correos transaccionales

@@ -520,6 +520,9 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/auth/login", app.loginHandler)
 	mux.HandleFunc("/api/auth/register", app.registerHandler)
+	if err := initWorkticAccountMailV273527(app, mux); err != nil {
+		log.Printf("WorkticAI V27.35.27: correo no disponible: %v", err)
+	}
 	mux.HandleFunc("/api/auth/logout", app.authLogoutHandler)
 	mux.HandleFunc("/api/auth/me", app.meHandler)
 	mux.HandleFunc("/api/account/profile", app.accountProfileHandler)
@@ -2223,7 +2226,7 @@ func (a *App) currentUser(r *http.Request) *User {
 }
 func (a *App) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/") || (r.URL.Path == "/api/public/offer/v2734" && r.Method == http.MethodGet) || (r.URL.Path == "/api/webchat/public/start" || r.URL.Path == "/api/webchat/public/messages" || r.URL.Path == "/api/mobile/webchat/public/start" || r.URL.Path == "/api/mobile/webchat/public/messages") || strings.HasPrefix(r.URL.Path, "/api/auth/login") || strings.HasPrefix(r.URL.Path, "/api/auth/register") || strings.HasPrefix(r.URL.Path, "/api/team/invitations/accept") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/messenger") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/whatsapp") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/leads") || strings.HasPrefix(r.URL.Path, "/webhooks/messenger/") || strings.HasPrefix(r.URL.Path, "/webhooks/telegram/") {
+		if !strings.HasPrefix(r.URL.Path, "/api/") || (r.URL.Path == "/api/public/offer/v2734" && r.Method == http.MethodGet) || (r.URL.Path == "/api/webchat/public/start" || r.URL.Path == "/api/webchat/public/messages" || r.URL.Path == "/api/mobile/webchat/public/start" || r.URL.Path == "/api/mobile/webchat/public/messages") || strings.HasPrefix(r.URL.Path, "/api/auth/login") || strings.HasPrefix(r.URL.Path, "/api/auth/register") || strings.HasPrefix(r.URL.Path, "/api/auth/password/reset/") || strings.HasPrefix(r.URL.Path, "/api/team/invitations/accept") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/messenger") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/whatsapp") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/leads") || strings.HasPrefix(r.URL.Path, "/webhooks/messenger/") || strings.HasPrefix(r.URL.Path, "/webhooks/telegram/") {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -2380,6 +2383,7 @@ func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err, 500)
 		return
 	}
+	a.enqueueWelcomeMailV273527(q.Name, q.Email)
 	writeJSON(w, map[string]any{"ok": true, "tenant_id": tenantID})
 }
 func (a *App) authLogoutHandler(w http.ResponseWriter, r *http.Request) {
