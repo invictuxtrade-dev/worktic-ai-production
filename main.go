@@ -520,6 +520,9 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/auth/login", app.loginHandler)
 	mux.HandleFunc("/api/auth/register", app.registerHandler)
+	if err := initWorkticActivationV273528(app, mux); err != nil {
+		log.Printf("WorkticAI V27.35.28: activation unavailable: %v", err)
+	}
 	if err := initWorkticAccountMailV273527(app, mux); err != nil {
 		log.Printf("WorkticAI V27.35.27: correo no disponible: %v", err)
 	}
@@ -2226,7 +2229,7 @@ func (a *App) currentUser(r *http.Request) *User {
 }
 func (a *App) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/") || (r.URL.Path == "/api/public/offer/v2734" && r.Method == http.MethodGet) || (r.URL.Path == "/api/webchat/public/start" || r.URL.Path == "/api/webchat/public/messages" || r.URL.Path == "/api/mobile/webchat/public/start" || r.URL.Path == "/api/mobile/webchat/public/messages") || strings.HasPrefix(r.URL.Path, "/api/auth/login") || strings.HasPrefix(r.URL.Path, "/api/auth/register") || (r.URL.Path == "/api/auth/password/reset/request" || r.URL.Path == "/api/auth/password/reset/confirm") || strings.HasPrefix(r.URL.Path, "/api/team/invitations/accept") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/messenger") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/whatsapp") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/leads") || strings.HasPrefix(r.URL.Path, "/webhooks/messenger/") || strings.HasPrefix(r.URL.Path, "/webhooks/telegram/") {
+		if !strings.HasPrefix(r.URL.Path, "/api/") || (r.URL.Path == "/api/public/offer/v2734" && r.Method == http.MethodGet) || (r.URL.Path == "/api/webchat/public/start" || r.URL.Path == "/api/webchat/public/messages" || r.URL.Path == "/api/mobile/webchat/public/start" || r.URL.Path == "/api/mobile/webchat/public/messages") || strings.HasPrefix(r.URL.Path, "/api/auth/login") || strings.HasPrefix(r.URL.Path, "/api/auth/register") || (r.URL.Path == "/api/auth/password/reset/request" || r.URL.Path == "/api/auth/password/reset/confirm") || (r.URL.Path == "/api/auth/captcha/challenge" || r.URL.Path == "/api/auth/email/status" || r.URL.Path == "/api/auth/email/verify" || r.URL.Path == "/api/auth/email/resend") || strings.HasPrefix(r.URL.Path, "/api/team/invitations/accept") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/messenger") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/whatsapp") || strings.HasPrefix(r.URL.Path, "/webhooks/meta/leads") || strings.HasPrefix(r.URL.Path, "/webhooks/messenger/") || strings.HasPrefix(r.URL.Path, "/webhooks/telegram/") {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -2278,6 +2281,10 @@ func (a *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 	var ph string
 	var active int
 	err := a.db.QueryRow(`SELECT u.id,u.name,u.email,u.password_hash,u.role,u.company,u.active,u.created_at,u.tenant_id,COALESCE(t.account_type,'personal') FROM app_users u LEFT JOIN tenants t ON t.id=u.tenant_id WHERE lower(u.email)=lower(?)`, strings.TrimSpace(q.Email)).Scan(&u.ID, &u.Name, &u.Email, &ph, &u.Role, &u.Company, &active, &u.CreatedAt, &u.TenantID, &u.AccountType)
+	if err == nil && active == 0 && a.workticLoginPendingV273528(u.ID) && a.verifyPasswordAndUpgrade(u.ID, q.Password, ph) {
+		writeError(w, errors.New("Tu cuenta esta pendiente de activacion. Revisa tu correo y solicita un nuevo enlace si hace falta."), 403)
+		return
+	}
 	if err != nil || active != 1 || !a.verifyPasswordAndUpgrade(u.ID, q.Password, ph) {
 		a.auditSecurityV26(r, "auth.login_failed", map[string]any{"email": strings.ToLower(strings.TrimSpace(q.Email))})
 		writeError(w, errors.New("correo o contraseña incorrectos"), 401)
@@ -2297,14 +2304,20 @@ func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var q struct {
-		Name        string `json:"name"`
-		Email       string `json:"email"`
-		Password    string `json:"password"`
-		Company     string `json:"company"`
-		AccountType string `json:"account_type"`
-		PartnerRef  string `json:"partner_ref"`
+		Name          string `json:"name"`
+		Email         string `json:"email"`
+		Password      string `json:"password"`
+		Company       string `json:"company"`
+		AccountType   string `json:"account_type"`
+		PartnerRef    string `json:"partner_ref"`
+		CaptchaID     string `json:"captcha_id"`
+		CaptchaChoice int    `json:"captcha_choice"`
+		Website       string `json:"website"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&q)
+	if !workticValidateRegisterV273528(w, r, q.CaptchaID, q.CaptchaChoice, q.Website) {
+		return
+	}
 	partnerRef := partnerRefFromRequestV2714(r, q.PartnerRef)
 	if len(strings.TrimSpace(q.Name)) < 2 || !strings.Contains(q.Email, "@") || len(q.Password) < 12 {
 		writeError(w, errors.New("nombre, correo válido y contraseña de mínimo 12 caracteres son obligatorios"), 400)
@@ -2330,7 +2343,7 @@ func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback()
-	res, err := tx.Exec(`INSERT INTO app_users(name,email,password_hash,role,company,active,created_at,tenant_id) VALUES(?,?,?,'owner',?,1,?,0)`, strings.TrimSpace(q.Name), strings.ToLower(strings.TrimSpace(q.Email)), passwordHash, company, now.Format(time.RFC3339))
+	res, err := tx.Exec(`INSERT INTO app_users(name,email,password_hash,role,company,active,created_at,tenant_id) VALUES(?,?,?,'owner',?,?,?,0)`, strings.TrimSpace(q.Name), strings.ToLower(strings.TrimSpace(q.Email)), passwordHash, company, workticNewUserActiveV273528(), now.Format(time.RFC3339))
 	if err != nil {
 		writeError(w, errors.New("el correo ya está registrado"), 400)
 		return
@@ -2372,12 +2385,22 @@ func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	activationToken, err := workticPreparePendingV273528(tx, id, tenantID, q.Name, q.Email)
+	if err != nil {
+		writeError(w, errors.New("no se pudo preparar la activacion"), 503)
+		return
+	}
 	if err = tx.Commit(); err != nil {
 		writeError(w, err, 500)
 		return
 	}
 	if partnerRef != "" {
 		http.SetCookie(w, &http.Cookie{Name: partnerReferralCookieV2714, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.cfg.AppEnv == "production", SameSite: http.SameSiteLaxMode})
+	}
+	if workticVerificationEnabledV273528() {
+		a.workticSendActivationV273528(q.Name, q.Email, activationToken)
+		writeJSON(w, map[string]any{"ok": true, "pending_verification": true})
+		return
 	}
 	if err = a.createSession(w, id); err != nil {
 		writeError(w, err, 500)

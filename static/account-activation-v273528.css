@@ -1,0 +1,29 @@
+/* Worktic AI V27.35.28: additions only; the approved login V27.35.25 is unchanged. */
+.wt28-activation[hidden],.wt28-captcha[hidden],.wt28-activation__status[hidden],.wt28-activation__error[hidden]{display:none!important}
+.wt28-captcha{margin:3px 0 16px;padding:17px;border:1px solid #d5ddfc;border-radius:17px;background:linear-gradient(135deg,#f5f8ff,#f9f6ff);color:#1e2b50}
+.wt28-captcha__head{display:flex;align-items:center;gap:11px;margin-bottom:12px}
+.wt28-captcha__mark{display:grid;place-items:center;width:35px;height:35px;border-radius:10px;background:linear-gradient(130deg,#3669ff,#9b47ed);color:#fff;font-size:20px}
+.wt28-captcha__head strong{display:block;font-size:13px;font-weight:800}.wt28-captcha__head small{font-size:11px;color:#667397}
+.wt28-captcha__tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.wt28-tile{min-height:69px;border:1px solid #d6dffa;border-radius:12px;background:white;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;transition:transform .17s,border-color .17s,box-shadow .17s;color:#61739d}
+.wt28-tile svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.wt28-tile span{font-size:10px}.wt28-tile:hover{transform:translateY(-2px);border-color:#735dff}.wt28-tile.is-selected{background:#f0edff;border-color:#6753ed;box-shadow:0 0 0 3px #7653ff20;color:#5342d5}
+.wt28-captcha__footer{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:11px}.wt28-captcha__footer small{font-size:11px;color:#64728f}.wt28-captcha__refresh{border:0;background:transparent;color:#6650e5;cursor:pointer;padding:7px;font-size:12px;font-weight:700}
+.wt28-honey{position:absolute!important;left:-99999px!important;width:1px!important;height:1px!important;overflow:hidden!important}
+.wt28-activation{padding:12px 0 0;display:grid;gap:18px;text-align:center;color:#1a2545}
+.wt28-activation__icon{width:70px;height:70px;display:grid;place-items:center;margin:0 auto;border-radius:23px;background:linear-gradient(135deg,#3869ff,#8f4af2,#df36e9);color:#fff;box-shadow:0 14px 28px #6654ef35;font-size:31px}
+.wt28-activation h3{font-size:25px;font-weight:850;letter-spacing:-.7px;line-height:1.18;margin:0}
+.wt28-activation p{font-size:14px;color:#5a6789;line-height:1.65;margin:0}
+.wt28-activation__form{display:grid;gap:10px;text-align:left}
+.wt28-activation__form label{font-size:13px;font-weight:750}
+.wt28-activation__form input{height:51px;border-radius:12px;border:1px solid #d5defc;padding:0 14px;width:100%;box-sizing:border-box;font:inherit;background:#fbfcff}
+.wt28-activation__form button,.wt28-activation__action{min-height:49px;border:0;border-radius:13px;color:#fff;cursor:pointer;font-size:14px;font-weight:750;background:linear-gradient(90deg,#3a63ff,#7c4dff,#e33cff)}
+.wt28-activation__back{border:0;background:transparent;color:#6551dd;font-size:13px;font-weight:700;cursor:pointer;padding:9px}
+.wt28-activation__error{color:#a62544;background:#fff1f5;border:1px solid #ffd0dc;border-radius:12px;padding:12px;font-size:13px;text-align:left}
+.wt28-activation__status{color:#315765;background:#eefbfb;border:1px solid #bfeee9;border-radius:12px;padding:13px;font-size:13px}
+.wt28-resend-link{display:block;margin:8px auto 0;background:none;border:none;color:#6e4ee7;cursor:pointer;font-size:12px;text-decoration:underline}
+@media(max-width:640px){.wt28-captcha{padding:14px}.wt28-tile{min-height:65px}.wt28-activation{padding-top:12px}.wt28-activation h3{font-size:23px}}
+@media(prefers-reduced-motion:reduce){.wt28-tile{transition:none}}
+
+.wt28-tile img{width:42px;height:42px;object-fit:contain;pointer-events:none}
+.wt28-tile{min-height:82px}
