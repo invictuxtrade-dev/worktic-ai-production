@@ -22,6 +22,7 @@ func (a *App) ensureAdminFullSchema() error {
 			`ALTER TABLE app_users ADD COLUMN deleted_at TEXT NOT NULL DEFAULT ''`,
 			`ALTER TABLE app_users ADD COLUMN blocked_reason TEXT NOT NULL DEFAULT ''`,
 			`ALTER TABLE app_users ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE app_users ADD COLUMN deleted_original_email TEXT NOT NULL DEFAULT ''`,
 			`ALTER TABLE billing_plans ADD COLUMN deleted_at TEXT NOT NULL DEFAULT ''`,
 			`ALTER TABLE billing_subscriptions ADD COLUMN source TEXT NOT NULL DEFAULT 'system'`,
 			`ALTER TABLE billing_subscriptions ADD COLUMN admin_note TEXT NOT NULL DEFAULT ''`,
@@ -30,6 +31,11 @@ func (a *App) ensureAdminFullSchema() error {
 		for _, stmt := range stmts {
 			_, _ = a.db.Exec(stmt)
 		}
+		_, adminFullSchemaErr = a.db.Exec(`UPDATE app_users SET deleted_original_email=CASE WHEN deleted_original_email='' THEN email ELSE deleted_original_email END, email='deleted-user-' || id || '@worktic.invalid' WHERE COALESCE(deleted_at,'')<>'' AND email NOT LIKE 'deleted-user-%@worktic.invalid'`)
+		if adminFullSchemaErr != nil {
+			return
+		}
+
 		_, adminFullSchemaErr = a.db.Exec(`CREATE INDEX IF NOT EXISTS idx_app_users_admin_full ON app_users(active,role,tenant_id,created_at)`)
 		if adminFullSchemaErr == nil {
 			_, adminFullSchemaErr = a.db.Exec(`CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_admin_full ON billing_subscriptions(user_id,status,ends_at,source)`)
@@ -230,7 +236,7 @@ func (a *App) adminFullUsersHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case "delete":
-			_, err := a.db.Exec(`UPDATE app_users SET active=0,deleted_at=?,blocked_reason=?,updated_at=? WHERE id=?`, now, firstNonEmpty(strings.TrimSpace(q.Reason), "Eliminado por superadministración"), now, q.ID)
+			_, err := a.db.Exec(`UPDATE app_users SET active=0,email='deleted-user-' || id || '@worktic.invalid',deleted_original_email=email,deleted_at=?,blocked_reason=?,updated_at=? WHERE id=? AND COALESCE(deleted_at,'')=''`, now, firstNonEmpty(strings.TrimSpace(q.Reason), "Eliminado por superadministración"), now, q.ID)
 			if err != nil {
 				writeError(w, err, 500)
 				return
@@ -243,7 +249,21 @@ func (a *App) adminFullUsersHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case "restore":
-			_, err := a.db.Exec(`UPDATE app_users SET active=1,deleted_at='',blocked_reason='',updated_at=? WHERE id=?`, now, q.ID)
+			var archivedEmail string
+			if err := a.db.QueryRow(`SELECT COALESCE(deleted_original_email,'') FROM app_users WHERE id=?`, q.ID).Scan(&archivedEmail); err != nil || archivedEmail == "" {
+				writeError(w, errors.New("no hay correo original para restaurar"), 400)
+				return
+			}
+			var used int
+			if err := a.db.QueryRow(`SELECT COUNT(*) FROM app_users WHERE lower(email)=lower(?) AND id<>?`, archivedEmail, q.ID).Scan(&used); err != nil {
+				writeError(w, err, 500)
+				return
+			}
+			if used > 0 {
+				writeError(w, errors.New("el correo ya pertenece a otra cuenta; no se puede restaurar"), 409)
+				return
+			}
+			_, err := a.db.Exec(`UPDATE app_users SET active=1,email=deleted_original_email,deleted_original_email='',deleted_at='',blocked_reason='',updated_at=? WHERE id=? AND COALESCE(deleted_original_email,'')<>''`, now, q.ID)
 			if err != nil {
 				writeError(w, err, 500)
 				return
