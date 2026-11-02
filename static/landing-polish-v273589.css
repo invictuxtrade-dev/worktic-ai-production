@@ -1,0 +1,74 @@
+/* Worktic AI V27.35.89 · Atracción de Clientes + Landing Studio UX refinement.
+   Scope: visual editor and navigation only. Existing save/CRM logic unchanged. */
+#appSidebar button.wtca-hidden-landing-nav{display:none!important}
+.wtca-attraction-tabs{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 19px;padding:10px;border:1px solid #dde5f6;background:#fff;border-radius:15px}
+.wtca-attraction-tabs button{background:transparent!important;color:#3f4a68!important;border:1px solid transparent!important;font:700 12px 'Instrument Sans',sans-serif!important;border-radius:10px!important;min-height:40px!important;padding:10px 16px!important;white-space:normal}
+.wtca-attraction-tabs button.active{background:#141a37!important;color:white!important;box-shadow:0 5px 15px #15153b16}
+.wtca-attraction-tabs button:focus-visible{outline:3px solid #7b60ff!important;outline-offset:2px}
+.wtca-attraction-tabs .wtca-attraction-caption{color:#8290af;font-size:11px;font-weight:800;margin-right:auto;padding:0 8px;white-space:nowrap}
+#landings .wtca-attraction-tabs{margin:0 0 22px}
+#landings #wtcsHub{margin-top:0}
+/* Modal shell — eliminate micro-columns and nested horizontal scrolling at 1366px. */
+#modal:has(.wtcs-upgraded){width:min(97vw,1650px)!important;max-width:min(97vw,1650px)!important;height:min(94dvh,1000px)!important;max-height:94dvh!important;overflow:hidden!important;padding:0!important;border-radius:21px!important;box-sizing:border-box!important}
+#modal:has(.wtcs-upgraded) #modalContent{width:100%!important;max-width:none!important;height:100%!important;max-height:none!important;margin:0!important;padding:0!important;display:block!important;overflow:hidden!important}
+.wtcs-upgraded,.wtcs-upgraded *{box-sizing:border-box}
+.wtcs-upgraded{height:100%!important;max-height:100%!important;min-width:0!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;background:#f6f8ff!important;color:#141a39}
+.wtcs-upgraded .wtl2-header{flex:0 0 auto!important;min-height:100px!important;padding:19px 28px!important;margin:0!important;border-radius:18px 18px 0 0!important;display:flex!important;justify-content:space-between!important;align-items:center!important;gap:12px!important}
+.wtcs-upgraded .wtl2-header .wtl2-kicker{font-size:10px!important;letter-spacing:.14em!important}
+.wtcs-upgraded .wtl2-header h2{font-size:clamp(20px,2vw,27px)!important;line-height:1.16!important;margin:5px 0!important}
+.wtcs-upgraded .wtl2-header p{font-size:12px!important;line-height:1.4!important;margin:0!important}
+.wtcs-upgraded .wtl2-head-right{display:flex!important;align-items:center!important;flex-wrap:wrap!important;gap:8px!important}
+.wtcs-upgraded .wtl2-body{flex:1 1 0!important;min-height:0!important;min-width:0!important;display:grid!important;grid-template-columns:194px minmax(0,1fr)!important;align-items:stretch!important;overflow:hidden!important;gap:0!important}
+.wtcs-upgraded .wtl2-nav{min-width:0!important;max-width:none!important;width:194px!important;padding:18px 11px!important;overflow-y:auto!important;overflow-x:hidden!important;background:#f8f8fd!important;border-right:1px solid #e1e6f2!important;align-self:stretch!important}
+.wtcs-upgraded .wtl2-nav button{width:100%!important;max-width:100%!important;display:flex!important;align-items:center!important;gap:9px!important;padding:11px 9px!important;margin:0 0 7px!important;text-align:left!important;min-height:53px!important;line-height:1.2!important;border-radius:12px!important;white-space:normal!important}
+.wtcs-upgraded .wtl2-nav button .num{flex:0 0 29px!important;width:29px!important;height:29px!important;display:grid!important;place-items:center!important;border-radius:9px!important}
+.wtcs-upgraded .wtl2-nav button>div{min-width:0!important;max-width:none!important;overflow-wrap:anywhere!important}
+.wtcs-upgraded .wtl2-nav button b{font-size:11.5px!important;line-height:1.2!important}
+.wtcs-upgraded .wtl2-nav button small{display:block!important;font-size:10px!important;line-height:1.25!important;margin-top:3px!important}
+.wtcs-upgraded .wtl2-help{font-size:11px!important;line-height:1.5!important;white-space:normal!important}
+.wtcs-upgraded .wtl2-workspace{width:100%!important;min-width:0!important;max-width:none!important;min-height:0!important;height:100%!important;display:grid!important;grid-template-columns:minmax(0,1.3fr) minmax(300px,1fr)!important;align-items:stretch!important;gap:0!important;overflow:hidden!important}
+.wtcs-upgraded .wtl2-editor{min-width:0!important;max-width:none!important;width:100%!important;height:100%!important;min-height:0!important;margin:0!important;padding:21px 25px 35px!important;overflow-y:auto!important;overflow-x:hidden!important;scrollbar-gutter:stable!important;background:#f7f8fd!important}
+.wtcs-upgraded .wtl2-preview{min-width:0!important;max-width:none!important;width:100%!important;height:100%!important;min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;padding:23px 19px!important;border-left:1px solid #e0e5f1!important;background:#eef1fa!important}
+.wtcs-upgraded .wtl2-preview-sticky{max-width:100%!important;width:100%!important;position:sticky!important;top:5px!important}
+.wtcs-upgraded .wtl2-phone{margin-inline:auto!important;max-width:430px!important;width:100%!important}
+.wtcs-upgraded .wtl2-step,.wtcs-upgraded .wtl2-section,.wtcs-upgraded .wtcs-section{width:100%!important;max-width:none!important;min-width:0!important}
+.wtcs-upgraded .wtl2-step[hidden]{display:none!important}
+.wtcs-upgraded .wtl2-section{padding:23px!important;margin:0 0 16px!important;border-radius:18px!important;background:white!important;border:1px solid #e2e7f3!important;box-shadow:0 7px 30px #111b3a05!important}
+.wtcs-upgraded .wtl2-grid2{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:15px!important;align-items:start!important;width:100%!important}
+.wtcs-upgraded .wtl2-field{width:100%!important;max-width:100%!important;min-width:0!important;display:flex!important;flex-direction:column!important;gap:7px!important;margin-bottom:11px!important;overflow:visible!important}
+.wtcs-upgraded .wtl2-field>span,.wtcs-upgraded .wtl2-field>label{font-size:12px!important;line-height:1.35!important;font-weight:750!important;overflow-wrap:normal!important}
+.wtcs-upgraded :is(.wtl2-field input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),.wtl2-field select,.wtl2-field textarea,.wtcs-field select){width:100%!important;max-width:100%!important;min-width:0!important;min-height:43px!important;height:auto!important;line-height:1.4!important;font-size:13px!important;border:1px solid #dbe2f2!important;border-radius:11px!important;padding:11px 13px!important;background:#fff!important;color:#18213b!important;box-shadow:none!important}
+.wtcs-upgraded .wtl2-field textarea{resize:vertical!important;min-height:92px!important}
+.wtcs-upgraded .wtl2-field :is(input,select,textarea):focus-visible{outline:2px solid #7557ff!important;outline-offset:1px!important}
+.wtcs-upgraded .wtl2-section-head{display:flex!important;gap:12px!important;align-items:flex-start!important;justify-content:space-between!important;margin-bottom:20px!important}
+.wtcs-upgraded .wtl2-section-head>div{min-width:0!important;flex:1!important}
+.wtcs-upgraded .wtl2-section-head h3{font-size:17px!important;line-height:1.25!important;margin:0 0 5px!important}
+.wtcs-upgraded .wtl2-section-head p{font-size:12px!important;line-height:1.5!important;margin:0!important}
+/* Fix extreme checkbox stretching visible on Publicar tab. */
+.wtcs-upgraded .wtl2-switch{width:100%!important;min-width:0!important;display:flex!important;align-items:center!important;gap:16px!important;justify-content:space-between!important;padding:15px 0!important;border-bottom:1px solid #edf0f8!important}
+.wtcs-upgraded .wtl2-switch>span{display:block!important;flex:1 1 0!important;min-width:0!important;max-width:none!important;width:auto!important;overflow-wrap:break-word!important}
+.wtcs-upgraded .wtl2-switch b{font-size:12px!important;line-height:1.4!important;display:block!important;margin-bottom:4px!important}
+.wtcs-upgraded .wtl2-switch small{display:block!important;font-size:11px!important;line-height:1.45!important;color:#74819c!important}
+.wtcs-upgraded .wtl2-switch input[type="checkbox"]{display:block!important;flex:0 0 44px!important;box-sizing:border-box!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:25px!important;min-height:25px!important;max-height:25px!important;margin:0!important;padding:0!important;appearance:none!important;-webkit-appearance:none!important;background:#dce3f4!important;border:1px solid #bdc8de!important;border-radius:30px!important;position:relative!important;cursor:pointer!important;transform:none!important}
+.wtcs-upgraded .wtl2-switch input[type="checkbox"]:before{content:""!important;position:absolute!important;width:17px!important;height:17px!important;top:3px!important;left:3px!important;border-radius:50%!important;background:white!important;box-shadow:0 2px 6px #0c1a3a34!important;transition:transform .16s ease!important}
+.wtcs-upgraded .wtl2-switch input[type="checkbox"]:checked{background:linear-gradient(120deg,#4c61ff,#a334ec)!important;border-color:#6e52fb!important}
+.wtcs-upgraded .wtl2-switch input[type="checkbox"]:checked:before{transform:translateX(19px)!important}
+.wtcs-upgraded .wtl2-switch input[type="checkbox"]:focus-visible{outline:3px solid #75d2fb!important;outline-offset:3px!important}
+.wtcs-upgraded .wtl2-footer{flex:0 0 auto!important;min-height:67px!important;margin:0!important;padding:11px 23px!important;background:#fff!important;border-top:1px solid #e0e5f1!important;display:flex!important;align-items:center!important;gap:9px!important;justify-content:flex-end!important;position:relative!important;z-index:2!important}
+.wtcs-upgraded .wtl2-footer .wtl2-save-note{margin-right:auto!important;font-size:11px!important;color:#758099!important}
+.wtcs-upgraded .wtl2-footer button{min-height:41px!important;padding:10px 18px!important;border-radius:10px!important;white-space:nowrap!important}
+.wtcs-upgraded .wtcs-panel,.wtcs-upgraded .wtcs-top{width:100%!important;min-width:0!important;max-width:none!important;overflow-wrap:anywhere!important}
+.wtcs-upgraded .wtcs-progress{gap:8px!important}
+.wtcs-upgraded .wtcs-frame-shell{overflow:auto!important;max-width:100%!important}
+.wtcs-upgraded .wtcs-frame-shell iframe{min-width:0!important}
+.wtcs-upgraded[data-studio-step="inplace"] .wtl2-workspace{display:block!important}
+.wtcs-upgraded[data-studio-step="inplace"] .wtl2-editor{padding:21px 25px 35px!important;max-width:none!important}
+.wtcs-upgraded[data-wtca-focus="true"] .wtl2-workspace{display:block!important}
+.wtcs-upgraded[data-wtca-focus="true"] .wtl2-preview{display:none!important}
+.wtcs-upgraded[data-wtca-focus="true"] .wtl2-editor{width:100%!important;max-width:none!important}
+.wtca-focus-btn{border-radius:9px!important;background:#ffffff21!important;color:white!important;border:1px solid #ffffff4a!important;padding:8px 12px!important;min-height:33px!important;font-size:11px!important;font-weight:750!important;white-space:nowrap!important}
+.wtca-focus-btn:focus-visible{outline:2px solid #7de2ff!important;outline-offset:2px!important}
+.wtca-preview-caption{font-size:11px;line-height:1.4;color:#687694;margin:8px 0 14px}
+@media(max-width:1170px){.wtcs-upgraded .wtl2-workspace{grid-template-columns:minmax(0,1.1fr) minmax(245px,.8fr)!important}.wtcs-upgraded .wtl2-body{grid-template-columns:174px minmax(0,1fr)!important}.wtcs-upgraded .wtl2-nav{width:174px!important}.wtcs-upgraded .wtl2-editor{padding:18px!important}.wtcs-upgraded .wtl2-preview{padding:18px 12px!important}}
+@media(max-width:980px){.wtcs-upgraded .wtl2-workspace{display:block!important;overflow-y:auto!important}.wtcs-upgraded .wtl2-editor{height:auto!important;min-height:480px!important;max-height:none!important;overflow:visible!important}.wtcs-upgraded .wtl2-preview{display:none!important}.wtcs-upgraded .wtl2-grid2{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:680px){#modal:has(.wtcs-upgraded){width:100vw!important;max-width:100vw!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important}.wtcs-upgraded .wtl2-header{padding:13px 15px!important;min-height:90px!important;border-radius:0!important}.wtcs-upgraded .wtl2-header h2{font-size:18px!important}.wtcs-upgraded .wtl2-header p{display:none!important}.wtcs-upgraded .wtl2-body{display:flex!important;flex-direction:column!important;overflow:hidden!important}.wtcs-upgraded .wtl2-nav{display:flex!important;flex:0 0 auto!important;width:100%!important;max-width:100%!important;overflow-x:auto!important;overflow-y:hidden!important;gap:5px!important;padding:7px!important;scrollbar-width:thin!important}.wtcs-upgraded .wtl2-nav button{flex:0 0 116px!important;width:116px!important;max-width:116px!important;min-height:44px!important;padding:8px!important;margin:0!important}.wtcs-upgraded .wtl2-nav button small,.wtcs-upgraded .wtl2-help{display:none!important}.wtcs-upgraded .wtl2-workspace{flex:1 1 0!important;min-height:0!important;overflow-y:auto!important}.wtcs-upgraded .wtl2-editor{padding:12px!important}.wtcs-upgraded .wtl2-grid2{grid-template-columns:1fr!important}.wtcs-upgraded .wtl2-section{padding:16px!important}.wtcs-upgraded .wtl2-footer{padding:10px!important;min-height:61px!important}.wtcs-upgraded .wtl2-save-note{display:none!important}.wtca-focus-btn{display:none!important}.wtca-attraction-tabs .wtca-attraction-caption{width:100%!important}.wtca-attraction-tabs button{flex:1 1 auto}}
