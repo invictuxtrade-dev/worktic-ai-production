@@ -279,7 +279,7 @@ func touchFromRequestV24(r *http.Request, which string) analyticsTouchV24 {
 }
 
 func (a *App) applyLeadAttributionFromRequestV24(tid, leadID int64, r *http.Request) {
-	if tid <= 0 || leadID <= 0 || r == nil {
+	if tid <= 0 || leadID <= 0 || r == nil || a == nil || a.db == nil {
 		return
 	}
 	first := touchFromRequestV24(r, "wt_first_touch")
@@ -293,6 +293,47 @@ func (a *App) applyLeadAttributionFromRequestV24(tid, leadID int64, r *http.Requ
 	}
 	if last.LandingID == 0 {
 		last.LandingID, _ = strconv.ParseInt(strings.TrimSpace(r.FormValue("wt_landing")), 10, 64)
+	}
+
+	// V27.35.73 REV3: los parametros del formulario y las cookies son NO confiables.
+	// Comprobar propiedad real antes de escribir IDs, incluso para first/last touch.
+	// Ante una consulta fallida o un recurso inexistente, no atribuir ese ID.
+	validCampaign := func(id int64) bool {
+		if id <= 0 {
+			return false
+		}
+		var ok int
+		err := a.db.QueryRow(`SELECT 1 FROM marketing_campaigns WHERE id=? AND tenant_id=?`, id, tid).Scan(&ok)
+		return err == nil && ok == 1
+	}
+	validPost := func(id int64) bool {
+		if id <= 0 {
+			return false
+		}
+		var ok int
+		err := a.db.QueryRow(`SELECT 1 FROM social_posts WHERE id=? AND tenant_id=?`, id, tid).Scan(&ok)
+		return err == nil && ok == 1
+	}
+	validLanding := func(id int64) bool {
+		if id <= 0 {
+			return false
+		}
+		var ok int
+		err := a.db.QueryRow(`SELECT 1 FROM marketing_landings WHERE id=? AND tenant_id=? AND (
+			COALESCE(form_id,0)=0 OR form_id=(SELECT form_id FROM marketing_leads WHERE tenant_id=? AND id=?))`,
+			id, tid, tid, leadID).Scan(&ok)
+		return err == nil && ok == 1
+	}
+	for _, touch := range []*analyticsTouchV24{&first, &last} {
+		if !validCampaign(touch.CampaignID) {
+			touch.CampaignID = 0
+		}
+		if !validPost(touch.PostID) {
+			touch.PostID = 0
+		}
+		if !validLanding(touch.LandingID) {
+			touch.LandingID = 0
+		}
 	}
 	if first.Channel == "" && first.PostID == 0 && first.CampaignID == 0 {
 		first = last
@@ -319,7 +360,6 @@ func (a *App) applyLeadAttributionFromRequestV24(tid, leadID int64, r *http.Requ
 		first.Source, first.Channel, first.PostID, first.CampaignID,
 		last.Source, last.Channel, last.PostID, last.CampaignID, tid, leadID)
 }
-
 func parseLeadRefV24(sourceRef string) int64 {
 	if strings.HasPrefix(sourceRef, "lead:") {
 		n, _ := strconv.ParseInt(strings.TrimPrefix(sourceRef, "lead:"), 10, 64)

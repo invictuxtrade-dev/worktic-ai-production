@@ -13,7 +13,8 @@ func TestAgendaAuditTenantIsolationV273515(t *testing.T) {
 	}
 	defer db.Close()
 	_, err = db.Exec(`CREATE TABLE crm_appointments(id INTEGER PRIMARY KEY,tenant_id INTEGER NOT NULL,contact_name TEXT NOT NULL,service TEXT NOT NULL,starts_at TEXT NOT NULL,status TEXT NOT NULL,notes TEXT NOT NULL,duration_minutes INTEGER NOT NULL);
-CREATE TABLE agenda_appointment_audit_v273515(id INTEGER PRIMARY KEY AUTOINCREMENT,tenant_id INTEGER NOT NULL,appointment_id INTEGER NOT NULL,actor_id INTEGER NOT NULL,actor_name TEXT NOT NULL,action TEXT NOT NULL,before_json TEXT NOT NULL,after_json TEXT NOT NULL,created_at TEXT NOT NULL);`)
+CREATE TABLE agenda_appointment_audit_v273515(id INTEGER PRIMARY KEY AUTOINCREMENT,tenant_id INTEGER NOT NULL,appointment_id INTEGER NOT NULL,actor_id INTEGER NOT NULL,actor_name TEXT NOT NULL,action TEXT NOT NULL,before_json TEXT NOT NULL,after_json TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE automation_events(id INTEGER PRIMARY KEY AUTOINCREMENT,tenant_id INTEGER NOT NULL,event_type TEXT NOT NULL,source TEXT NOT NULL,payload_json TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL);`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,6 +37,14 @@ CREATE TABLE agenda_appointment_audit_v273515(id INTEGER PRIMARY KEY AUTOINCREME
 	}
 	if tenant != 1 || actor != 9 || appointment != 7 || who != "Operador" || action != "update" {
 		t.Fatal("audit contents incorrect")
+	}
+	var evtTenant int64
+	var evtType, source string
+	if err = db.QueryRow(`SELECT tenant_id,event_type,source FROM automation_events WHERE tenant_id=?`, 1).Scan(&evtTenant, &evtType, &source); err != nil {
+		t.Fatal("missing agenda automation event:", err)
+	}
+	if evtTenant != 1 || evtType != "appointment.updated" || source != "agenda" {
+		t.Fatalf("wrong automation event: tenant=%d type=%s source=%s", evtTenant, evtType, source)
 	}
 	var count int
 	if err = db.QueryRow(`SELECT COUNT(*) FROM agenda_appointment_audit_v273515 WHERE tenant_id=?`, 2).Scan(&count); err != nil || count != 0 {

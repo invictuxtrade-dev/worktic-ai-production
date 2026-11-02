@@ -152,6 +152,16 @@ func (a *App) agendaProfessionalsHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, errors.New("sin permiso"), 403)
 		return
 	}
+	if r.Method == http.MethodDelete {
+		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+		_, e := a.db.Exec(`DELETE FROM agenda_professionals WHERE id=? AND tenant_id=?`, id, tid)
+		if e != nil {
+			writeError(w, e, 500)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+		return
+	}
 	var q AgendaProfessional
 	_ = json.NewDecoder(r.Body).Decode(&q)
 	if strings.TrimSpace(q.Name) == "" {
@@ -193,16 +203,6 @@ func (a *App) agendaProfessionalsHandler(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, map[string]any{"ok": true})
 		return
 	}
-	if r.Method == http.MethodDelete {
-		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
-		_, e := a.db.Exec(`DELETE FROM agenda_professionals WHERE id=? AND tenant_id=?`, id, tid)
-		if e != nil {
-			writeError(w, e, 500)
-			return
-		}
-		writeJSON(w, map[string]any{"ok": true})
-		return
-	}
 	http.Error(w, "Método no permitido", 405)
 }
 
@@ -232,6 +232,16 @@ func (a *App) agendaServicesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if !canManageAgenda(u.Role) {
 		writeError(w, errors.New("sin permiso"), 403)
+		return
+	}
+	if r.Method == http.MethodDelete {
+		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+		_, e := a.db.Exec(`DELETE FROM agenda_services WHERE id=? AND tenant_id=?`, id, tid)
+		if e != nil {
+			writeError(w, e, 500)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
 		return
 	}
 	var q AgendaService
@@ -271,16 +281,6 @@ func (a *App) agendaServicesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodPut {
 		_, e := a.db.Exec(`UPDATE agenda_services SET name=?,duration_minutes=?,buffer_minutes=?,active=? WHERE id=? AND tenant_id=?`, q.Name, q.Duration, q.Buffer, active, q.ID, tid)
-		if e != nil {
-			writeError(w, e, 500)
-			return
-		}
-		writeJSON(w, map[string]any{"ok": true})
-		return
-	}
-	if r.Method == http.MethodDelete {
-		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
-		_, e := a.db.Exec(`DELETE FROM agenda_services WHERE id=? AND tenant_id=?`, id, tid)
 		if e != nil {
 			writeError(w, e, 500)
 			return

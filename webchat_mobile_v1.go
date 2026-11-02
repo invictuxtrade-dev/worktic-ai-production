@@ -413,13 +413,42 @@ func (a *App) webChatMessageV1(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	_, err := a.db.Exec(`INSERT INTO worktic_messages(tenant_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,'in','text',?,'received',?)`, tenant, "web", "", chat, chat, q.Text, now)
+	// The incoming message and the automation trigger are committed together.
+	// A failed trigger insert must not acknowledge a message that the workflow
+	// engine will never see. Only visitor messages create this trigger.
+	tx, err := a.db.Begin()
 	if err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	defer tx.Rollback()
+	res, err := tx.Exec(`INSERT INTO worktic_messages(tenant_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,'in','text',?,'received',?)`, tenant, "web", "", chat, chat, q.Text, now)
+	if err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	messageID, err := res.LastInsertId()
+	if err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	payload, err := json.Marshal(map[string]any{"chat": chat, "channel": "web", "channel_id": channel, "text": q.Text, "message_id": messageID})
+	if err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	_, err = tx.Exec(`INSERT INTO automation_events(tenant_id,event_type,source,payload_json,status,created_at) VALUES(?,?,?,?,'pending',?)`, tenant, "message.received", "webchat", string(payload), now)
+	if err != nil {
+		writeError(w, err, 500)
+		return
+	}
+	if err = tx.Commit(); err != nil {
 		writeError(w, err, 500)
 		return
 	}
 	_, _ = a.db.Exec(`UPDATE worktic_contacts SET unread=unread+1,updated_at=? WHERE tenant_id=? AND chat_jid=?`, now, tenant, chat)
 	_, _ = a.db.Exec(`UPDATE crm_contacts SET last_activity_at=?,updated_at=? WHERE tenant_id=? AND external_id=?`, now, now, tenant, chat)
+	// Preserve legacy Inbox listeners alongside the new standard automation event.
 	a.emitInboxEvent(tenant, "conversation.message_received", map[string]any{"chat": chat, "channel": "web", "channel_id": channel})
 	if webChatAIOn() && webRateLimit("ai:"+chat) {
 		var agent int64

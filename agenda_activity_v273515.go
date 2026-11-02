@@ -32,10 +32,36 @@ func (a *App) agendaAuditV273515(tenantID int64, actor *User, appointmentID int6
 			actorName = actor.Email
 		}
 	}
-	_, err := a.db.Exec(`INSERT INTO agenda_appointment_audit_v273515(tenant_id,appointment_id,actor_id,actor_name,action,before_json,after_json,created_at) VALUES(?,?,?,?,?,?,?,?)`,
-		tenantID, appointmentID, actorID, actorName, action, before, afterText, time.Now().UTC().Format(time.RFC3339))
+	// A single transaction preserves audit/event consistency. Appointment writes
+	// happen in the existing controller before this callback; a failure here is
+	// logged for diagnosis, never reported as a successful automation event.
+	tx, err := a.db.Begin()
+	if err != nil {
+		log.Printf("agenda audit transaction failed: %v", err)
+		return
+	}
+	defer tx.Rollback()
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err = tx.Exec(`INSERT INTO agenda_appointment_audit_v273515(tenant_id,appointment_id,actor_id,actor_name,action,before_json,after_json,created_at) VALUES(?,?,?,?,?,?,?,?)`,
+		tenantID, appointmentID, actorID, actorName, action, before, afterText, now)
 	if err != nil {
 		log.Printf("agenda audit write failed: %v", err)
+		return
+	}
+	if kind, payload, ok := automationAgendaEventV273543(appointmentID, action, before, afterText); ok {
+		b, marshalErr := json.Marshal(payload)
+		if marshalErr != nil {
+			log.Printf("agenda automation payload failed: %v", marshalErr)
+			return
+		}
+		_, err = tx.Exec(`INSERT INTO automation_events(tenant_id,event_type,source,payload_json,status,created_at) VALUES(?,?,?,?,'pending',?)`, tenantID, kind, "agenda", string(b), now)
+		if err != nil {
+			log.Printf("agenda automation event failed: %v", err)
+			return
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		log.Printf("agenda audit/event commit failed: %v", err)
 	}
 }
 

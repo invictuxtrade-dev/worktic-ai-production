@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -78,7 +79,16 @@ CREATE TABLE IF NOT EXISTS automation_events(
 );
 CREATE INDEX IF NOT EXISTS idx_automation_events_pending ON automation_events(status,created_at);
 `)
-	return err
+	if err != nil {
+		return err
+	}
+	if err := initAutomationWaitV273538Schema(db); err != nil {
+		return err
+	}
+	if err := initAutomationDeliveryV273542Schema(db); err != nil {
+		return err
+	}
+	return initAutomationWAInboundV273546Schema(db)
 }
 
 func (a *App) automationWorkflowsHandler(w http.ResponseWriter, r *http.Request) {
@@ -144,10 +154,65 @@ func (a *App) automationWorkflowsHandler(w http.ResponseWriter, r *http.Request)
 		if len(x.Graph) == 0 {
 			x.Graph = []byte(`{"nodes":[],"edges":[]}`)
 		}
+		if err := automationValidTriggerConfigV273536(x.TriggerConfig, x.TriggerType); err != nil {
+			writeError(w, err, 400)
+			return
+		}
+		// Plantilla comercial: exigir selección explícita del formulario.
+		// El filtro existente comprueba después que ese formulario sea del tenant.
+		if x.Status == "active" && x.TriggerType == "form.submitted" {
+			if err := automationValidateCaptacionScopeV273569(x.Graph, x.TriggerConfig); err != nil {
+				writeError(w, err, 400)
+				return
+			}
+		}
 		var g automationGraph
 		if json.Unmarshal(x.Graph, &g) != nil {
 			writeError(w, errors.New("grafo inválido"), 400)
 			return
+		}
+		// Drafts may be edited incrementally. Only publish executable graphs.
+		if x.Status == "active" && x.TriggerType == "form.submitted" {
+			var formFilter map[string]string
+			if err := json.Unmarshal(x.TriggerConfig, &formFilter); err != nil {
+				writeError(w, errors.New("filtro de formulario inválido"), 400)
+				return
+			}
+			if formKey := strings.TrimSpace(formFilter["form_id"]); formKey != "" {
+				formID, parseErr := strconv.ParseInt(formKey, 10, 64)
+				if parseErr != nil || formID <= 0 {
+					writeError(w, errors.New("identificador de formulario inválido"), 400)
+					return
+				}
+				var count int
+				lookupErr := a.db.QueryRow(`SELECT COUNT(*) FROM marketing_forms WHERE id=? AND tenant_id=? AND active=1`, formID, tid).Scan(&count)
+				if lookupErr != nil || count != 1 {
+					writeError(w, errors.New("selecciona un formulario activo de esta empresa"), 400)
+					return
+				}
+			}
+		}
+		if x.Status == "active" {
+			if _, err := buildAutomationExecutionPlan(g); err != nil {
+				writeError(w, fmt.Errorf("no se puede activar: %w", err), 400)
+				return
+			}
+			if err := validateAutomationActionsV273540(g); err != nil {
+				writeError(w, fmt.Errorf("revisa la configuración antes de activar: %w", err), 400)
+				return
+			}
+			if err := a.validateAutomationSalesHubReferencesV273545(tid, g); err != nil {
+				writeError(w, fmt.Errorf("revisa los responsables y oportunidades: %w", err), 400)
+				return
+			}
+			if err := automationValidateAINodeTypesV273549(automationAINodeTypesV273549(g), automationAIMaxNodesV273549()); err != nil {
+				writeError(w, fmt.Errorf("limite de consumo IA: %w", err), 400)
+				return
+			}
+			if err := a.validateAutomationAgentsV273547(tid, g); err != nil {
+				writeError(w, fmt.Errorf("revisa los agentes IA: %w", err), 400)
+				return
+			}
 		}
 		if x.Status != "active" && x.Status != "paused" {
 			x.Status = "draft"
@@ -238,9 +303,85 @@ func (a *App) automationWorkflowByID(tid, id int64) (AutomationWorkflow, error) 
 }
 
 func (a *App) automationExecutionsHandler(w http.ResponseWriter, r *http.Request) {
-	tid, _, err := a.tenantFor(r)
+	if r.Method != http.MethodGet {
+		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
+		return
+	}
+	tid, u, err := a.tenantFor(r)
 	if err != nil {
 		writeError(w, err, 401)
+		return
+	}
+	// Historial completo (lista, detalle y salud) solo para roles autorizados.
+	if u == nil || !canManageAgents(u.Role) {
+		writeError(w, errors.New("sin permiso para consultar ejecuciones"), 403)
+		return
+	}
+	// Read-only queue health. Never expose event payloads or another tenant's counts.
+	if r.URL.Query().Get("health") == "1" {
+		if u == nil || !canManageAgents(u.Role) {
+			writeError(w, errors.New("sin permiso para consultar la cola"), 403)
+			return
+		}
+		health, healthErr := a.automationQueueHealthV273537(tid)
+		if healthErr != nil {
+			writeError(w, healthErr, 503)
+			return
+		}
+		writeJSON(w, health)
+		return
+	}
+	if r.URL.Query().Get("ai_usage") == "1" {
+		// Counts are completed or failed AI action steps, NOT tokens or money.
+		// Financial metering is already performed by callOpenAI/commercialCore.
+		start, end := automationAIMonthBoundsV273549(time.Now().UTC())
+		var total, success, failed int64
+		err := a.db.QueryRow(`SELECT COUNT(*),
+		 COALESCE(SUM(CASE WHEN s.status='success' THEN 1 ELSE 0 END),0),
+		 COALESCE(SUM(CASE WHEN s.status='failed' THEN 1 ELSE 0 END),0)
+		 FROM automation_execution_steps s
+		 JOIN automation_executions e ON e.id=s.execution_id
+		 WHERE e.tenant_id=? AND s.node_type='ai_task'
+		 AND s.started_at>=? AND s.started_at<?`, tid, start.Format(time.RFC3339), end.Format(time.RFC3339)).Scan(&total, &success, &failed)
+		if err != nil {
+			writeError(w, errors.New("no se pudo consultar el uso IA de automatizaciones"), 503)
+			return
+		}
+		writeJSON(w, map[string]any{
+			"period": start.Format("2006-01"), "total_actions": total,
+			"successful_actions": success, "failed_actions": failed,
+			"max_ai_nodes_per_workflow": automationAIMaxNodesV273549(),
+			"metering_note":             "Conteos de pasos IA, no tokens ni costos. El medidor comercial existente controla y registra el consumo del proveedor.",
+		})
+		return
+	}
+	// Detail requests cannot enumerate other tenants' execution steps.
+	if eid, _ := strconv.ParseInt(r.URL.Query().Get("execution_id"), 10, 64); eid > 0 {
+		var owner int64
+		if err := a.db.QueryRow(`SELECT tenant_id FROM automation_executions WHERE id=? AND tenant_id=?`, eid, tid).Scan(&owner); err != nil {
+			writeError(w, errors.New("ejecución no encontrada"), 404)
+			return
+		}
+		rows, err := a.db.Query(`SELECT node_id,node_type,status,error_message,started_at,finished_at FROM automation_execution_steps WHERE execution_id=? ORDER BY id`, eid)
+		if err != nil {
+			writeError(w, err, 500)
+			return
+		}
+		defer rows.Close()
+		steps := []map[string]any{}
+		for rows.Next() {
+			var nodeID, nodeType, status, msg, start, finish string
+			if err := rows.Scan(&nodeID, &nodeType, &status, &msg, &start, &finish); err != nil {
+				writeError(w, err, 500)
+				return
+			}
+			steps = append(steps, map[string]any{"node_id": nodeID, "node_type": nodeType, "status": status, "error_message": msg, "started_at": start, "finished_at": finish})
+		}
+		if err := rows.Err(); err != nil {
+			writeError(w, err, 500)
+			return
+		}
+		writeJSON(w, map[string]any{"execution_id": eid, "steps": steps})
 		return
 	}
 	wid, _ := strconv.ParseInt(r.URL.Query().Get("workflow_id"), 10, 64)
@@ -269,6 +410,10 @@ func (a *App) automationExecutionsHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (a *App) automationRunHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
+		return
+	}
 	tid, u, err := a.tenantFor(r)
 	if err != nil {
 		writeError(w, err, 401)
@@ -286,12 +431,27 @@ func (a *App) automationRunHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("workflow inválido"), 400)
 		return
 	}
-	x, e := a.runAutomationWorkflow(context.Background(), tid, q.WorkflowID, "manual", "manual", q.Payload)
+	// The Test button must never send messages, call AI, or change CRM data.
+	// Actual workflows execute only from the event worker when active.
+	wf, e := a.automationWorkflowByID(tid, q.WorkflowID)
+	if e != nil {
+		writeError(w, e, 404)
+		return
+	}
+	var g automationGraph
+	if e = json.Unmarshal(wf.Graph, &g); e != nil {
+		writeError(w, errors.New("grafo inválido"), 400)
+		return
+	}
+	plan, e := buildAutomationExecutionPlan(g)
 	if e != nil {
 		writeError(w, e, 400)
 		return
 	}
-	writeJSON(w, x)
+	preview := previewAutomationPlan(plan, q.Payload)
+	preview["trigger_type"] = wf.TriggerType
+	preview["trigger_matches"] = automationTriggerMatchesV273536(wf.TriggerConfig, wf.TriggerType, q.Payload)
+	writeJSON(w, preview)
 }
 
 func (a *App) enqueueAutomationEvent(tid int64, eventType, source string, payload any) error {
@@ -302,47 +462,83 @@ func (a *App) enqueueAutomationEvent(tid int64, eventType, source string, payloa
 
 func (a *App) runAutomationWorker() {
 	ticker := time.NewTicker(2 * time.Second)
+	reviewTicker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		a.consumeLegacyLeadOutbox()
-		a.consumeAutomationEvents()
+	defer reviewTicker.Stop()
+	// The first reconciliation is read-only with respect to work execution:
+	// stale claims are marked for investigation, never replayed.
+	a.reviewStaleAutomationEventsV273541()
+	a.reviewStalePublicFormEventsV273544()
+	a.reviewStaleAutomationWaitsV273550()
+	for {
+		select {
+		case <-ticker.C:
+			a.consumeLegacyLeadOutbox()
+			a.consumeAutomationEvents()
+			a.consumeAutomationWaitsV273538()
+		case <-reviewTicker.C:
+			a.reviewStaleAutomationEventsV273541()
+			a.reviewStalePublicFormEventsV273544()
+			a.reviewStaleAutomationWaitsV273550()
+		}
 	}
 }
+
+// V27.35.41 — Lead outbox forwarding must be atomic. If the transaction
+// fails at any point, both the event insert and outbox acknowledgement roll
+// back together. Concurrent workers only transfer a pending row once.
 func (a *App) consumeLegacyLeadOutbox() {
-	rows, e := a.db.Query(`SELECT id,tenant_id,event_type,source,payload_json FROM lead_automation_outbox WHERE status='pending' ORDER BY id LIMIT 20`)
-	if e != nil {
+	rows, err := a.db.Query(`SELECT id,tenant_id,event_type,source,payload_json FROM lead_automation_outbox WHERE status='pending' ORDER BY id LIMIT 20`)
+	if err != nil {
 		return
 	}
-	defer rows.Close()
 	type item struct {
 		id, tid    int64
 		ev, src, p string
 	}
-	xs := []item{}
+	items := make([]item, 0, 20)
 	for rows.Next() {
 		var x item
 		if rows.Scan(&x.id, &x.tid, &x.ev, &x.src, &x.p) == nil {
-			xs = append(xs, x)
+			items = append(items, x)
 		}
 	}
-	for _, x := range xs {
-		if consumptionV2723Enabled() {
-			claim, claimErr := a.db.Exec(`UPDATE lead_automation_outbox SET status='processing' WHERE id=? AND status='pending'`, x.id)
-			if claimErr != nil {
-				continue
-			}
-			n, _ := claim.RowsAffected()
-			if n != 1 {
-				continue
-			}
+	rows.Close() // Do not hold a read cursor while acquiring write transactions.
+	for _, x := range items {
+		tx, err := a.db.Begin()
+		if err != nil {
+			continue
 		}
-		var p map[string]any
-		_ = json.Unmarshal([]byte(x.p), &p)
-		if err := a.enqueueAutomationEvent(x.tid, x.ev, x.src, p); err == nil {
-			_, _ = a.db.Exec(`UPDATE lead_automation_outbox SET status='processed',processed_at=? WHERE id=?`, time.Now().UTC().Format(time.RFC3339), x.id)
-		} else if consumptionV2723Enabled() {
-			// Queueing definitely failed: safe to release the claimed outbox row.
-			_, _ = a.db.Exec(`UPDATE lead_automation_outbox SET status='pending' WHERE id=? AND status='processing'`, x.id)
+		claimed, err := tx.Exec(`UPDATE lead_automation_outbox SET status='processing',attempts=attempts+1 WHERE id=? AND tenant_id=? AND status='pending'`, x.id, x.tid)
+		if err != nil {
+			_ = tx.Rollback()
+			continue
+		}
+		n, err := claimed.RowsAffected()
+		if err != nil || n != 1 {
+			_ = tx.Rollback()
+			continue
+		}
+		stamp := time.Now().UTC().Format(time.RFC3339)
+		_, err = tx.Exec(`INSERT INTO automation_events(tenant_id,event_type,source,payload_json,status,created_at) VALUES(?,?,?,?,'pending',?)`, x.tid, x.ev, x.src, x.p, stamp)
+		if err != nil {
+			_ = tx.Rollback()
+			continue
+		}
+		ack, err := tx.Exec(`UPDATE lead_automation_outbox SET status='processed',processed_at=? WHERE id=? AND tenant_id=? AND status='processing'`, stamp, x.id, x.tid)
+		if err != nil {
+			_ = tx.Rollback()
+			continue
+		}
+		n, err = ack.RowsAffected()
+		if err != nil || n != 1 {
+			_ = tx.Rollback()
+			continue
+		}
+		// An ambiguous commit can be inspected via the outbox row. Do not
+		// launch a second transfer outside this transaction.
+		if err := tx.Commit(); err != nil {
+			log.Printf("automation lead outbox commit: %v", err)
 		}
 	}
 }
@@ -351,7 +547,6 @@ func (a *App) consumeAutomationEvents() {
 	if e != nil {
 		return
 	}
-	defer rows.Close()
 	type item struct {
 		id, tid    int64
 		ev, src, p string
@@ -363,8 +558,13 @@ func (a *App) consumeAutomationEvents() {
 			xs = append(xs, x)
 		}
 	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return
+	}
+	rows.Close() // Release reader before any claim/write transaction.
 	for _, x := range xs {
-		claim, claimErr := a.db.Exec(`UPDATE automation_events SET status='processing',attempts=attempts+1 WHERE id=? AND status='pending'`, x.id)
+		claim, claimErr := a.db.Exec(`UPDATE automation_events SET status='processing',attempts=attempts+1,processed_at=? WHERE id=? AND tenant_id=? AND status='pending'`, time.Now().UTC().Format(time.RFC3339), x.id, x.tid)
 		if claimErr != nil {
 			continue
 		}
@@ -374,29 +574,52 @@ func (a *App) consumeAutomationEvents() {
 		} // another instance claimed this event
 		var p map[string]any
 		_ = json.Unmarshal([]byte(x.p), &p)
-		wrows, er := a.db.Query(`SELECT id FROM automation_workflows WHERE tenant_id=? AND status='active' AND trigger_type=?`, x.tid, x.ev)
+		wrows, er := a.db.Query(`SELECT id,trigger_config FROM automation_workflows WHERE tenant_id=? AND status='active' AND trigger_type=?`, x.tid, x.ev)
 		if er != nil {
-			_, _ = a.db.Exec(`UPDATE automation_events SET status='failed',last_error=? WHERE id=?`, er.Error(), x.id)
+			_, _ = a.db.Exec(`UPDATE automation_events SET status='failed',last_error=? WHERE id=? AND tenant_id=? AND status='processing'`, er.Error(), x.id, x.tid)
 			continue
 		}
 		ids := []int64{}
 		for wrows.Next() {
 			var id int64
-			if wrows.Scan(&id) == nil {
+			var triggerConfig string
+			if wrows.Scan(&id, &triggerConfig) == nil && automationTriggerMatchesV273536([]byte(triggerConfig), x.ev, p) {
 				ids = append(ids, id)
 			}
 		}
 		wrows.Close()
 		failed := ""
+		requiresReview := false
 		for _, wid := range ids {
-			if _, er = a.runAutomationWorkflow(context.Background(), x.tid, wid, x.ev, x.src, p); er != nil {
-				failed = er.Error()
+			// A delivery belongs to one tenant/event/workflow combination.
+			// Reserve it BEFORE performing any side effects; never retry an
+			// already reserved delivery automatically after a crash.
+			claimed, claimErr := a.claimAutomationDeliveryV273542(x.tid, x.id, wid)
+			if claimErr != nil {
+				failed = claimErr.Error()
+				break
+			}
+			if !claimed {
+				// Existing reservation is not proof of completed execution.
+				requiresReview = true
+				failed = "evento ya reservado: requiere revisión manual antes de repetir"
+				break
+			}
+			run, runErr := a.runAutomationWorkflow(context.Background(), x.tid, wid, x.ev, x.src, p)
+			if err := a.finishAutomationDeliveryV273542(x.tid, x.id, wid, run, runErr); err != nil {
+				failed = err.Error()
+				break
+			}
+			if runErr != nil {
+				failed = runErr.Error()
 			}
 		}
-		if failed != "" {
-			_, _ = a.db.Exec(`UPDATE automation_events SET status='failed',last_error=?,processed_at=? WHERE id=?`, failed, time.Now().UTC().Format(time.RFC3339), x.id)
+		if requiresReview {
+			_, _ = a.db.Exec(`UPDATE automation_events SET status='needs_review',last_error=?,processed_at=? WHERE id=? AND tenant_id=? AND status='processing'`, failed, time.Now().UTC().Format(time.RFC3339), x.id, x.tid)
+		} else if failed != "" {
+			_, _ = a.db.Exec(`UPDATE automation_events SET status='failed',last_error=?,processed_at=? WHERE id=? AND tenant_id=? AND status='processing'`, failed, time.Now().UTC().Format(time.RFC3339), x.id, x.tid)
 		} else {
-			_, _ = a.db.Exec(`UPDATE automation_events SET status='processed',processed_at=? WHERE id=?`, time.Now().UTC().Format(time.RFC3339), x.id)
+			_, _ = a.db.Exec(`UPDATE automation_events SET status='processed',processed_at=? WHERE id=? AND tenant_id=? AND status='processing'`, time.Now().UTC().Format(time.RFC3339), x.id, x.tid)
 		}
 	}
 }
@@ -410,6 +633,15 @@ func (a *App) runAutomationWorkflow(ctx context.Context, tid, wid int64, eventTy
 	if json.Unmarshal(wf.Graph, &g) != nil {
 		return nil, errors.New("grafo inválido")
 	}
+	plan, err := buildAutomationExecutionPlan(g)
+	if err != nil {
+		return nil, err
+	}
+	// Runtime defense: published workflows predating this validation cannot
+	// bypass the per-workflow cap after a configuration change.
+	if err := automationValidateAINodeTypesV273549(automationAINodeTypesV273549(g), automationAIMaxNodesV273549()); err != nil {
+		return nil, fmt.Errorf("limite de consumo IA: %w", err)
+	}
 	if consumptionV2723Enabled() {
 		if len(g.Nodes) > 50 {
 			return nil, errors.New("workflow excede 50 nodos permitidos en piloto")
@@ -419,54 +651,26 @@ func (a *App) runAutomationWorkflow(ctx context.Context, tid, wid int64, eventTy
 		}
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	b, _ := json.Marshal(payload)
-	res, e := a.db.Exec(`INSERT INTO automation_executions(tenant_id,workflow_id,event_type,source,status,context_json,started_at) VALUES(?,?,?,?, 'running',?,?)`, tid, wid, eventType, source, string(b), now)
+	// Only audit metadata belongs in the execution record. Full payload stays
+	// in the event queue or the durable wait snapshot when needed to resume.
+	auditContext := automationAuditEventV273548(eventType, source, payload)
+	res, e := a.db.Exec(`INSERT INTO automation_executions(tenant_id,workflow_id,event_type,source,status,context_json,started_at) VALUES(?,?,?,?, 'running',?,?)`, tid, wid, eventType, source, auditContext, now)
 	if e != nil {
 		return nil, e
 	}
 	eid, _ := res.LastInsertId()
-	ctxMap := map[string]any{"event": payload, "event_type": eventType, "source": source}
-	status := "success"
-	errMsg := ""
-	for _, n := range g.Nodes {
-		if n.Type == "trigger" {
-			continue
-		}
-		_, _ = a.db.Exec(`UPDATE automation_executions SET current_node_id=? WHERE id=?`, n.ID, eid)
-		stepStart := time.Now().UTC().Format(time.RFC3339)
-		out, er := a.executeAutomationNode(ctx, tid, n, ctxMap)
-		ob, _ := json.Marshal(out)
-		stepStatus := "success"
-		em := ""
-		if er != nil {
-			stepStatus = "failed"
-			em = er.Error()
-			status = "failed"
-			errMsg = em
-		}
-		_, _ = a.db.Exec(`INSERT INTO automation_execution_steps(execution_id,node_id,node_type,status,input_json,output_json,error_message,started_at,finished_at) VALUES(?,?,?,?,?,?,?,?,?)`, eid, n.ID, n.Type, stepStatus, string(b), string(ob), em, stepStart, time.Now().UTC().Format(time.RFC3339))
-		if er != nil {
-			break
-		}
-		ctxMap[n.ID] = out
-		if n.Type == "condition" {
-			if matched, ok := out["match"].(bool); ok && !matched {
-				ctxMap["condition_stopped_at"] = n.ID
-				break
-			}
-		}
+	ctxMap := map[string]any{"event": payload, "event_type": eventType, "source": source, "_automation_execution_id": eid}
+	waiting, runErr := a.runAutomationPathV273538(ctx, tid, wid, eid, plan.next(plan.start, true), plan, g, ctxMap)
+	if waiting {
+		return map[string]any{"execution_id": eid, "status": "waiting"}, nil
 	}
-	finish := time.Now().UTC().Format(time.RFC3339)
-	_, _ = a.db.Exec(`UPDATE automation_executions SET status=?,error_message=?,finished_at=? WHERE id=?`, status, errMsg, finish, eid)
-	if status == "success" {
-		_, _ = a.db.Exec(`UPDATE automation_workflows SET runs=runs+1,successes=successes+1,last_run_at=?,updated_at=? WHERE id=?`, finish, finish, wid)
-	} else {
-		_, _ = a.db.Exec(`UPDATE automation_workflows SET runs=runs+1,failures=failures+1,last_run_at=?,updated_at=? WHERE id=?`, finish, finish, wid)
+	if err := a.completeAutomationExecutionV273538(tid, wid, eid, runErr); err != nil {
+		return map[string]any{"execution_id": eid, "status": "needs_review"}, fmt.Errorf("la ejecución requiere revisión: %w", err)
 	}
-	if errMsg != "" {
-		return map[string]any{"execution_id": eid, "status": status}, errors.New(errMsg)
+	if runErr != nil {
+		return map[string]any{"execution_id": eid, "status": "failed"}, runErr
 	}
-	return map[string]any{"execution_id": eid, "status": status}, nil
+	return map[string]any{"execution_id": eid, "status": "success"}, nil
 }
 
 func cfgString(m map[string]any, k string) string {
@@ -481,11 +685,9 @@ func cfgInt64(m map[string]any, k string) int64 {
 	return n
 }
 func payloadString(ctx map[string]any, key string) string {
-	ev, _ := ctx["event"].(map[string]any)
-	if v, ok := ev[key]; ok {
-		return strings.TrimSpace(fmt.Sprint(v))
-	}
-	return ""
+	// V27.35.47: condition nodes can read prior AI results, while ordinary
+	// CRM/WhatsApp action fields still resolve to the original event values.
+	return automationStateValueV273547(ctx, key)
 }
 
 func (a *App) executeAutomationNode(ctx context.Context, tid int64, n automationNode, state map[string]any) (map[string]any, error) {
@@ -538,8 +740,18 @@ func (a *App) executeAutomationNode(ctx context.Context, tid int64, n automation
 		if cid == 0 || tag == "" {
 			return nil, errors.New("contacto o etiqueta faltante")
 		}
-		_, err := a.db.Exec(`UPDATE crm_contacts SET tags=CASE WHEN tags='' THEN ? WHEN instr(','||tags||',', ','||?||',')>0 THEN tags ELSE tags||','||? END,updated_at=? WHERE id=? AND tenant_id=?`, tag, tag, tag, time.Now().UTC().Format(time.RFC3339), cid, tid)
-		return map[string]any{"contact_id": cid, "tag": tag}, err
+		res, err := a.db.Exec(`UPDATE crm_contacts SET tags=CASE WHEN tags='' THEN ? WHEN instr(','||tags||',', ','||?||',')>0 THEN tags ELSE tags||','||? END,updated_at=? WHERE id=? AND tenant_id=? AND COALESCE(deleted_at,'')=''`, tag, tag, tag, time.Now().UTC().Format(time.RFC3339), cid, tid)
+		if err != nil {
+			return nil, err
+		}
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return nil, err
+		}
+		if affected == 0 {
+			return nil, errors.New("contacto no encontrado en esta empresa")
+		}
+		return map[string]any{"contact_id": cid, "tag": tag}, nil
 	case "move_pipeline":
 		oid := cfgInt64(n.Config, "opportunity_id")
 		if oid == 0 {
@@ -555,28 +767,40 @@ func (a *App) executeAutomationNode(ctx context.Context, tid int64, n automation
 		if oid == 0 || stage == "" {
 			return nil, errors.New("oportunidad o etapa faltante")
 		}
-		_, err := a.db.Exec(`UPDATE crm_opportunities SET stage=?,automation_state='automatic',updated_at=?,last_activity_at=? WHERE id=? AND tenant_id=?`, stage, time.Now().UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339), oid, tid)
-		return map[string]any{"opportunity_id": oid, "stage": stage}, err
+		res, err := a.db.Exec(`UPDATE crm_opportunities SET stage=?,automation_state='automatic',updated_at=?,last_activity_at=? WHERE id=? AND tenant_id=? AND COALESCE(deleted_at,'')='' AND COALESCE(manual_lock,0)=0`, stage, time.Now().UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339), oid, tid)
+		if err != nil {
+			return nil, err
+		}
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return nil, err
+		}
+		if affected == 0 {
+			return nil, errors.New("oportunidad no encontrada o protegida contra cambios automáticos")
+		}
+		return map[string]any{"opportunity_id": oid, "stage": stage}, nil
 	case "assign_owner":
-		oid := cfgInt64(n.Config, "opportunity_id")
-		if oid == 0 {
-			oid, _ = strconv.ParseInt(payloadString(state, "opportunity_id"), 10, 64)
-		}
-		owner := cfgString(n.Config, "owner")
-		if oid == 0 || owner == "" {
-			return nil, errors.New("oportunidad o responsable faltante")
-		}
-		_, err := a.db.Exec(`UPDATE crm_opportunities SET owner=?,automation_state='automatic',updated_at=? WHERE id=? AND tenant_id=?`, owner, time.Now().UTC().Format(time.RFC3339), oid, tid)
-		return map[string]any{"opportunity_id": oid, "owner": owner}, err
+		return a.assignAutomationSalesHubOwnerV273545(tid, n, state)
 	case "send_whatsapp":
 		conn := cfgInt64(n.Config, "connection_id")
 		to := cfgString(n.Config, "to")
 		if to == "" {
 			to = payloadString(state, "phone")
 		}
+		// Verified inbound WhatsApp events identify the sender in chat, not phone.
+		if to == "" && payloadString(state, "channel") == "whatsapp_cloud" {
+			to = strings.TrimPrefix(payloadString(state, "chat"), "wacloud:")
+		}
 		text := cfgString(n.Config, "message")
 		if conn == 0 || to == "" || text == "" {
 			return nil, errors.New("WhatsApp requiere conexión, teléfono y mensaje")
+		}
+		text, err := expandAutomationMessageV273534(text, state)
+		if err != nil {
+			return nil, err
+		}
+		if err := a.authorizeAutomationWhatsAppV273546(tid, conn, to, state); err != nil {
+			return nil, err
 		}
 		c, err := a.whatsappCloudConnectionForTenant(tid, conn)
 		if err != nil {
@@ -585,15 +809,9 @@ func (a *App) executeAutomationNode(ctx context.Context, tid int64, n automation
 		mid, err := a.sendWhatsAppCloudText(ctx, c, to, text)
 		return map[string]any{"message_id": mid, "to": to}, err
 	case "ai_task":
-		prompt := cfgString(n.Config, "prompt")
-		if prompt == "" {
-			prompt = "Analiza el evento y resume el siguiente paso comercial."
-		}
-		eventJSON, _ := json.Marshal(state["event"])
-		reply, err := a.callOpenAI("Eres un agente de automatización WorkticAI. "+prompt, string(eventJSON), tid)
-		return map[string]any{"reply": reply}, err
+		return a.executeAutomationAgentV273547(tid, n, state)
 	case "create_task":
-		return map[string]any{"created": true, "title": cfgString(n.Config, "title"), "note": "registrado en ejecución; módulo de tareas dedicado se enlazará cuando esté disponible"}, nil
+		return a.createAutomationSalesHubTaskV273545(tid, n, state)
 	case "webhook":
 		target := cfgString(n.Config, "url")
 		if target == "" {
@@ -602,5 +820,14 @@ func (a *App) executeAutomationNode(ctx context.Context, tid int64, n automation
 		payload := map[string]any{"tenant_id": tid, "event": state["event"], "automation": state}
 		return a.callAutomationWebhookV26(ctx, target, payload)
 	}
-	return map[string]any{"skipped": true}, nil
+	return nil, fmt.Errorf("acción desconocida: %s", n.Type)
+}
+
+// Convert the graph to a simple pure data shape for quota validation.
+func automationAINodeTypesV273549(g automationGraph) []string {
+	types := make([]string, 0, len(g.Nodes))
+	for _, n := range g.Nodes {
+		types = append(types, n.Type)
+	}
+	return types
 }

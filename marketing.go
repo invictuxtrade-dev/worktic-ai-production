@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"strconv"
 	"strings"
@@ -117,7 +118,10 @@ CREATE TABLE IF NOT EXISTS marketing_creatives(id INTEGER PRIMARY KEY AUTOINCREM
 CREATE TABLE IF NOT EXISTS marketing_meta_connections(id INTEGER PRIMARY KEY AUTOINCREMENT,tenant_id INTEGER NOT NULL UNIQUE,business_id TEXT NOT NULL DEFAULT '',ad_account_id TEXT NOT NULL DEFAULT '',page_id TEXT NOT NULL DEFAULT '',instagram_id TEXT NOT NULL DEFAULT '',access_token TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'disconnected',last_error TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS marketing_metrics(id INTEGER PRIMARY KEY AUTOINCREMENT,tenant_id INTEGER NOT NULL,campaign_id INTEGER NOT NULL,metric_date TEXT NOT NULL,spend REAL NOT NULL DEFAULT 0,impressions INTEGER NOT NULL DEFAULT 0,reach INTEGER NOT NULL DEFAULT 0,clicks INTEGER NOT NULL DEFAULT 0,leads INTEGER NOT NULL DEFAULT 0,conversations INTEGER NOT NULL DEFAULT 0,appointments INTEGER NOT NULL DEFAULT 0,sales INTEGER NOT NULL DEFAULT 0,revenue REAL NOT NULL DEFAULT 0,UNIQUE(tenant_id,campaign_id,metric_date));
 `)
-	return err
+	if err != nil {
+		return err
+	}
+	return initPublicFormAutomationV273544Schema(db)
 }
 
 func (a *App) tenantFor(r *http.Request) (int64, *User, error) {
@@ -463,46 +467,67 @@ func slugify(s string) string {
 
 func (a *App) publicLeadFormHandler(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	if len(parts) < 3 {
-		return
-	}
-	tenant, _ := strconv.ParseInt(parts[1], 10, 64)
-	slug := parts[2]
-	var f LeadForm
-	var active int
-	e := a.db.QueryRow(`SELECT id,tenant_id,name,slug,headline,description,fields_json,consent_text,thank_you,redirect_url,active,created_at FROM marketing_forms WHERE tenant_id=? AND slug=?`, tenant, slug).Scan(&f.ID, &f.TenantID, &f.Name, &f.Slug, &f.Headline, &f.Description, &f.FieldsJSON, &f.ConsentText, &f.ThankYou, &f.RedirectURL, &active, &f.CreatedAt)
-	if e != nil || active != 1 {
+	if len(parts) != 3 || parts[0] != "f" {
 		http.NotFound(w, r)
 		return
 	}
-	if r.Method == "POST" {
-		_ = r.ParseForm()
-		consent := r.FormValue("consent") == "on"
-		leadName := strings.TrimSpace(r.FormValue("name"))
-		leadPhone := strings.TrimSpace(r.FormValue("phone"))
-		leadEmail := strings.TrimSpace(r.FormValue("email"))
-		createdAt := time.Now().UTC().Format(time.RFC3339)
-		leadResult, e := a.db.Exec(`INSERT INTO marketing_leads(tenant_id,form_id,source,name,phone,email,city,interest,score,status,utm_source,utm_campaign,consent,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, tenant, f.ID, "worktic_form", leadName, leadPhone, leadEmail, r.FormValue("city"), r.FormValue("interest"), 60, "new", r.FormValue("utm_source"), r.FormValue("utm_campaign"), boolInt(consent), createdAt)
-		if e == nil {
-			_ = a.syncCRMContactAt(tenant, leadName, leadPhone, leadEmail, "landing", "form", "", createdAt)
-			leadID, _ := leadResult.LastInsertId()
-			a.applyLeadAttributionFromRequestV24(tenant, leadID, r)
-			_ = a.syncOpportunityFromLead(tenant, leadID, leadName, leadPhone, leadEmail, "landing", "form", r.FormValue("interest"), 60, createdAt)
+	tenant, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil || tenant <= 0 {
+		http.NotFound(w, r)
+		return
+	}
+	slug := parts[2]
+	var f LeadForm
+	var active int
+	err = a.db.QueryRow(`SELECT id,tenant_id,name,slug,headline,description,fields_json,consent_text,thank_you,redirect_url,active,created_at FROM marketing_forms WHERE tenant_id=? AND slug=?`, tenant, slug).Scan(&f.ID, &f.TenantID, &f.Name, &f.Slug, &f.Headline, &f.Description, &f.FieldsJSON, &f.ConsentText, &f.ThankYou, &f.RedirectURL, &active, &f.CreatedAt)
+	if err != nil || active != 1 {
+		http.NotFound(w, r)
+		return
+	}
+	// Avoid shared caches reusing a submission token across different visitors.
+	w.Header().Set("Cache-Control", "private, no-store")
+	switch r.Method {
+	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Formulario demasiado grande o inválido", http.StatusBadRequest)
+			return
 		}
-		if e != nil {
-			http.Error(w, "No fue posible registrar", 500)
+		if r.FormValue("consent") != "on" {
+			http.Error(w, "Debes aceptar las condiciones del formulario", http.StatusBadRequest)
+			return
+		}
+		name := strings.TrimSpace(r.FormValue("name"))
+		if name == "" || len(name) > 180 || len(r.FormValue("email")) > 254 || len(r.FormValue("phone")) > 70 || len(r.FormValue("interest")) > 1000 || len(r.FormValue("city")) > 180 {
+			http.Error(w, "Revisa los datos del formulario", http.StatusBadRequest)
+			return
+		}
+		if err := a.storePublicFormSubmissionV273544(tenant, f, r, time.Now().UTC().Format(time.RFC3339)); err != nil {
+			// Do not expose internal DB errors or personally identifying details to the public.
+			http.Error(w, "No fue posible registrar el formulario", http.StatusInternalServerError)
 			return
 		}
 		if f.RedirectURL != "" {
-			http.Redirect(w, r, f.RedirectURL, 303)
+			http.Redirect(w, r, f.RedirectURL, http.StatusSeeOther)
 			return
 		}
-		fmt.Fprintf(w, "<!doctype html><html><meta charset=utf-8><meta name=viewport content='width=device-width'><style>body{font-family:Arial;background:#f7f5ff;display:grid;place-items:center;min-height:100vh}.box{background:white;padding:40px;border-radius:24px;max-width:560px;box-shadow:0 20px 60px #7c3aed22}</style><div class=box><h1>¡Gracias!</h1><p>%s</p></div></html>", f.ThankYou)
+		fmt.Fprintf(w, "<!doctype html><html lang=es><meta charset=utf-8><meta name=viewport content='width=device-width'><style>body{font-family:Arial;background:#f7f5ff;display:grid;place-items:center;min-height:100vh}.box{background:white;padding:40px;border-radius:24px;max-width:560px;box-shadow:0 20px 60px #7c3aed22}</style><div class=box><h1>¡Gracias!</h1><p>%s</p></div></html>", html.EscapeString(f.ThankYou))
 		return
+	case http.MethodGet:
+		token, err := newPublicFormTokenV273544()
+		if err != nil {
+			http.Error(w, "No se pudo preparar el formulario", http.StatusInternalServerError)
+			return
+		}
+		hidden := analyticsHiddenInputsV24(r, 0, 0)
+		// The unique token is generated per rendered form and prevents retry/double-submit duplicates.
+		fmt.Fprintf(w, "<!doctype html><html lang=es><meta charset=utf-8><meta name=viewport content='width=device-width'><title>%s</title><style>body{font-family:Arial;background:linear-gradient(135deg,#f7f5ff,#fff);margin:0;padding:30px;color:#18103a}.box{background:white;padding:34px;border-radius:24px;max-width:620px;margin:30px auto;box-shadow:0 20px 70px #7c3aed22}input,textarea{width:100%%;box-sizing:border-box;padding:13px;margin:7px 0 15px;border:1px solid #ddd6fe;border-radius:10px}button{background:linear-gradient(135deg,#7c3aed,#d946ef);color:white;border:0;padding:14px 24px;border-radius:10px;font-weight:bold}</style><div class=box><h1>%s</h1><p>%s</p><form method=post>%s<input name='_worktic_submission_id' type='hidden' value='%s'><input name=name placeholder='Nombre' required maxlength=180><input name=phone placeholder='Teléfono' maxlength=70><input name=email type=email placeholder='Correo' maxlength=254><input name=city placeholder='Ciudad' maxlength=180><textarea name=interest maxlength=1000 placeholder='¿Qué te interesa?'></textarea><label><input style='width:auto' name=consent type=checkbox required> %s</label><br><br><button>Enviar información</button></form></div></html>", html.EscapeString(f.Headline), html.EscapeString(f.Headline), html.EscapeString(f.Description), hidden, token, html.EscapeString(f.ConsentText))
+	default:
+		w.Header().Set("Allow", "GET, POST")
+		http.Error(w, "Método no permitido", http.StatusMethodNotAllowed)
 	}
-	hidden := analyticsHiddenInputsV24(r, 0, 0)
-	fmt.Fprintf(w, "<!doctype html><html lang=es><meta charset=utf-8><meta name=viewport content='width=device-width'><title>%s</title><style>body{font-family:Arial;background:linear-gradient(135deg,#f7f5ff,#fff);margin:0;padding:30px;color:#18103a}.box{background:white;padding:34px;border-radius:24px;max-width:620px;margin:30px auto;box-shadow:0 20px 70px #7c3aed22}input,textarea{width:100%%;box-sizing:border-box;padding:13px;margin:7px 0 15px;border:1px solid #ddd6fe;border-radius:10px}button{background:linear-gradient(135deg,#7c3aed,#d946ef);color:white;border:0;padding:14px 24px;border-radius:10px;font-weight:bold}</style><div class=box><h1>%s</h1><p>%s</p><form method=post>%s<input name=name placeholder='Nombre' required><input name=phone placeholder='Teléfono'><input name=email type=email placeholder='Correo'><input name=city placeholder='Ciudad'><textarea name=interest placeholder='¿Qué te interesa?'></textarea><label><input style='width:auto' name=consent type=checkbox required> %s</label><br><br><button>Enviar información</button></form></div></html>", f.Headline, f.Headline, f.Description, hidden, f.ConsentText)
 }
+
 func boolInt(b bool) int {
 	if b {
 		return 1

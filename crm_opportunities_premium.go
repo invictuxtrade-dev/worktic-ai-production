@@ -515,13 +515,38 @@ func (a *App) opportunitiesPremiumHandler(w http.ResponseWriter, r *http.Request
 			err := a.db.QueryRow(`SELECT id FROM crm_opportunities WHERE tenant_id=? AND contact_id=? AND COALESCE(deleted_at,'')='' AND stage NOT IN ('Ganado','Perdido') ORDER BY id DESC LIMIT 1`, tenant, item.ContactID).Scan(&existingID)
 			if err == nil && existingID > 0 {
 				now := time.Now().UTC().Format(time.RFC3339)
-				_, err = a.db.Exec(`UPDATE crm_opportunities SET title=?,stage=?,value=?,owner=?,channel=?,interest=?,score=?,probability=?,automation_state=CASE WHEN automation_state='automatic' THEN 'assisted' ELSE automation_state END,manual_lock=1,last_activity_at=?,updated_at=? WHERE id=? AND tenant_id=?`, item.Title, item.Stage, item.Value, item.Owner, item.Channel, item.Interest, clampOpportunityScore(item.Score), opportunityProbability(item.Stage), now, now, existingID, tenant)
+				tx, err := a.db.Begin()
 				if err != nil {
-					writeError(w, err, http.StatusInternalServerError)
+					writeError(w, err, 500)
 					return
 				}
-				_, _ = a.db.Exec(`UPDATE crm_contacts SET stage=?,updated_at=? WHERE id=? AND tenant_id=?`, item.Stage, now, item.ContactID, tenant)
-				_ = salesHubAuditV273518(a.db, tenant, existingID, u.ID, "opportunity.updated", fmt.Sprintf("merged stage=%s amount=%.2f", item.Stage, item.Value))
+				defer tx.Rollback()
+				var previousStage string
+				if err = tx.QueryRow(`SELECT stage FROM crm_opportunities WHERE id=? AND tenant_id=? AND COALESCE(deleted_at,'')=''`, existingID, tenant).Scan(&previousStage); err != nil {
+					writeError(w, err, 409)
+					return
+				}
+				_, err = tx.Exec(`UPDATE crm_opportunities SET title=?,stage=?,value=?,owner=?,channel=?,interest=?,score=?,probability=?,automation_state=CASE WHEN automation_state='automatic' THEN 'assisted' ELSE automation_state END,manual_lock=1,last_activity_at=?,updated_at=? WHERE id=? AND tenant_id=?`, item.Title, item.Stage, item.Value, item.Owner, item.Channel, item.Interest, clampOpportunityScore(item.Score), opportunityProbability(item.Stage), now, now, existingID, tenant)
+				if err != nil {
+					writeError(w, err, 500)
+					return
+				}
+				if _, err = tx.Exec(`UPDATE crm_contacts SET stage=?,updated_at=? WHERE id=? AND tenant_id=?`, item.Stage, now, item.ContactID, tenant); err != nil {
+					writeError(w, err, 500)
+					return
+				}
+				if err = salesHubAuditTxV273518(tx, tenant, existingID, u.ID, "opportunity.updated", fmt.Sprintf("merged stage=%s amount=%.2f", item.Stage, item.Value)); err != nil {
+					writeError(w, err, 500)
+					return
+				}
+				if err = enqueueOpportunityStageTxV273535(tx, tenant, existingID, item.ContactID, u.ID, previousStage, item.Stage, item.Channel, now); err != nil {
+					writeError(w, err, 500)
+					return
+				}
+				if err = tx.Commit(); err != nil {
+					writeError(w, err, 500)
+					return
+				}
 				writeJSON(w, map[string]any{"ok": true, "id": existingID, "merged": true})
 				return
 			}
@@ -573,20 +598,45 @@ func (a *App) opportunitiesPremiumHandler(w http.ResponseWriter, r *http.Request
 		if item.Stage == "Ganado" || item.Stage == "Perdido" {
 			closedAt = now
 		}
-		res, err := a.db.Exec(`UPDATE crm_opportunities SET contact_id=?,title=?,stage=?,value=?,owner=?,channel=?,interest=?,score=?,probability=?,automation_state=CASE WHEN automation_state='automatic' THEN 'assisted' ELSE automation_state END,manual_lock=1,last_activity_at=?,updated_at=?,closed_at=? WHERE id=? AND tenant_id=? AND COALESCE(deleted_at,'')=''`, item.ContactID, item.Title, item.Stage, item.Value, item.Owner, item.Channel, item.Interest, clampOpportunityScore(item.Score), opportunityProbability(item.Stage), now, now, closedAt, item.ID, tenant)
+		tx, err := a.db.Begin()
 		if err != nil {
-			writeError(w, err, http.StatusInternalServerError)
+			writeError(w, err, 500)
+			return
+		}
+		defer tx.Rollback()
+		var previousStage string
+		if err = tx.QueryRow(`SELECT stage FROM crm_opportunities WHERE id=? AND tenant_id=? AND COALESCE(deleted_at,'')=''`, item.ID, tenant).Scan(&previousStage); err != nil {
+			writeError(w, errors.New("oportunidad no encontrada"), 404)
+			return
+		}
+		res, err := tx.Exec(`UPDATE crm_opportunities SET contact_id=?,title=?,stage=?,value=?,owner=?,channel=?,interest=?,score=?,probability=?,automation_state=CASE WHEN automation_state='automatic' THEN 'assisted' ELSE automation_state END,manual_lock=1,last_activity_at=?,updated_at=?,closed_at=? WHERE id=? AND tenant_id=? AND COALESCE(deleted_at,'')=''`, item.ContactID, item.Title, item.Stage, item.Value, item.Owner, item.Channel, item.Interest, clampOpportunityScore(item.Score), opportunityProbability(item.Stage), now, now, closedAt, item.ID, tenant)
+		if err != nil {
+			writeError(w, err, 500)
 			return
 		}
 		affected, _ := res.RowsAffected()
 		if affected == 0 {
-			writeError(w, errors.New("oportunidad no encontrada"), http.StatusNotFound)
+			writeError(w, errors.New("oportunidad no encontrada"), 404)
 			return
 		}
 		if item.ContactID > 0 {
-			_, _ = a.db.Exec(`UPDATE crm_contacts SET stage=?,updated_at=? WHERE id=? AND tenant_id=?`, item.Stage, now, item.ContactID, tenant)
+			if _, err = tx.Exec(`UPDATE crm_contacts SET stage=?,updated_at=? WHERE id=? AND tenant_id=?`, item.Stage, now, item.ContactID, tenant); err != nil {
+				writeError(w, err, 500)
+				return
+			}
 		}
-		_ = salesHubAuditV273518(a.db, tenant, item.ID, u.ID, "opportunity.updated", fmt.Sprintf("stage=%s amount=%.2f", item.Stage, item.Value))
+		if err = salesHubAuditTxV273518(tx, tenant, item.ID, u.ID, "opportunity.updated", fmt.Sprintf("stage=%s amount=%.2f", item.Stage, item.Value)); err != nil {
+			writeError(w, err, 500)
+			return
+		}
+		if err = enqueueOpportunityStageTxV273535(tx, tenant, item.ID, item.ContactID, u.ID, previousStage, item.Stage, item.Channel, now); err != nil {
+			writeError(w, err, 500)
+			return
+		}
+		if err = tx.Commit(); err != nil {
+			writeError(w, err, 500)
+			return
+		}
 		writeJSON(w, map[string]any{"ok": true, "id": item.ID})
 
 	case http.MethodDelete:
@@ -616,4 +666,19 @@ func (a *App) opportunitiesPremiumHandler(w http.ResponseWriter, r *http.Request
 	default:
 		writeError(w, errors.New("método no permitido"), http.StatusMethodNotAllowed)
 	}
+}
+
+// Atomic with manual CRM updates: a failed event enqueue rolls back the stage change.
+// Automation node updates deliberately DO NOT call this function (no feedback loop).
+func enqueueOpportunityStageTxV273535(tx *Tx, tenant, opportunity, contact, actor int64, before, after, channel, now string) error {
+	payload, changed := automationOpportunityStagePayloadV273535(tenant, opportunity, contact, actor, before, after, channel)
+	if !changed {
+		return nil
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`INSERT INTO automation_events(tenant_id,event_type,source,payload_json,status,created_at) VALUES(?,'opportunity.stage_changed','crm_manual',?,'pending',?)`, tenant, string(b), now)
+	return err
 }

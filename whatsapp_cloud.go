@@ -198,7 +198,7 @@ func (a *App) sendWhatsAppCloudText(ctx context.Context, c ChannelConnection, to
 
 func validMetaSignature(body []byte, header, secret string) bool {
 	if secret == "" {
-		return true
+		return false
 	}
 	if !strings.HasPrefix(header, "sha256=") {
 		return false
@@ -295,10 +295,9 @@ func (a *App) whatsappCloudWebhookHandler(w http.ResponseWriter, r *http.Request
 					txt = "[" + m.Type + "]"
 				}
 				ts := time.Now().UTC().Format(time.RFC3339)
-				if m.Timestamp != "" {
-					if n, e := time.Parse(time.RFC3339, m.Timestamp); e == nil {
-						ts = n.UTC().Format(time.RFC3339)
-					}
+				providerTime, providerTimeErr := automationWAProviderTimestampV273546(m.Timestamp)
+				if providerTimeErr == nil {
+					ts = providerTime.Format(time.RFC3339)
 				}
 				chat := "wacloud:" + m.From
 				_, _ = a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "whatsapp_cloud", m.ID, chat, m.From, "in", m.Type, txt, "received", ts)
@@ -307,7 +306,13 @@ func (a *App) whatsappCloudWebhookHandler(w http.ResponseWriter, r *http.Request
 				_ = a.syncCRMContactAt(c.TenantID, contactNames[m.From], m.From, "", "whatsapp_cloud", "conversation", chat, ts)
 				_ = a.syncOpportunityFromConversation(c.TenantID, chat, "whatsapp_cloud", txt, ts)
 				a.ensureInboxConversation(c.TenantID, chat)
-				a.emitInboxEvent(c.TenantID, "message.received", map[string]any{"chat": chat, "channel": "whatsapp_cloud", "text": txt, "connection_id": c.ID})
+				// V27.35.46: one queued automation event per verified Meta message ID.
+				// Inbox and CRM processing remain on their existing paths.
+				if providerTimeErr == nil && m.ID != "" {
+					if er := a.enqueueVerifiedWAInboundV273546(c.TenantID, c.ID, m.ID, chat, txt, ts); er != nil {
+						fmt.Printf("automation whatsapp inbound not enqueued (tenant %d): %v\n", c.TenantID, er)
+					}
+				}
 				a.trackWhatsAppMarketingInboundV27(c.TenantID, c.ID, m.From, txt, ts)
 			}
 			for _, s := range change.Value.Statuses {

@@ -466,11 +466,22 @@ func (a *App) publicLandingHandler(w http.ResponseWriter, r *http.Request) {
 		var f LeadForm
 		var active int
 		if a.db.QueryRow(`SELECT id,tenant_id,name,slug,headline,description,fields_json,consent_text,thank_you,redirect_url,active,created_at FROM marketing_forms WHERE id=? AND tenant_id=?`, x.FormID, tenant).Scan(&f.ID, &f.TenantID, &f.Name, &f.Slug, &f.Headline, &f.Description, &f.FieldsJSON, &f.ConsentText, &f.ThankYou, &f.RedirectURL, &active, &f.CreatedAt) == nil && active == 1 {
+			token, tokenErr := newPublicFormTokenV273544()
+			if tokenErr != nil {
+				http.Error(w, "No se pudo preparar el formulario", http.StatusInternalServerError)
+				return
+			}
 			hidden := analyticsHiddenInputsV24(r, x.ID, x.CampaignID)
-			v.FormHTML = fmt.Sprintf(`<h2>%s</h2><p>%s</p><form method="post" action="/f/%d/%s">%s<input name="name" placeholder="Nombre completo" required><input name="phone" placeholder="WhatsApp o teléfono"><input name="email" type="email" placeholder="Correo electrónico"><input name="city" placeholder="Ciudad"><textarea name="interest" rows="4" placeholder="Cuéntanos qué necesitas"></textarea><label><input style="width:auto" name="consent" type="checkbox" required> %s</label><button class="btn">%s</button></form>`, template.HTMLEscapeString(f.Headline), template.HTMLEscapeString(f.Description), tenant, f.Slug, hidden, template.HTMLEscapeString(f.ConsentText), template.HTMLEscapeString(x.PrimaryCTA))
+			v.FormHTML = fmt.Sprintf(`<h2>%s</h2><p>%s</p><form method="post" action="/f/%d/%s">%s<input type="hidden" name="_worktic_submission_id" value="%s"><input name="name" placeholder="Nombre completo" required><input name="phone" placeholder="WhatsApp o teléfono"><input name="email" type="email" placeholder="Correo electrónico"><input name="city" placeholder="Ciudad"><textarea name="interest" rows="4" placeholder="Cuéntanos qué necesitas"></textarea><label><input style="width:auto" name="consent" type="checkbox" required> %s</label><button class="btn">%s</button></form>`, template.HTMLEscapeString(f.Headline), template.HTMLEscapeString(f.Description), tenant, f.Slug, hidden, token, template.HTMLEscapeString(f.ConsentText), template.HTMLEscapeString(x.PrimaryCTA))
 		}
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=60")
+	// A landing with an embedded public form carries a one-time submission
+	// token. Never let shared caches serve the same token to other visitors.
+	if v.FormHTML != "" {
+		w.Header().Set("Cache-Control", "private, no-store")
+	} else {
+		w.Header().Set("Cache-Control", "public, max-age=60")
+	}
 	_ = landingTpl.Execute(w, v)
 }
