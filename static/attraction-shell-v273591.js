@@ -36,7 +36,7 @@
     if (bar.dataset.wtcuReady!=='273591') {
       bar.className='growth-tabs wtcu-landing-tabs';
       bar.setAttribute('role','navigation');
-      bar.setAttribute('aria-label','Secciones de Atracción de Clientes');
+      bar.setAttribute('aria-label','Secciones de Captación de Leads');
       bar.replaceChildren();
       tabConfig.forEach(([label,key])=>{
         const btn=document.createElement('button');btn.type='button';
@@ -58,11 +58,13 @@
   function reconcileHeader(){
     if (!activeLanding()) return;
     const title=q('#title');const subtitle=q('#subtitle');
-    if(title && title.textContent.trim()!=='Atracción de Clientes'){
-      title.textContent='Atracción de Clientes';
+    const expectedTitle = (window.wtTitle&&window.wtTitle('marketing','title')) || 'Captación de Leads';
+    if(title && title.textContent.trim()!==expectedTitle){
+      title.textContent=expectedTitle;
     }
-    if(subtitle && !subtitle.textContent.includes('Landing Pages')){
-      subtitle.textContent='Landing Pages · Diseña, conecta y publica páginas comerciales';
+    const expectedSubtitle=(window.wtTitle&&window.wtTitle('landings','subtitle')) || 'Landing Pages · Diseña, conecta y publica páginas comerciales';
+    if(subtitle && subtitle.textContent.trim()!==expectedSubtitle){
+      subtitle.textContent=expectedSubtitle;
     }
     // The landing route is an internal tab of customer attraction for navigation.
     const main=q('#appSidebar button[data-view="marketing"]');
