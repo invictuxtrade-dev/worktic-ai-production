@@ -88,6 +88,11 @@ CREATE INDEX IF NOT EXISTS idx_automation_events_pending ON automation_events(st
 	if err := initAutomationDeliveryV273542Schema(db); err != nil {
 		return err
 	}
+	// V27.35.83: Sales Hub receipts were defined but never initialized.
+	// Without this table, assign_owner fails before writing any assignment.
+	if err := initAutomationSalesHubV273545Schema(db); err != nil {
+		return err
+	}
 	return initAutomationWAInboundV273546Schema(db)
 }
 
