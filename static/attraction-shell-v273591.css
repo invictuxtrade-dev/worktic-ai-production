@@ -1,0 +1,25 @@
+/* Worktic AI V27.35.91 · visually embed Landing Pages in Customer Attraction.
+   Restore the existing standard hierarchy; never hide the actual landing editor. */
+#appSidebar button[data-view="landings"]{display:none!important}
+#landings.wtcu-landing-unified{min-width:0;max-width:100%}
+#landings.wtcu-landing-unified>.section-head{display:flex!important;justify-content:flex-end!important;gap:12px!important;align-items:center!important;min-height:48px!important;margin:2px 0 8px!important}
+#landings.wtcu-landing-unified>.section-head>div{display:none!important}
+#landings.wtcu-landing-unified>.section-head #newLanding{margin-left:auto!important;border-radius:11px!important;min-height:40px!important;padding:10px 16px!important;box-shadow:none!important}
+/* Identical tab semantics on Campaigns and Landing Pages; no duplicated breadcrumb bar. */
+#landings .wtcu-landing-tabs{display:flex!important;align-items:center!important;flex-wrap:wrap!important;gap:8px!important;width:100%!important;margin:0 0 19px!important;padding:0!important;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+#landings .wtcu-landing-tabs button{white-space:normal!important;min-height:41px!important;padding:10px 15px!important;font-size:12px!important;border-radius:10px!important}
+#landings .wtcu-landing-tabs button.active{background:#11182f!important;color:#fff!important;box-shadow:none!important}
+/* The oversized promotional hero was redundant with the standard top-level module heading. */
+#landings.wtcu-landing-unified .wtcs-hub-hero{display:none!important}
+#landings.wtcu-landing-unified #wtcsHub{margin:4px 0 14px!important}
+#landings.wtcu-landing-unified .wtcs-hub-stats{gap:12px!important;margin:4px 0 18px!important;grid-template-columns:repeat(4,minmax(0,1fr))!important}
+#landings.wtcu-landing-unified .wtcs-hub-stats>div{padding:14px 18px!important;border:1px solid #e1e6f2!important;border-radius:15px!important;box-shadow:none!important}
+#landings.wtcu-landing-unified .wtcs-hub-stats b{font-size:26px!important}
+#landings.wtcu-landing-unified .wtcs-hub-stats span{font-size:11px!important}
+#landings.wtcu-landing-unified .wtcs-hub-subtitle{margin:8px 0 12px!important;align-items:center!important}
+#landings.wtcu-landing-unified .wtcs-hub-subtitle h3{font-size:18px!important}
+#landings.wtcu-landing-unified #landingPlan{font-size:12px!important;line-height:1.5!important;padding:11px 14px!important;margin:0 0 14px!important;background:#f5f7fe!important;color:#556789!important;border:1px solid #e1e7f6!important;border-left:3px solid #7660ef!important;border-radius:10px!important;box-shadow:none!important}
+#landings.wtcu-landing-unified #landingsGrid{gap:14px!important;margin-top:6px!important}
+#landings.wtcu-landing-unified #landingsGrid .landing-card{border-radius:15px!important;box-shadow:0 5px 18px #1e2c5708!important}
+@media(max-width:960px){#landings.wtcu-landing-unified .wtcs-hub-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:640px){#landings.wtcu-landing-unified>.section-head{margin-top:5px!important}#landings .wtcu-landing-tabs{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;padding:0 0 7px!important;scrollbar-width:thin!important}#landings .wtcu-landing-tabs button{flex:0 0 auto!important}#landings.wtcu-landing-unified .wtcs-hub-stats{gap:8px!important}#landings.wtcu-landing-unified .wtcs-hub-stats>div{padding:12px!important}}
