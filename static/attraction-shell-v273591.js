@@ -52,7 +52,8 @@
     }
     // Keep section title/actions and original landing data nodes intact.
     const head=q(':scope > .section-head',area);
-    if (head && bar.previousElementSibling!==head) head.after(bar);
+    // La barra de pestañas precede la acción original de nueva landing.
+    if (head && bar.nextElementSibling!==head) head.before(bar);
   }
   function reconcileHeader(){
     if (!activeLanding()) return;

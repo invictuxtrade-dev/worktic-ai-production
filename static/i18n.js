@@ -128,7 +128,7 @@ var I18N = {
 "nav.voice-ai":{es:"Llamadas IA",en:"AI Calls"},
 "title.voice-ai":{es:"Llamadas IA",en:"AI Calls"},
 "subtitle.voice-ai":{es:"Canales telefónicos con agentes inteligentes",en:"Voice AI channel management"},
-"nav.studio-credits":{es:"Billetera de Créditos",en:"Credits Wallet"},
+"nav.studio-credits":{es:"Mis Créditos",en:"My Credits"},
 "title.studio-credits":{es:"Billetera de Créditos",en:"Credits Wallet"},
 "subtitle.studio-credits":{es:"Saldo, movimientos, recargas y derechos de tu plan.",en:"Balance, history, top-ups and your plan entitlements."},
 "title.studio":{es:"Worktic Studio",en:"Worktic Studio"},

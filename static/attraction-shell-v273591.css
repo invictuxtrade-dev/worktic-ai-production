@@ -23,3 +23,8 @@
 #landings.wtcu-landing-unified #landingsGrid .landing-card{border-radius:15px!important;box-shadow:0 5px 18px #1e2c5708!important}
 @media(max-width:960px){#landings.wtcu-landing-unified .wtcs-hub-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:640px){#landings.wtcu-landing-unified>.section-head{margin-top:5px!important}#landings .wtcu-landing-tabs{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;padding:0 0 7px!important;scrollbar-width:thin!important}#landings .wtcu-landing-tabs button{flex:0 0 auto!important}#landings.wtcu-landing-unified .wtcs-hub-stats{gap:8px!important}#landings.wtcu-landing-unified .wtcs-hub-stats>div{padding:12px!important}}
+
+/* V27.35.93: boton Nueva landing siempre debajo de las pestañas en el DOM real. */
+#landings.wtcu-landing-unified>.wtcu-landing-tabs{margin-bottom:8px!important}
+#landings.wtcu-landing-unified>.section-head{margin:0 0 14px!important;padding:0!important;min-height:42px!important}
+@media(max-width:640px){#landings.wtcu-landing-unified>.section-head #newLanding{width:100%!important;margin-left:0!important}#landings.wtcu-landing-unified>.section-head{justify-content:stretch!important}}
