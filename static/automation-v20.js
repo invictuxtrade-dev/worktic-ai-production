@@ -36,21 +36,38 @@ function opportunityStageSelectV273535(key,caption,value='',optional=false){
   return `<label>${caption}<select data-stage-field="${key}">${options.map(s=>`<option value="${safe(s)}"${s===value?' selected':''}>${safe(s||'Cualquier etapa')}</option>`).join('')}</select></label>`;
 }
 // V27.35.44 — form trigger: names are fetched from this tenant's forms catalog.
+// V27.35.85: share the pending request between builder and list activation.
+// A failed refresh must NOT authorize activation with a stale catalog.
 let wtFormsV273544=[];
 let wtFormsLoadedV273544=false;
 let wtFormsLoadingV273544=false;
-async function loadFormsForAutomationsV273544(){
-  if(wtFormsLoadedV273544||wtFormsLoadingV273544)return;
+let wtFormsPromiseV273585=null;
+let wtFormsErrorV273585='';
+async function loadFormsForAutomationsV273544(force=false){
+  if(wtFormsLoadedV273544&&!force)return wtFormsV273544;
+  if(wtFormsPromiseV273585)return wtFormsPromiseV273585;
   wtFormsLoadingV273544=true;
-  try{
-    const items=await api('/api/marketing/forms');
-    if(!Array.isArray(items))throw new Error('Respuesta inválida de formularios');
-    wtFormsV273544=items.filter(x=>Number(x.id)>0&&x.active!==false)
-      .map(x=>({value:String(x.id),label:String(x.name||x.slug||('Formulario '+x.id))}));
-    wtFormsLoadedV273544=true;
-  }catch(e){console.warn('No se pudieron cargar formularios para automatizaciones:',e?.message||e)}
-  finally{wtFormsLoadingV273544=false}
-  if($a('#wfTrigger')?.value==='form.submitted')renderTriggerSettingsV273535();
+  if(force)wtFormsLoadedV273544=false;
+  wtFormsPromiseV273585=(async()=>{
+    try{
+      const items=await api('/api/marketing/forms');
+      if(!Array.isArray(items))throw new Error('Respuesta inválida de formularios');
+      wtFormsV273544=items.filter(x=>Number(x.id)>0&&x.active!==false)
+        .map(x=>({value:String(x.id),label:String(x.name||x.slug||('Formulario '+x.id))}));
+      wtFormsLoadedV273544=true;
+      wtFormsErrorV273585='';
+    }catch(e){
+      wtFormsLoadedV273544=false;
+      wtFormsErrorV273585=String(e?.message||'Error consultando formularios');
+      console.warn('No se pudieron cargar formularios para automatizaciones:',wtFormsErrorV273585);
+    }finally{
+      wtFormsLoadingV273544=false;
+      wtFormsPromiseV273585=null;
+    }
+    if($a('#wfTrigger')?.value==='form.submitted')renderTriggerSettingsV273535();
+    return wtFormsV273544;
+  })();
+  return wtFormsPromiseV273585;
 }
 function renderTriggerSettingsV273535(){
   const control=$a('#wfTrigger');if(!control)return;
@@ -71,6 +88,18 @@ function renderTriggerSettingsV273535(){
     if(o.key==='form_id'&&conf.form_id&&!choices.some(x=>x[0]===String(conf.form_id)))choices.unshift([String(conf.form_id),'Formulario guardado #'+conf.form_id+' (no disponible)']);
     return `<label>${safe(o.label)}<select data-trigger-field="${safe(o.key)}"><option value="">${o.key==='form_id'&&wtIsCaptacionGraphV273569(graph)?'Selecciona un formulario (obligatorio)':'Todos / cualquiera'}</option>${choices.map(([value,label])=>`<option value="${safe(value)}"${String(conf[o.key]||'')===value?' selected':''}>${safe(label)}</option>`).join('')}</select></label>`;
   }).join('');
+  if(type==='form.submitted'){
+    const note=document.createElement('div');
+    note.style.cssText='grid-column:1/-1;font-size:12px;color:#66718e;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+    const detail=document.createElement('span');
+    detail.textContent=wtFormsLoadingV273544?'Consultando formularios de esta empresa…':
+      !wtFormsLoadedV273544?'No se pudo cargar el catálogo de formularios. '+(wtFormsErrorV273585||''):
+      wtFormsV273544.length?'Formularios disponibles: '+wtFormsV273544.length:'Esta empresa todavía no tiene formularios disponibles.';
+    const refresh=document.createElement('button');refresh.type='button';refresh.className='secondary mini';
+    refresh.textContent='Actualizar formularios';refresh.disabled=wtFormsLoadingV273544;
+    refresh.onclick=()=>void loadFormsForAutomationsV273544(true);
+    note.append(detail,refresh);panel.appendChild(note);
+  }
   panel.querySelectorAll('[data-trigger-field]').forEach(select=>select.addEventListener('change',()=>{
     current.trigger_config=current.trigger_config||{};
     if(select.value)current.trigger_config[select.dataset.triggerField]=select.value;
@@ -355,13 +384,36 @@ function wtInstallCaptacionButtonV273566(){
   anchor.parentElement.appendChild(button);
 }
 
-window.loadRules=async function(){bindTabs(); wtInstallCaptacionButtonV273566(); await loadWorkflowList();};
+window.loadRules=async function(){bindTabs(); wtInstallCaptacionButtonV273566(); await loadWorkflowList(); void loadFormsForAutomationsV273544();};
 function bindTabs(){if($a('#wfTrigger'))$a('#wfTrigger').onchange=()=>{if(current){current.trigger_type=$a('#wfTrigger').value;current.trigger_config={}}renderTriggerSettingsV273535();renderCanvas()};document.querySelectorAll('[data-auto-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-auto-tab],.auto-panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$a('#auto-'+b.dataset.autoTab).classList.add('active');if(b.dataset.autoTab==='history')loadExec();});if($a('#newWorkflow'))$a('#newWorkflow').onclick=()=>newWorkflow();if($a('#saveWorkflow'))$a('#saveWorkflow').onclick=saveWorkflow;if($a('#testWorkflow'))$a('#testWorkflow').onclick=testWorkflow;document.querySelectorAll('[data-add-node]').forEach(b=>b.onclick=()=>addNode(b.dataset.addNode));document.querySelectorAll('[data-template]').forEach(b=>b.onclick=()=>applyTemplate(b.dataset.template));}
 async function loadWorkflowList(){workflows=await api('/api/automations/workflows');renderList();renderStats();}
 function renderStats(){const total=workflows.length,active=workflows.filter(x=>x.status==='active').length,runs=workflows.reduce((a,x)=>a+(x.runs||0),0),ok=workflows.reduce((a,x)=>a+(x.successes||0),0);$a('#automationStats').innerHTML=[[total,'Flujos'],[active,'Activos'],[runs,'Ejecuciones'],[runs?Math.round(ok/runs*100)+'%':'—','Éxito']].map(x=>`<div class="stat"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}
 function renderList(){const el=$a('#workflowList');el.innerHTML=workflows.length?workflows.map(w=>`<article class="workflow-card"><div class="wf-top"><div><span class="eyebrow">${safe(w.trigger_type)}</span><h3>${safe(w.name)}</h3></div><span class="wf-status ${safe(w.status)}">${safe(w.status)}</span></div><p>${safe(w.description||'Sin descripción')}</p><div class="wf-metrics"><div><b>${w.runs||0}</b><small>Runs</small></div><div><b>${w.successes||0}</b><small>OK</small></div><div><b>${w.failures||0}</b><small>Error</small></div></div><div class="actions"><button onclick="editWorkflow(${w.id})">Editar</button><button class="secondary" onclick="toggleWorkflow(${w.id})">${w.status==='active'?'Pausar':'Activar'}</button><button class="danger" onclick="deleteWorkflow(${w.id})">Eliminar</button></div></article>`).join(''):'<div class="empty-state"><b>Aún no hay workflows</b><p>Crea uno desde cero o usa una plantilla.</p></div>'}
 window.editWorkflow=id=>{const stored=workflows.find(x=>x.id===id);if(!stored)return;current=JSON.parse(JSON.stringify(stored));graph=current.graph||{nodes:[],edges:[]};if(typeof graph==='string')graph=JSON.parse(graph);$a('#wfName').value=current.name||'';$a('#wfDesc').value=current.description||'';$a('#wfStatus').value=current.status||'draft';$a('#wfTrigger').value=current.trigger_type||'manual';renderTriggerSettingsV273535();renderCanvas();switchTab('builder')};
-window.toggleWorkflow=async id=>{const w=workflows.find(x=>x.id===id);if(!w)return;const updated={...w,status:w.status==='active'?'paused':'active'};if(updated.status==='active'){const candidate=typeof w.graph==='string'?JSON.parse(w.graph):w.graph;const issue=wtCaptacionFormIssueV273569(candidate,w.trigger_config);if(issue)return toast(issue);if(candidate?.nodes?.some(n=>n.type==='send_whatsapp'))await loadWaCloudV273540();if(candidate?.nodes?.some(n=>['assign_owner','create_task'].includes(n.type)))await loadSalesHubUsersV273545(true);if(candidate?.nodes?.some(n=>n.type==='ai_task'))await loadAutomationAgentsV273547(true);if(!wtShowActivationIssuesV273540(wtActivationIssuesV273540(candidate)))return;}try{await api('/api/automations/workflows',{method:'PUT',body:JSON.stringify(updated)});toast('Estado actualizado');await loadWorkflowList()}catch(e){toast(e.message||'No se pudo actualizar el estado')}};
+const wtActivationBusyV273585=new Set();
+window.toggleWorkflow=async id=>{
+  const w=workflows.find(x=>x.id===id);
+  if(!w||wtActivationBusyV273585.has(id))return;
+  wtActivationBusyV273585.add(id);
+  const updated={...w,status:w.status==='active'?'paused':'active'};
+  try{
+    if(updated.status==='active'){
+      const candidate=typeof w.graph==='string'?JSON.parse(w.graph):w.graph;
+      // Always await the catalog on direct activation from the list.
+      // It also handles a request already in flight from the builder.
+      if(wtIsCaptacionGraphV273569(candidate))await loadFormsForAutomationsV273544(true);
+      const issue=wtCaptacionFormIssueV273569(candidate,w.trigger_config);
+      if(issue){toast(issue);return;}
+      if(candidate?.nodes?.some(n=>n.type==='send_whatsapp'))await loadWaCloudV273540();
+      if(candidate?.nodes?.some(n=>['assign_owner','create_task'].includes(n.type)))await loadSalesHubUsersV273545(true);
+      if(candidate?.nodes?.some(n=>n.type==='ai_task'))await loadAutomationAgentsV273547(true);
+      if(!wtShowActivationIssuesV273540(wtActivationIssuesV273540(candidate)))return;
+    }
+    await api('/api/automations/workflows',{method:'PUT',body:JSON.stringify(updated)});
+    toast('Estado actualizado');await loadWorkflowList();
+  }catch(e){toast(e?.message||'No se pudo actualizar el estado')}
+  finally{wtActivationBusyV273585.delete(id)}
+};
 window.deleteWorkflow=async id=>{if(!confirm('¿Eliminar este workflow?'))return;await api('/api/automations/workflows?id='+id,{method:'DELETE'});loadWorkflowList()};
 function newWorkflow(){current={name:'Nuevo flujo',description:'',status:'draft',trigger_type:'manual',trigger_config:{}};selected=null;graph={nodes:[{id:'trigger_'+Date.now(),type:'trigger',label:'Inicio',config:{}}],edges:[]};$a('#wfName').value=current.name;$a('#wfDesc').value='';$a('#wfStatus').value='draft';$a('#wfTrigger').value='manual';renderTriggerSettingsV273535();renderCanvas();renderProps();switchTab('builder')}
 function switchTab(t){const b=document.querySelector(`[data-auto-tab="${t}"]`);if(b)b.click()}
@@ -448,11 +500,11 @@ function wtCaptacionFormIssueV273569(g,cfg){
   if(!wtIsCaptacionGraphV273569(g))return '';
   const id=String(cfg?.form_id||'').trim();
   if(!/^[1-9]\d*$/.test(id))return 'Selecciona el formulario de origen antes de activar Captación IA.';
-  if(!wtFormsLoadedV273544)return 'Espera que cargue el catálogo de formularios y comprueba el seleccionado.';
+  if(!wtFormsLoadedV273544)return 'No se pudo validar el catálogo de formularios. Reintenta Activar o usa Actualizar formularios en el constructor.';
   if(!wtFormsV273544.some(x=>x.value===id))return 'El formulario seleccionado no está activo o ya no está disponible.';
   return '';
 }
-async function saveWorkflow(){if(!current) return toast('Crea o abre un flujo');current.name=$a('#wfName').value.trim();current.description=$a('#wfDesc').value.trim();current.status=$a('#wfStatus').value;current.trigger_type=$a('#wfTrigger').value;current.trigger_config=current.trigger_config||{};current.graph=graph;if(!current.name)return toast('Nombre obligatorio');if(current.status==='active'){const issue=wtCaptacionFormIssueV273569(graph,current.trigger_config);if(issue)return toast(issue);if(graph.nodes.some(n=>n.type==='send_whatsapp'))await loadWaCloudV273540();if(graph.nodes.some(n=>['assign_owner','create_task'].includes(n.type)))await loadSalesHubUsersV273545(true);if(graph.nodes.some(n=>n.type==='ai_task'))await loadAutomationAgentsV273547(true);if(!wtShowActivationIssuesV273540(wtActivationIssuesV273540(graph)))return;}const saved=await api('/api/automations/workflows',{method:current.id?'PUT':'POST',body:JSON.stringify(current)});current=saved;toast('Workflow guardado');await loadWorkflowList()}
+async function saveWorkflow(){if(!current) return toast('Crea o abre un flujo');current.name=$a('#wfName').value.trim();current.description=$a('#wfDesc').value.trim();current.status=$a('#wfStatus').value;current.trigger_type=$a('#wfTrigger').value;current.trigger_config=current.trigger_config||{};current.graph=graph;if(!current.name)return toast('Nombre obligatorio');if(current.status==='active'){if(wtIsCaptacionGraphV273569(graph))await loadFormsForAutomationsV273544(true);const issue=wtCaptacionFormIssueV273569(graph,current.trigger_config);if(issue)return toast(issue);if(graph.nodes.some(n=>n.type==='send_whatsapp'))await loadWaCloudV273540();if(graph.nodes.some(n=>['assign_owner','create_task'].includes(n.type)))await loadSalesHubUsersV273545(true);if(graph.nodes.some(n=>n.type==='ai_task'))await loadAutomationAgentsV273547(true);if(!wtShowActivationIssuesV273540(wtActivationIssuesV273540(graph)))return;}const saved=await api('/api/automations/workflows',{method:current.id?'PUT':'POST',body:JSON.stringify(current)});current=saved;toast('Workflow guardado');await loadWorkflowList()}
 async function testWorkflow(){
   if(!current?.id){await saveWorkflow();if(!current?.id)return}
   // Preview endpoint is server-side dry run, with zero business side effects.
