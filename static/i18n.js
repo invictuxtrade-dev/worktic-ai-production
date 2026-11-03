@@ -107,7 +107,7 @@ var I18N = {
 "nav.agents":{es:"Agentes IA",en:"AI Agents"},
 "nav.channels":{es:"Mis Canales",en:"My Channels"},
 "nav.rules":{es:"Automatizaciones",en:"Automations"},
-"nav.marketing":{es:"Captación de Leads",en:"Lead Capture"},
+"nav.marketing":{es:"Captación de Clientes",en:"Customer Acquisition"},
 "nav.landings":{es:"Landing Pages",en:"Landing Pages"},
 "nav.groups":{es:"Grupos & Comunidades",en:"Groups & Communities"},
 "nav.users":{es:"Equipo",en:"Team"},
@@ -153,7 +153,7 @@ var I18N = {
 "subtitle.channels":{es:"Conecta los canales de atención.",en:"Connect your customer-facing channels."},
 "title.rules":{es:"Automatizaciones",en:"Automations"},
 "subtitle.rules":{es:"Respuestas rápidas antes de invocar la IA.",en:"Instant replies before the AI ever gets involved."},
-"title.marketing":{es:"Captación de Leads",en:"Lead Capture"},
+"title.marketing":{es:"Captación de Clientes",en:"Customer Acquisition"},
 "subtitle.marketing":{es:"Captación orgánica y pagada con asistencia de IA.",en:"Organic and paid client acquisition, powered by AI."},
 "title.landings":{es:"Landing Pages",en:"Landing Pages"},
 "subtitle.landings":{es:"Crea páginas comerciales premium conectadas al CRM.",en:"Build premium landing pages connected to your CRM."},
@@ -304,7 +304,7 @@ var I18N = {
 "rules.active_title":{es:"Reglas activas",en:"Active rules"},
 
 /* ══════════════════ GROWTH & CAMPAÑAS ══════════════════ */
-"marketing.title":{es:"Captación de Leads",en:"Lead Capture"},
+"marketing.title":{es:"Captación de Clientes",en:"Customer Acquisition"},
 "marketing.desc":{es:"Crea campañas orgánicas, pagadas o combinadas con asistencia de IA y lleva cada lead al CRM.",en:"Create organic, paid or combined campaigns with AI assistance, and send every lead straight to your CRM."},
 "marketing.limits_loading":{es:"Cargando límites…",en:"Loading limits…"},
 "marketing.tab_campaigns":{es:"Campañas",en:"Campaigns"},

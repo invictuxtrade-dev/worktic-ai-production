@@ -36,7 +36,7 @@
     if (bar.dataset.wtcuReady!=='273591') {
       bar.className='growth-tabs wtcu-landing-tabs';
       bar.setAttribute('role','navigation');
-      bar.setAttribute('aria-label','Secciones de Captación de Leads');
+      bar.setAttribute('aria-label','Secciones de Captación de Clientes');
       bar.replaceChildren();
       tabConfig.forEach(([label,key])=>{
         const btn=document.createElement('button');btn.type='button';
@@ -58,7 +58,7 @@
   function reconcileHeader(){
     if (!activeLanding()) return;
     const title=q('#title');const subtitle=q('#subtitle');
-    const expectedTitle = (window.wtTitle&&window.wtTitle('marketing','title')) || 'Captación de Leads';
+    const expectedTitle = (window.wtTitle&&window.wtTitle('marketing','title')) || 'Captación de Clientes';
     if(title && title.textContent.trim()!==expectedTitle){
       title.textContent=expectedTitle;
     }
@@ -77,6 +77,7 @@
   function sync(){ensureTabs();reconcileHeader()}
   function install(){
     sync();
+    watchMarketingName();
     const area=landing();
     if(area){
       new MutationObserver(()=>requestAnimationFrame(sync))
@@ -94,7 +95,57 @@
         .observe(title,{childList:true,characterData:true,subtree:true});
     }
   }
-  window.WorkticAttractionShellV273591={openLandings,openGrowth,sync,version:'273591'};
+
+  // V27.35.95: Keep visible customer acquisition naming stable even if
+  // legacy views re-render older names. Does not move buttons or alter routes.
+  function expectedMarketingName(){
+    const translated = typeof window.wtT==='function' ? window.wtT('nav.marketing') : null;
+    if(translated) return translated;
+    const language = typeof window.wtLang==='function' ? window.wtLang() : document.documentElement.lang;
+    return String(language||'es').toLowerCase().startsWith('en') ? 'Customer Acquisition' : 'Captación de Clientes';
+  }
+  function setName(node,name){
+    if(node && node.textContent.trim()!==name) node.textContent=name;
+  }
+  function reconcileMarketingName(){
+    const name=expectedMarketingName();
+    const nav=q('#appSidebar button[data-view="marketing"]');
+    if(nav) setName(q('span[data-i18n="nav.marketing"]',nav) || q('span',nav),name);
+    const marketing=q('#marketing');
+    if(marketing){
+      setName(q(':scope > .section-head h2',marketing),name);
+      // Other (legacy) marketing renderers may create an extra namesake heading.
+      all('h1,h2,h3',marketing).forEach(el=>{
+        const heading=el.textContent.trim();
+        if(heading==='Atracción de Clientes' || heading==='Captación de Leads') setName(el,name);
+      });
+    }
+    if(window.__wtCurrentView==='marketing' || marketing?.classList.contains('active') || activeLanding()){
+      setName(q('#title'),name);
+    }
+  }
+  function watchMarketingName(){
+    let pending=false;
+    const schedule=()=>{
+      if(pending)return;
+      pending=true;
+      requestAnimationFrame(()=>{ pending=false;reconcileMarketingName(); });
+    };
+    const nav=q('#appSidebar button[data-view="marketing"]');
+    const marketing=q('#marketing');
+    const head=marketing && q(':scope > .section-head',marketing);
+    const title=q('#title');
+    if(nav)new MutationObserver(schedule).observe(nav,{childList:true,characterData:true,subtree:true});
+    if(head)new MutationObserver(schedule).observe(head,{childList:true,characterData:true,subtree:true});
+    if(marketing)new MutationObserver(schedule).observe(marketing,{childList:true});
+    if(title)new MutationObserver(schedule).observe(title,{childList:true,characterData:true,subtree:true});
+    window.addEventListener('worktic:langchange',schedule);
+    document.addEventListener('click',event=>{
+      if(event.target.closest('#appSidebar button[data-view], #wtcaLandingBreadcrumb button'))schedule();
+    },true);
+    schedule();
+  }
+  window.WorkticAttractionShellV273591={openLandings,openGrowth,sync,reconcileMarketingName,version:'273595'};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});
   else install();
 })();
