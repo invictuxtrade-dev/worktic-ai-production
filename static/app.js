@@ -64,11 +64,19 @@ function loadMetaSDK(appId,version){
  return wtMetaSDKPromise
 }
 function embeddedSignupMessageListener(event){
-  if(event.origin!=='https://www.facebook.com'&&event.origin!=='https://web.facebook.com')return;
+  // Meta puede emitir desde varios subdominios facebook.com; verificar el host real.
+  let facebookHost='';
+  try{
+   const source=new URL(event.origin);
+   facebookHost=source.hostname.toLowerCase();
+   if(source.protocol!=='https:'||(facebookHost!=='facebook.com'&&!facebookHost.endsWith('.facebook.com')))return;
+  }catch(e){return}
   let data=event.data;
   try{if(typeof data==='string')data=JSON.parse(data)}catch(e){return}
   if(!data||data.type!=='WA_EMBEDDED_SIGNUP')return;
   const ev=String(data.event||'').toUpperCase(),d=data.data||{};
+  // Registrar solo presencia de datos, nunca IDs, códigos OAuth o tokens.
+  console.info('[Worktic B1 Meta] Evento recibido',{evento:ev||'sin_evento',origen:facebookHost,tieneWABA:!!(d.waba_id||d.wabaId),tieneNumero:!!(d.phone_number_id||d.phoneNumberId)});
   // Solo asociar el resultado a un intento iniciado desde el tenant actual.
   const state=wtEmbeddedSignupState;
   if(!state.connection_id||state.completed)return;
@@ -129,7 +137,7 @@ async function startWhatsAppEmbeddedSignup(c){
     const state=wtEmbeddedSignupState;
     const code=typeof response?.authResponse?.code==='string'?response.authResponse.code.trim():'';
     // Nunca registrar códigos OAuth, access tokens ni respuestas completas de Meta.
-    console.info('[Worktic B1 Meta] Resultado OAuth',{codigoRecibido:!!code,eventoSesion:state.event||'sin_evento',estadoMeta:String(response?.status||'no_reportado')});
+    console.info('[Worktic B1 Meta] Resultado OAuth',{codigoRecibido:!!code,tokenPresente:!!response?.authResponse?.accessToken,authResponsePresente:!!response?.authResponse,eventoSesion:state.event||'sin_evento',estadoMeta:String(response?.status||'no_reportado'),conexionActiva:!!state.connection_id});
     if(!code){
      const el=$('#waEmbeddedStatus');
      if(el)el.textContent=state.event?.startsWith('FINISH')
@@ -141,7 +149,7 @@ async function startWhatsAppEmbeddedSignup(c){
     const el=$('#waEmbeddedStatus');if(el)el.textContent='Autorización de Meta recibida. Validando la conexión con Worktic...';
     // Iniciar en cuanto Meta confirme también los activos (postMessage).
     completeWhatsAppEmbeddedIfReady();
-   },{config_id:cfg.config_id,auth_type:'rerequest',response_type:'code',override_default_response_type:true,extras:{setup:{}}})
+   },{config_id:cfg.config_id,response_type:'code',override_default_response_type:true,extras:{}})
  }catch(e){if(status)status.innerHTML=`<b>No fue posible iniciar Embedded Signup.</b><br>${esc(e.message)}`}
 }
 
