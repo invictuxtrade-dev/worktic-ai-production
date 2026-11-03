@@ -141,6 +141,15 @@ func (a *App) configureWhatsAppCloud(ctx context.Context, c ChannelConnection, w
 	if err != nil {
 		return nil, err
 	}
+	var other int
+	e := a.db.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE type='whatsapp_cloud' AND external_account_id=? AND status='connected' AND id<>?`, cfg.PhoneNumberID, c.ID).Scan(&other)
+	if e != nil {
+		return nil, fmt.Errorf("no se pudo comprobar unicidad de número WhatsApp Cloud: %w", e)
+	}
+	if other != 0 {
+		return nil, errors.New("número WhatsApp Cloud ya configurado en otra conexión activa")
+	}
+
 	sub := "https://graph.facebook.com/" + a.cfg.MetaGraphVersion + "/" + url.PathEscape(cfg.WABAID) + "/subscribed_apps"
 	if err := a.whatsappCloudGraph(ctx, http.MethodPost, sub, token, map[string]any{}, nil); err != nil {
 		return nil, fmt.Errorf("WABA válido, pero no se pudo suscribir al webhook: %w", err)
@@ -280,10 +289,21 @@ func (a *App) whatsappCloudWebhookHandler(w http.ResponseWriter, r *http.Request
 				continue
 			}
 			phoneID := change.Value.Metadata.PhoneNumberID
-			var c ChannelConnection
-			err := a.db.QueryRow(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,encrypted_credentials,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE type='whatsapp_cloud' AND external_account_id=? AND status<>'deleted' ORDER BY id LIMIT 1`, phoneID).Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.EncryptedCredentials, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt)
-			if err != nil {
+			if phoneID == "" {
 				continue
+			}
+			// A single Meta phone number cannot be routed to an arbitrary tenant.
+			var matching int
+			if e := a.db.QueryRow(`SELECT COUNT(*) FROM channel_connections WHERE type='whatsapp_cloud' AND external_account_id=? AND status='connected'`, phoneID).Scan(&matching); e != nil || matching != 1 {
+				fmt.Printf("B1 WhatsApp Cloud ambiguous/unavailable connection for incoming phone ID (matches=%d): %v\n", matching, e)
+				http.Error(w, "WhatsApp Cloud connection routing unavailable", http.StatusServiceUnavailable)
+				return
+			}
+			var c ChannelConnection
+			err := a.db.QueryRow(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,encrypted_credentials,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE type='whatsapp_cloud' AND external_account_id=? AND status='connected'`, phoneID).Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.EncryptedCredentials, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt)
+			if err != nil || c.TenantID <= 0 {
+				http.Error(w, "WhatsApp Cloud connection routing error", http.StatusServiceUnavailable)
+				return
 			}
 			contactNames := map[string]string{}
 			for _, ct := range change.Value.Contacts {
@@ -299,21 +319,55 @@ func (a *App) whatsappCloudWebhookHandler(w http.ResponseWriter, r *http.Request
 				if providerTimeErr == nil {
 					ts = providerTime.Format(time.RFC3339)
 				}
-				chat := "wacloud:" + m.From
-				_, _ = a.db.Exec(`INSERT OR IGNORE INTO worktic_messages(tenant_id,channel_connection_id,channel,wa_id,chat_jid,sender_jid,direction,message_type,text,status,timestamp) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, c.TenantID, c.ID, "whatsapp_cloud", m.ID, chat, m.From, "in", m.Type, txt, "received", ts)
-				_, _ = a.db.Exec(`INSERT INTO worktic_contacts(tenant_id,channel_connection_id,chat_jid,channel,phone,name,unread,updated_at) VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(chat_jid) DO UPDATE SET tenant_id=excluded.tenant_id,channel_connection_id=excluded.channel_connection_id,channel=excluded.channel,phone=excluded.phone,name=CASE WHEN excluded.name<>'' THEN excluded.name ELSE worktic_contacts.name END,unread=worktic_contacts.unread+1,updated_at=excluded.updated_at`, c.TenantID, c.ID, chat, "whatsapp_cloud", m.From, contactNames[m.From], ts)
-				_, _ = a.db.Exec(`UPDATE channel_connections SET last_message_at=?,last_error='',updated_at=? WHERE id=?`, ts, ts, c.ID)
-				_ = a.syncCRMContactAt(c.TenantID, contactNames[m.From], m.From, "", "whatsapp_cloud", "conversation", chat, ts)
-				_ = a.syncOpportunityFromConversation(c.TenantID, chat, "whatsapp_cloud", txt, ts)
+				if !waCloudValidPeerV273599(m.From) || strings.TrimSpace(m.ID) == "" {
+					// Fail closed: no CRM mutation without a stable provider identifier.
+					continue
+				}
+				chat := a.waCloudChatForInboundV273599(c, m.From)
+				newlyInserted, err := a.waCloudStoreInboundV273599(c, m.ID, chat, m.From, m.Type, txt, contactNames[m.From], ts)
+				if err != nil {
+					fmt.Printf("B1 WhatsApp Cloud storage error (tenant %d): %v\n", c.TenantID, err)
+					http.Error(w, "temporary storage failure", http.StatusServiceUnavailable)
+					return
+				}
+				var crmDone int
+				if e := a.db.QueryRow(`SELECT crm_done FROM wa_cloud_receipts_v273599 WHERE tenant_id=? AND connection_id=? AND meta_message_id=?`, c.TenantID, c.ID, m.ID).Scan(&crmDone); e != nil {
+					http.Error(w, "temporary receipt failure", http.StatusServiceUnavailable)
+					return
+				}
+				if crmDone == 1 {
+					continue
+				} // fully processed before: avoid duplicate CRM/unread/marketing writes
+				if err := a.syncCRMContactAt(c.TenantID, contactNames[m.From], m.From, "", "whatsapp_cloud", "conversation", chat, ts); err != nil {
+					fmt.Printf("B1 Cloud CRM contact unavailable (tenant %d): %v\n", c.TenantID, err)
+					http.Error(w, "temporary CRM failure", http.StatusServiceUnavailable)
+					return
+				}
+				if err := a.waCloudOpportunityV273599(c.TenantID, chat, m.From, txt, ts); err != nil {
+					fmt.Printf("B1 Cloud CRM opportunity unavailable (tenant %d): %v\n", c.TenantID, err)
+					http.Error(w, "temporary CRM failure", http.StatusServiceUnavailable)
+					return
+				}
 				a.ensureInboxConversation(c.TenantID, chat)
-				// V27.35.46: one queued automation event per verified Meta message ID.
-				// Inbox and CRM processing remain on their existing paths.
-				if providerTimeErr == nil && m.ID != "" {
+				if providerTimeErr == nil {
 					if er := a.enqueueVerifiedWAInboundV273546(c.TenantID, c.ID, m.ID, chat, txt, ts); er != nil {
-						fmt.Printf("automation whatsapp inbound not enqueued (tenant %d): %v\n", c.TenantID, er)
+						fmt.Printf("B1 inbound automation not queued (tenant %d): %v\n", c.TenantID, er)
+						// Events older than the safety window are intentionally not enqueued.
+						// Fail closed for transient enqueue problems; an old event
+						// is explicitly ignored by the existing enqueue time guard.
+						if time.Since(providerTime) < 24*time.Hour {
+							http.Error(w, "temporary automation enqueue failure", http.StatusServiceUnavailable)
+							return
+						}
 					}
 				}
-				a.trackWhatsAppMarketingInboundV27(c.TenantID, c.ID, m.From, txt, ts)
+				if _, err := a.db.Exec(`UPDATE wa_cloud_receipts_v273599 SET crm_done=1 WHERE tenant_id=? AND connection_id=? AND meta_message_id=?`, c.TenantID, c.ID, m.ID); err != nil {
+					http.Error(w, "temporary receipt update failure", http.StatusServiceUnavailable)
+					return
+				}
+				if newlyInserted {
+					a.trackWhatsAppMarketingInboundV27(c.TenantID, c.ID, m.From, txt, ts)
+				}
 			}
 			for _, s := range change.Value.Statuses {
 				_, _ = a.db.Exec(`UPDATE worktic_messages SET status=? WHERE tenant_id=? AND channel_connection_id=? AND wa_id=?`, s.Status, c.TenantID, c.ID, s.ID)

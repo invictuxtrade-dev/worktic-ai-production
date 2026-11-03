@@ -919,7 +919,11 @@ func (a *App) sendViaConnection(ctx context.Context, tid, connectionID int64, ex
 		if a.db.QueryRow(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,encrypted_credentials,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE id=? AND tenant_id=?`, connectionID, tid).Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.EncryptedCredentials, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt) != nil {
 			return "", errors.New("conexión no encontrada")
 		}
-		return a.sendWhatsAppCloudText(ctx, c, strings.TrimPrefix(externalChat, "wacloud:"), text)
+		peer, err := waCloudToForConnectionV273599(externalChat, c.ID)
+		if err != nil {
+			return "", err
+		}
+		return a.sendWhatsAppCloudText(ctx, c, peer, text)
 	}
 	return "", errors.New("envío directo para este canal requiere webhook oficial configurado")
 }

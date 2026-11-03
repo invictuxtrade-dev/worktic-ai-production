@@ -32,7 +32,7 @@ func TestAutomationGraphV273534_RejectCycle(t *testing.T) {
 	}
 }
 func TestAutomationGraphV273534_RejectFakeTask(t *testing.T) {
-	g := graphV273534([]automationNode{{ID: "t", Type: "trigger"}, {ID: "a", Type: "create_task"}}, []automationEdge{{From: "t", To: "a"}})
+	g := graphV273534([]automationNode{{ID: "t", Type: "trigger"}, {ID: "a", Type: "fake_task"}}, []automationEdge{{From: "t", To: "a"}})
 	if _, err := buildAutomationExecutionPlan(g); err == nil {
 		t.Fatal("fake action must be rejected")
 	}
@@ -77,5 +77,22 @@ func TestAutomationGraphV273534_TemplateVariables(t *testing.T) {
 	}
 	if _, err := expandAutomationMessageV273534("Hola {{email}}", map[string]any{"event": map[string]any{}}); err == nil {
 		t.Fatal("missing variable must fail")
+	}
+}
+
+func TestAutomationGraphV273599_RealTaskValidated(t *testing.T) {
+	config := map[string]any{"title": "Contactar al prospecto", "due_hours": 1}
+	if err := validateAutomationTaskSettingsV273545(config); err != nil {
+		t.Fatalf("valid create_task configuration rejected: %v", err)
+	}
+	g := graphV273534([]automationNode{
+		{ID: "t", Type: "trigger"},
+		{ID: "a", Type: "create_task", Config: config},
+	}, []automationEdge{{From: "t", To: "a"}})
+	if _, err := buildAutomationExecutionPlan(g); err != nil {
+		t.Fatalf("supported create_task must be accepted: %v", err)
+	}
+	if err := validateAutomationTaskSettingsV273545(map[string]any{}); err == nil {
+		t.Fatal("create_task with missing settings must be rejected")
 	}
 }

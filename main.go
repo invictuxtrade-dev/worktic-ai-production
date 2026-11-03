@@ -383,6 +383,9 @@ func main() {
 	if err = initChannelTenantSchema(db); err != nil {
 		log.Fatal(err)
 	}
+	if err = initWACloudB1V273599Schema(db); err != nil {
+		log.Fatalf("WhatsApp Cloud B1 receipts schema: %v", err)
+	}
 	if err = initMessengerProductionSchema(db); err != nil {
 		log.Fatalf("messenger production schema: %v", err)
 	}
@@ -1455,11 +1458,9 @@ func (a *App) sendHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, tenantErr, 409)
 			return
 		}
-		to := strings.TrimPrefix(target, "wacloud:")
-		var c ChannelConnection
-		e := a.db.QueryRow(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,encrypted_credentials,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE tenant_id=? AND type='whatsapp_cloud' AND status='connected' ORDER BY id LIMIT 1`, tenantID).Scan(&c.ID, &c.TenantID, &c.PublicID, &c.Type, &c.Name, &c.Status, &c.ExternalAccountID, &c.AssignedAgentID, &c.ConfigJSON, &c.EncryptedCredentials, &c.LastConnectedAt, &c.LastDisconnectedAt, &c.LastMessageAt, &c.LastError, &c.CreatedAt, &c.UpdatedAt)
+		c, to, e := a.waCloudConnectionForChatV273599(tenantID, target)
 		if e != nil {
-			err = errors.New("WhatsApp Cloud no conectado")
+			err = e
 		} else {
 			resp, err = a.sendWhatsAppCloudText(r.Context(), c, to, req.Text)
 			if err == nil {

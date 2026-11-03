@@ -14,7 +14,7 @@ func (a *App) authorizeAutomationWhatsAppV273546(tid, connectionID int64, to str
 	if !strings.EqualFold(strings.TrimSpace(env("WORKTIC_AUTOMATION_WA_FREEFORM_ENABLED", "false")), "true") {
 		return errors.New("envío WhatsApp automático deshabilitado por seguridad; no hay envío")
 	}
-	chat, messageID, err := automationWAReplyIdentityV273546(state, connectionID, to)
+	chat, messageID, err := waCloudAutomationIdentityV273599(state, connectionID, to)
 	if err != nil {
 		return err
 	}

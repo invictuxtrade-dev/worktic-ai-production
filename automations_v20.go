@@ -794,7 +794,11 @@ func (a *App) executeAutomationNode(ctx context.Context, tid int64, n automation
 		}
 		// Verified inbound WhatsApp events identify the sender in chat, not phone.
 		if to == "" && payloadString(state, "channel") == "whatsapp_cloud" {
-			to = strings.TrimPrefix(payloadString(state, "chat"), "wacloud:")
+			_, peer, _, parseErr := waCloudParseChatV273599(payloadString(state, "chat"))
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			to = peer
 		}
 		text := cfgString(n.Config, "message")
 		if conn == 0 || to == "" || text == "" {
