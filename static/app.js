@@ -4,12 +4,12 @@ let activeChat='',allConvs=[];
 // Evita TDZ si un módulo opcional cambia de markup entre despliegues.
 var channelPollers={},wtMetaSDKPromise=null,wtEmbeddedSignupState={};
 // B1 Meta V27.36.4 — Instrumentación privada de diagnóstico; nunca guardar credenciales.
-var wtMetaB1Diagnostic={version:'27.36.5',startedAt:0,attempt:0,stage:'sin_iniciar',metaMessages:0,signupEvents:0,oauthCallbacks:0,events:[]};
+var wtMetaB1Diagnostic={version:'27.36.6',startedAt:0,attempt:0,stage:'sin_iniciar',metaMessages:0,signupEvents:0,oauthCallbacks:0,events:[]};
 // SDK y configuracion listos antes del clic; FB.login se llama sin await (requiere activacion de usuario).
 var wtMetaB1Prepared=null;
 function wtMetaB1Begin(){
  const prev=wtMetaB1Diagnostic;
- wtMetaB1Diagnostic={version:'27.36.5',startedAt:Date.now(),attempt:(prev.attempt||0)+1,stage:'iniciado',metaMessages:0,signupEvents:0,oauthCallbacks:0,events:[]};
+ wtMetaB1Diagnostic={version:'27.36.6',startedAt:Date.now(),attempt:(prev.attempt||0)+1,stage:'iniciado',metaMessages:0,signupEvents:0,oauthCallbacks:0,events:[]};
  wtMetaB1Step('clic_conectar',{https:location.protocol==='https:',sdkYaCargado:!!window.FB,enPaginaPrincipal:window.self===window.top,cookiesHabilitadas:navigator.cookieEnabled===true});
 }
 function wtMetaB1Step(stage,flags){
@@ -143,7 +143,7 @@ async function completeWhatsAppEmbeddedIfReady(){
  }
  st.completing=true;
  try{
-  const pin=($('#waEmbeddedPin')?.value||'').trim();
+  const pin=st.mode==='coexistence'?'':($('#waEmbeddedPin')?.value||'').trim();
   if(pin&&!/^\d{6}$/.test(pin))throw new Error('El PIN debe tener exactamente 6 dígitos.');
   wtMetaB1Step('backend_completando',{motivo:'con_datos'});
   const d=await api('/api/whatsapp/embedded/complete',{method:'POST',body:JSON.stringify({connection_id:st.connection_id,code:st.code,waba_id:st.waba_id||'',phone_number_id:st.phone_number_id||'',pin,agent_id:st.agent_id||0})});
@@ -196,11 +196,14 @@ function startWhatsAppEmbeddedSignup(c){
  }
  wtMetaB1Step('config_recibida',{hayAppId:!!cfg.app_id,hayConfigId:!!cfg.config_id,appIdEsperado:String(cfg.app_id)==='2895087757509133',configIdEsperado:String(cfg.config_id)==='1458643486240604',graphApi:String(cfg.graph_version||'v25.0')});
  wtMetaB1Step('sdk_cargado',{sdkListo:!!window.FB,loginDisponible:typeof window.FB?.login==='function'});
- wtEmbeddedSignupState={connection_id:c.id,agent_id:c.assigned_agent_id||0,code:'',waba_id:'',phone_number_id:'',completed:false,completing:false};
+ wtEmbeddedSignupState={connection_id:c.id,agent_id:c.assigned_agent_id||0,mode:$('#waEmbeddedMode')?.value==='standard'?'standard':'coexistence',code:'',waba_id:'',phone_number_id:'',completed:false,completing:false};
  if(status)status.textContent='Meta abierto. Completa el proceso y pulsa «Finalizar» dentro del asistente.';
  const btn=$('#startWaEmbedded');if(btn)btn.disabled=true;
  try{
   // Esta llamada ocurre en la MISMA pila del clic, sin esperas de red.
+  // La modalidad es una elección explícita: no migrar números activos por accidente.
+  const mode=$('#waEmbeddedMode')?.value==='standard'?'standard':'coexistence';
+  wtMetaB1Step(mode==='coexistence'?'modo_coexistencia':'modo_numero_nuevo',{loginDisponible:true});
   wtMetaB1Step('popup_solicitado',{loginDisponible:true});
   FB.login(function(response){
    wtMetaB1Diagnostic.oauthCallbacks++;
@@ -226,7 +229,9 @@ function startWhatsAppEmbeddedSignup(c){
    wtMetaB1Step('oauth_codigo_recibido',{codigoRecibido:true});
    const el=$('#waEmbeddedStatus');if(el)el.textContent='Autorización de Meta recibida. Verificando los activos de WhatsApp...';
    completeWhatsAppEmbeddedIfReady();
-  },{config_id:cfg.config_id,response_type:'code',override_default_response_type:true,extras:{}});
+  },{config_id:cfg.config_id,response_type:'code',override_default_response_type:true,
+    // Coexistencia v4: Meta identifica este flujo mediante featureType.
+    extras:mode==='coexistence'?{setup:{},featureType:'whatsapp_business_app_onboarding'}:{}});
  }catch(e){
   if(btn&&$('#startWaEmbedded')===btn)btn.disabled=false;
   wtMetaB1Step('inicio_error',{motivo:'inicio_error'});
@@ -241,8 +246,16 @@ window.connectTenantChannel=async c=>{
   let details={};try{details=await api('/api/channels/action',{method:'POST',body:JSON.stringify({id:c.id,action:'details'})})}catch(e){}
   const cfg=(()=>{try{return JSON.parse(c.config_json||'{}')}catch{return{}}})();
   const waba=details.waba_id||cfg.waba_id||'',phone=details.phone_number_id||c.external_account_id||cfg.phone_number_id||'',webhook=details.webhook_url||'',verify=details.verify_token||'';
-  modal(`<div class="modal-heading"><span class="eyebrow">META · WHATSAPP BUSINESS PLATFORM</span><h2>Conectar WhatsApp Business</h2><p>Onboarding oficial integrado en WorkticAI mediante Meta Embedded Signup.</p></div><div class="form"><div class="form-section embedded-signup-card"><h3 class="form-section-title">Conexión recomendada</h3><p>Meta te permitirá seleccionar o crear tu empresa, cuenta de WhatsApp Business y número sin copiar IDs ni tokens.</p><label>PIN de verificación en dos pasos <small>(6 dígitos; úsalo para registrar el número si aplica)</small><input id="waEmbeddedPin" inputmode="numeric" maxlength="6" placeholder="123456"></label><button type="button" id="startWaEmbedded" class="meta-connect-btn" disabled>Preparando Meta...</button><div id="waEmbeddedStatus" class="notice">La autorización ocurre directamente en Meta y Worktic almacena las credenciales cifradas por empresa.</div><details style="margin-top:10px" id="waMetaB1Panel"><summary style="cursor:pointer">Diagnóstico técnico B1 · versión 27.36.5</summary><p style="font-size:12px">Después de terminar Meta, copia este reporte. Solo incluye indicadores, nunca códigos, tokens, números ni IDs.</p><textarea id="waMetaB1Report" readonly spellcheck="false" aria-label="Reporte seguro de Meta" style="width:100%;min-height:180px;font:12px/1.45 monospace;resize:vertical" ></textarea><button type="button" class="secondary" id="waMetaB1Copy">Copiar diagnóstico seguro</button></details></div><details class="manual-fallback"><summary>Conexión manual avanzada</summary><div class="grid2"><label>WABA ID<input id="waCloudWaba" value="${esc(waba)}" placeholder="WhatsApp Business Account ID"></label><label>Phone Number ID<input id="waCloudPhone" value="${esc(phone)}" placeholder="Phone Number ID"></label></div><label>Access Token<input id="waCloudToken" type="password" autocomplete="off" placeholder="${details.has_token?'Déjalo vacío para conservar el actual':'Token de sistema/Meta'}"></label><div class="actions"><button type="button" id="saveWaCloud">Guardar conexión manual</button></div></details>${webhook?`<div class="form-section"><h3 class="form-section-title">Webhook oficial</h3><label>Callback URL<div class="copy-field"><input id="waCloudWebhook" readonly value="${esc(webhook)}"><button type="button" class="secondary" onclick="navigator.clipboard.writeText($('#waCloudWebhook').value);toast('URL copiada')">Copiar</button></div></label><label>Verify Token<div class="copy-field"><input id="waCloudVerify" readonly value="${esc(verify)}"><button type="button" class="secondary" onclick="navigator.clipboard.writeText($('#waCloudVerify').value);toast('Token copiado')">Copiar</button></div></label></div>`:''}<div class="actions"><button value="cancel" class="secondary">Cerrar</button></div></div>`);
+  modal(`<div class="modal-heading"><span class="eyebrow">META · WHATSAPP BUSINESS PLATFORM</span><h2>Conectar WhatsApp Business</h2><p>Onboarding oficial integrado en WorkticAI mediante Meta Embedded Signup.</p></div><div class="form"><div class="form-section embedded-signup-card"><h3 class="form-section-title">Conexión recomendada</h3><p>Elige la modalidad adecuada para tu número. Si ya utilizas la app WhatsApp Business y quieres conservarla, selecciona coexistencia. No aceptes migraciones ni desconexiones del celular.</p><label>¿Cómo deseas conectar WhatsApp?<select id="waEmbeddedMode"><option value="coexistence">Conservar mi WhatsApp Business del celular (coexistencia)</option><option value="standard">Registrar un número nuevo para Cloud API</option></select></label><div class="notice" id="waEmbeddedModeHelp">Coexistencia: conserva la aplicación móvil y permite vincular el mismo número a Cloud API, si Meta autoriza tu cuenta. No elimines ni transfieras tu número.</div><label id="waEmbeddedPinWrap" style="display:none">PIN de verificación en dos pasos <small>(6 dígitos; úsalo para registrar el número si aplica)</small><input id="waEmbeddedPin" inputmode="numeric" maxlength="6" placeholder="123456"></label><button type="button" id="startWaEmbedded" class="meta-connect-btn" disabled>Preparando Meta...</button><div id="waEmbeddedStatus" class="notice">La autorización ocurre directamente en Meta y Worktic almacena las credenciales cifradas por empresa.</div><details style="margin-top:10px" id="waMetaB1Panel"><summary style="cursor:pointer">Diagnóstico técnico B1 · versión 27.36.6</summary><p style="font-size:12px">Después de terminar Meta, copia este reporte. Solo incluye indicadores, nunca códigos, tokens, números ni IDs.</p><textarea id="waMetaB1Report" readonly spellcheck="false" aria-label="Reporte seguro de Meta" style="width:100%;min-height:180px;font:12px/1.45 monospace;resize:vertical" ></textarea><button type="button" class="secondary" id="waMetaB1Copy">Copiar diagnóstico seguro</button></details></div><details class="manual-fallback"><summary>Conexión manual avanzada</summary><div class="grid2"><label>WABA ID<input id="waCloudWaba" value="${esc(waba)}" placeholder="WhatsApp Business Account ID"></label><label>Phone Number ID<input id="waCloudPhone" value="${esc(phone)}" placeholder="Phone Number ID"></label></div><label>Access Token<input id="waCloudToken" type="password" autocomplete="off" placeholder="${details.has_token?'Déjalo vacío para conservar el actual':'Token de sistema/Meta'}"></label><div class="actions"><button type="button" id="saveWaCloud">Guardar conexión manual</button></div></details>${webhook?`<div class="form-section"><h3 class="form-section-title">Webhook oficial</h3><label>Callback URL<div class="copy-field"><input id="waCloudWebhook" readonly value="${esc(webhook)}"><button type="button" class="secondary" onclick="navigator.clipboard.writeText($('#waCloudWebhook').value);toast('URL copiada')">Copiar</button></div></label><label>Verify Token<div class="copy-field"><input id="waCloudVerify" readonly value="${esc(verify)}"><button type="button" class="secondary" onclick="navigator.clipboard.writeText($('#waCloudVerify').value);toast('Token copiado')">Copiar</button></div></label></div>`:''}<div class="actions"><button value="cancel" class="secondary">Cerrar</button></div></div>`);
   wtMetaB1Render();
+  $('#waEmbeddedMode').onchange=()=>{
+   const coex=$('#waEmbeddedMode').value==='coexistence';
+   $('#waEmbeddedPinWrap').style.display=coex?'none':'';
+   $('#waEmbeddedModeHelp').textContent=coex
+    ?'Coexistencia: conserva la aplicación móvil y permite vincular el mismo número a Cloud API, si Meta autoriza tu cuenta. No elimines ni transfieras tu número.'
+    :'Número nuevo: utilizarás el registro estándar de Cloud API. No introduzcas aquí un número que ya está activo en WhatsApp Business si deseas mantener la app.';
+   if(coex)$('#waEmbeddedPin').value='';
+  };
   $('#startWaEmbedded').onclick=()=>startWhatsAppEmbeddedSignup(c);
   // Cargar SDK ANTES de que el usuario haga clic, para que FB.login conserve su activación.
   void prepareWhatsAppEmbeddedSignup();
