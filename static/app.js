@@ -3,6 +3,30 @@ let activeChat='',allConvs=[];
 // Estado compartido inicializado antes de cualquier binding o carga asíncrona.
 // Evita TDZ si un módulo opcional cambia de markup entre despliegues.
 var channelPollers={},wtMetaSDKPromise=null,wtEmbeddedSignupState={};
+// B1 Meta V27.36.4 — Instrumentación privada de diagnóstico; nunca guardar credenciales.
+var wtMetaB1Diagnostic={version:'27.36.4',startedAt:0,attempt:0,stage:'sin_iniciar',metaMessages:0,signupEvents:0,oauthCallbacks:0,events:[]};
+function wtMetaB1Begin(){
+ const prev=wtMetaB1Diagnostic;
+ wtMetaB1Diagnostic={version:'27.36.4',startedAt:Date.now(),attempt:(prev.attempt||0)+1,stage:'iniciado',metaMessages:0,signupEvents:0,oauthCallbacks:0,events:[]};
+ wtMetaB1Step('clic_conectar',{https:location.protocol==='https:',sdkYaCargado:!!window.FB,enPaginaPrincipal:window.self===window.top,cookiesHabilitadas:navigator.cookieEnabled===true});
+}
+function wtMetaB1Step(stage,flags){
+ const d=wtMetaB1Diagnostic;if(!d.startedAt)return;
+ const allowed=['https','sdkYaCargado','enPaginaPrincipal','cookiesHabilitadas','hayAppId','hayConfigId','appIdEsperado','configIdEsperado','sdkListo','loginDisponible','callbackInvocado','authResponsePresente','codigoRecibido','tokenPresente','estado','origenFacebook','tipo','evento','tieneWABA','tieneNumero','intentoActivo','mensajeNoJSON','completado','motivo','graphApi'];
+ const clean={};for(const k of allowed){if(!flags||!Object.prototype.hasOwnProperty.call(flags,k))continue;const v=flags[k];if(typeof v==='boolean')clean[k]=v;else if(typeof v==='string'){if(k==='estado'&&['connected','not_authorized','unknown','no_reportado'].includes(v))clean[k]=v;else if(k==='evento'&&['FINISH','FINISH_ONLY_WABA','FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING','FINISH_OBO_MIGRATION','FINISH_GRANT_ONLY_API_ACCESS','CANCEL','ERROR'].includes(v))clean[k]=v;else if(k==='tipo'&&['WA_EMBEDDED_SIGNUP','otro'].includes(v))clean[k]=v;else if(k==='motivo'&&['sin_codigo','sin_activos','con_datos','cancelado','sdk_error','backend_error','backend_ok','inicio_error'].includes(v))clean[k]=v;else if(k==='graphApi'&&/^v\d+\.\d+$/.test(v))clean[k]=v;}}
+ d.stage=stage;
+ if(d.events.length<45)d.events.push({ms:Math.max(0,Date.now()-d.startedAt),paso:stage,...clean});
+ wtMetaB1Render();
+}
+function wtMetaB1Report(){
+ const d=wtMetaB1Diagnostic;
+ return JSON.stringify({version:d.version,intento:d.attempt,etapa:d.stage,duracionMs:d.startedAt?Date.now()-d.startedAt:0,metamensajes:d.metaMessages,eventosWhatsApp:d.signupEvents,callbacksOAuth:d.oauthCallbacks,indicaciones:['Reporte solo de indicadores; no contiene IDs, codigos ni tokens.','Si Meta muestra error dentro del popup, describirlo sin compartir datos personales.'],pasos:d.events},null,2);
+}
+function wtMetaB1Render(){const box=document.getElementById('waMetaB1Report');if(box)box.value=wtMetaB1Report();}
+window.wtMetaB1Report=wtMetaB1Report;
+document.addEventListener('click',async function(e){if(e.target?.id!=='waMetaB1Copy')return;wtMetaB1Render();const s=wtMetaB1Report();try{if(!navigator.clipboard?.writeText)throw Error('clipboard');await navigator.clipboard.writeText(s);e.target.textContent='Reporte copiado (sin secretos)';}catch(_){const p=document.getElementById('waMetaB1Report');if(p){p.focus();p.select();e.target.textContent='Seleccionado: Ctrl+C para copiar';}}});
+// FIN instrumentación B1 v27.36.4.
+
 var marketingLimits={},campaignAIPlan='';
 var metaLeadPages=[],metaLeadCampaigns=[],metaLeadAgents=[],metaLeadWA=[];
 var groupLimits={};
@@ -71,10 +95,13 @@ function embeddedSignupMessageListener(event){
    facebookHost=source.hostname.toLowerCase();
    if(source.protocol!=='https:'||(facebookHost!=='facebook.com'&&!facebookHost.endsWith('.facebook.com')))return;
   }catch(e){return}
+  wtMetaB1Diagnostic.metaMessages++;
   let data=event.data;
-  try{if(typeof data==='string')data=JSON.parse(data)}catch(e){return}
-  if(!data||data.type!=='WA_EMBEDDED_SIGNUP')return;
+  try{if(typeof data==='string')data=JSON.parse(data)}catch(e){wtMetaB1Step('mensaje_meta_no_json',{mensajeNoJSON:true});return}
+  if(!data||data.type!=='WA_EMBEDDED_SIGNUP'){if(wtMetaB1Diagnostic.metaMessages<=4)wtMetaB1Step('mensaje_facebook_no_signup',{tipo:'otro'});return}
+  wtMetaB1Diagnostic.signupEvents++;
   const ev=String(data.event||'').toUpperCase(),d=data.data||{};
+  wtMetaB1Step('evento_whatsapp',{tipo:'WA_EMBEDDED_SIGNUP',evento:ev,tieneWABA:!!(d.waba_id||d.wabaId),tieneNumero:!!(d.phone_number_id||d.phoneNumberId),intentoActivo:!!wtEmbeddedSignupState.connection_id});
   // Registrar solo presencia de datos, nunca IDs, códigos OAuth o tokens.
   console.info('[Worktic B1 Meta] Evento recibido',{evento:ev||'sin_evento',origen:facebookHost,tieneWABA:!!(d.waba_id||d.wabaId),tieneNumero:!!(d.phone_number_id||d.phoneNumberId)});
   // Solo asociar el resultado a un intento iniciado desde el tenant actual.
@@ -116,29 +143,39 @@ async function completeWhatsAppEmbeddedIfReady(){
  try{
   const pin=($('#waEmbeddedPin')?.value||'').trim();
   if(pin&&!/^\d{6}$/.test(pin))throw new Error('El PIN debe tener exactamente 6 dígitos.');
+  wtMetaB1Step('backend_completando',{motivo:'con_datos'});
   const d=await api('/api/whatsapp/embedded/complete',{method:'POST',body:JSON.stringify({connection_id:st.connection_id,code:st.code,waba_id:st.waba_id||'',phone_number_id:st.phone_number_id||'',pin,agent_id:st.agent_id||0})});
+  wtMetaB1Step('backend_aceptado',{motivo:'backend_ok'});
   st.completed=true;
   const status=$('#waEmbeddedStatus');if(status)status.innerHTML=`<b>WhatsApp Business conectado oficialmente.</b><br>${esc(d.verified_name||'')} ${esc(d.display_phone_number||'')} · Calidad ${esc(d.quality_rating||'—')}`;
   toast('WhatsApp Business conectado con Meta');await loadChannels();
   setTimeout(()=>{try{$('#modal').close()}catch(e){}},900)
  }catch(e){
   st.completing=false;
+  wtMetaB1Step('backend_rechazado',{motivo:'backend_error'});
   const status=$('#waEmbeddedStatus');if(status)status.innerHTML=`<b>No se pudo completar el onboarding.</b><br>${esc(e.message)}`
  }
 }
 async function startWhatsAppEmbeddedSignup(c){
+ wtMetaB1Begin();
  const status=$('#waEmbeddedStatus');if(status)status.textContent='Preparando conexión segura con Meta...';
  try{
   const cfg=await api('/api/whatsapp/embedded/config');
+  wtMetaB1Step('config_recibida',{hayAppId:!!cfg.app_id,hayConfigId:!!cfg.config_id,appIdEsperado:String(cfg.app_id)==='2895087757509133',configIdEsperado:String(cfg.config_id)==='1458643486240604',graphApi:String(cfg.graph_version||'v25.0')});
   await loadMetaSDK(cfg.app_id,cfg.graph_version||'v25.0');
+  wtMetaB1Step('sdk_cargado',{sdkListo:!!window.FB,loginDisponible:typeof window.FB?.login==='function'});
   wtEmbeddedSignupState={connection_id:c.id,agent_id:c.assigned_agent_id||0,code:'',waba_id:'',phone_number_id:'',completed:false,completing:false};
   if(status)status.textContent='Se abrirá Meta para seleccionar o crear la empresa, WABA y número de WhatsApp.';
+     wtMetaB1Step('popup_solicitado',{loginDisponible:typeof window.FB?.login==='function'});
      FB.login(function(response){
+    wtMetaB1Diagnostic.oauthCallbacks++;
     const state=wtEmbeddedSignupState;
     const code=typeof response?.authResponse?.code==='string'?response.authResponse.code.trim():'';
+    wtMetaB1Step('callback_oauth',{callbackInvocado:true,authResponsePresente:!!response?.authResponse,codigoRecibido:!!code,tokenPresente:!!response?.authResponse?.accessToken,estado:['connected','not_authorized','unknown'].includes(response?.status)?response.status:'no_reportado'});
     // Nunca registrar códigos OAuth, access tokens ni respuestas completas de Meta.
     console.info('[Worktic B1 Meta] Resultado OAuth',{codigoRecibido:!!code,tokenPresente:!!response?.authResponse?.accessToken,authResponsePresente:!!response?.authResponse,eventoSesion:state.event||'sin_evento',estadoMeta:String(response?.status||'no_reportado'),conexionActiva:!!state.connection_id});
     if(!code){
+     wtMetaB1Step('oauth_sin_codigo',{motivo:'sin_codigo'});
      const el=$('#waEmbeddedStatus');
      if(el)el.textContent=state.event?.startsWith('FINISH')
       ?'Meta finalizó, pero no entregó el código OAuth a Worktic. Pulsa «Finalizar» dentro del asistente (no solo cerrar la ventana). Si persiste, revisa el estado de permisos y App Review de Meta.'
@@ -146,11 +183,12 @@ async function startWhatsAppEmbeddedSignup(c){
      return;
     }
     state.code=code;
+    wtMetaB1Step('oauth_codigo_recibido',{codigoRecibido:true});
     const el=$('#waEmbeddedStatus');if(el)el.textContent='Autorización de Meta recibida. Validando la conexión con Worktic...';
     // Iniciar en cuanto Meta confirme también los activos (postMessage).
     completeWhatsAppEmbeddedIfReady();
    },{config_id:cfg.config_id,response_type:'code',override_default_response_type:true,extras:{}})
- }catch(e){if(status)status.innerHTML=`<b>No fue posible iniciar Embedded Signup.</b><br>${esc(e.message)}`}
+ }catch(e){wtMetaB1Step('inicio_error',{motivo:'inicio_error'});if(status)status.innerHTML=`<b>No fue posible iniciar Embedded Signup.</b><br>${esc(e.message)}`}
 }
 
 $('#refreshChannels').onclick=loadChannels;
@@ -160,7 +198,8 @@ window.connectTenantChannel=async c=>{
   let details={};try{details=await api('/api/channels/action',{method:'POST',body:JSON.stringify({id:c.id,action:'details'})})}catch(e){}
   const cfg=(()=>{try{return JSON.parse(c.config_json||'{}')}catch{return{}}})();
   const waba=details.waba_id||cfg.waba_id||'',phone=details.phone_number_id||c.external_account_id||cfg.phone_number_id||'',webhook=details.webhook_url||'',verify=details.verify_token||'';
-  modal(`<div class="modal-heading"><span class="eyebrow">META · WHATSAPP BUSINESS PLATFORM</span><h2>Conectar WhatsApp Business</h2><p>Onboarding oficial integrado en WorkticAI mediante Meta Embedded Signup.</p></div><div class="form"><div class="form-section embedded-signup-card"><h3 class="form-section-title">Conexión recomendada</h3><p>Meta te permitirá seleccionar o crear tu empresa, cuenta de WhatsApp Business y número sin copiar IDs ni tokens.</p><label>PIN de verificación en dos pasos <small>(6 dígitos; úsalo para registrar el número si aplica)</small><input id="waEmbeddedPin" inputmode="numeric" maxlength="6" placeholder="123456"></label><button type="button" id="startWaEmbedded" class="meta-connect-btn">Continuar con Meta</button><div id="waEmbeddedStatus" class="notice">La autorización ocurre directamente en Meta y Worktic almacena las credenciales cifradas por empresa.</div></div><details class="manual-fallback"><summary>Conexión manual avanzada</summary><div class="grid2"><label>WABA ID<input id="waCloudWaba" value="${esc(waba)}" placeholder="WhatsApp Business Account ID"></label><label>Phone Number ID<input id="waCloudPhone" value="${esc(phone)}" placeholder="Phone Number ID"></label></div><label>Access Token<input id="waCloudToken" type="password" autocomplete="off" placeholder="${details.has_token?'Déjalo vacío para conservar el actual':'Token de sistema/Meta'}"></label><div class="actions"><button type="button" id="saveWaCloud">Guardar conexión manual</button></div></details>${webhook?`<div class="form-section"><h3 class="form-section-title">Webhook oficial</h3><label>Callback URL<div class="copy-field"><input id="waCloudWebhook" readonly value="${esc(webhook)}"><button type="button" class="secondary" onclick="navigator.clipboard.writeText($('#waCloudWebhook').value);toast('URL copiada')">Copiar</button></div></label><label>Verify Token<div class="copy-field"><input id="waCloudVerify" readonly value="${esc(verify)}"><button type="button" class="secondary" onclick="navigator.clipboard.writeText($('#waCloudVerify').value);toast('Token copiado')">Copiar</button></div></label></div>`:''}<div class="actions"><button value="cancel" class="secondary">Cerrar</button></div></div>`);
+  modal(`<div class="modal-heading"><span class="eyebrow">META · WHATSAPP BUSINESS PLATFORM</span><h2>Conectar WhatsApp Business</h2><p>Onboarding oficial integrado en WorkticAI mediante Meta Embedded Signup.</p></div><div class="form"><div class="form-section embedded-signup-card"><h3 class="form-section-title">Conexión recomendada</h3><p>Meta te permitirá seleccionar o crear tu empresa, cuenta de WhatsApp Business y número sin copiar IDs ni tokens.</p><label>PIN de verificación en dos pasos <small>(6 dígitos; úsalo para registrar el número si aplica)</small><input id="waEmbeddedPin" inputmode="numeric" maxlength="6" placeholder="123456"></label><button type="button" id="startWaEmbedded" class="meta-connect-btn">Continuar con Meta</button><div id="waEmbeddedStatus" class="notice">La autorización ocurre directamente en Meta y Worktic almacena las credenciales cifradas por empresa.</div><details style="margin-top:10px" id="waMetaB1Panel"><summary style="cursor:pointer">Diagnóstico técnico B1 · versión 27.36.4</summary><p style="font-size:12px">Después de terminar Meta, copia este reporte. Solo incluye indicadores, nunca códigos, tokens, números ni IDs.</p><textarea id="waMetaB1Report" readonly spellcheck="false" aria-label="Reporte seguro de Meta" style="width:100%;min-height:180px;font:12px/1.45 monospace;resize:vertical" ></textarea><button type="button" class="secondary" id="waMetaB1Copy">Copiar diagnóstico seguro</button></details></div><details class="manual-fallback"><summary>Conexión manual avanzada</summary><div class="grid2"><label>WABA ID<input id="waCloudWaba" value="${esc(waba)}" placeholder="WhatsApp Business Account ID"></label><label>Phone Number ID<input id="waCloudPhone" value="${esc(phone)}" placeholder="Phone Number ID"></label></div><label>Access Token<input id="waCloudToken" type="password" autocomplete="off" placeholder="${details.has_token?'Déjalo vacío para conservar el actual':'Token de sistema/Meta'}"></label><div class="actions"><button type="button" id="saveWaCloud">Guardar conexión manual</button></div></details>${webhook?`<div class="form-section"><h3 class="form-section-title">Webhook oficial</h3><label>Callback URL<div class="copy-field"><input id="waCloudWebhook" readonly value="${esc(webhook)}"><button type="button" class="secondary" onclick="navigator.clipboard.writeText($('#waCloudWebhook').value);toast('URL copiada')">Copiar</button></div></label><label>Verify Token<div class="copy-field"><input id="waCloudVerify" readonly value="${esc(verify)}"><button type="button" class="secondary" onclick="navigator.clipboard.writeText($('#waCloudVerify').value);toast('Token copiado')">Copiar</button></div></label></div>`:''}<div class="actions"><button value="cancel" class="secondary">Cerrar</button></div></div>`);
+  wtMetaB1Render();
   $('#startWaEmbedded').onclick=()=>startWhatsAppEmbeddedSignup(c);
   $('#saveWaCloud').onclick=async()=>{const waba_id=$('#waCloudWaba').value.trim(),phone_number_id=$('#waCloudPhone').value.trim(),token=$('#waCloudToken').value.trim();if(!waba_id||!phone_number_id)return formError('Completa WABA ID y Phone Number ID.');if(!details.has_token&&!token)return formError('Pega el Access Token de Meta.');try{const d=await api('/api/channels/action',{method:'POST',body:JSON.stringify({id:c.id,action:'connect',waba_id,phone_number_id,token,agent_id:c.assigned_agent_id||0})});$('#modal').close();toast('WhatsApp Cloud conectado oficialmente');await loadChannels();setTimeout(()=>testTenantChannel({...c,external_account_id:phone_number_id,config_json:JSON.stringify(d)}),250)}catch(e){formError(e.message)}};
   return
