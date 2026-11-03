@@ -2314,8 +2314,21 @@ func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
 		CaptchaID     string `json:"captcha_id"`
 		CaptchaChoice int    `json:"captcha_choice"`
 		Website       string `json:"website"`
+		LegalAccepted bool `json:"legal_accepted"` // WORKTIC_LEGAL_V273600
+		PrivacyAuthorized bool `json:"privacy_authorized"`
+		MarketingOptIn bool `json:"marketing_opt_in"`
+		LegalPrivacyVersion string `json:"legal_privacy_version"`
+		LegalTermsVersion string `json:"legal_terms_version"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&q)
+	if err := workticLegalRegistrationValidV273600(q.LegalAccepted, q.PrivacyAuthorized, q.LegalPrivacyVersion, q.LegalTermsVersion); err != nil {
+		writeError(w, err, 400)
+		return
+	}
+	if err := a.ensureWorkticLegalSchemaV273600(); err != nil {
+		writeError(w, errors.New("no se pudo preparar el registro legal; intenta de nuevo"), 503)
+		return
+	}
 	if !workticValidateRegisterV273528(w, r, q.CaptchaID, q.CaptchaChoice, q.Website) {
 		return
 	}
@@ -2385,6 +2398,10 @@ func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, fmt.Errorf("no se pudo registrar la atribución Partner: %w", err), 500)
 			return
 		}
+	}
+	if err := workticLegalInsertAcceptanceV273600(tx, id, tenantID, q.MarketingOptIn, now); err != nil {
+		writeError(w, errors.New("no se pudo conservar la aceptación de privacidad"), 503)
+		return
 	}
 	activationToken, err := workticPreparePendingV273528(tx, id, tenantID, q.Name, q.Email)
 	if err != nil {

@@ -116,7 +116,7 @@ tile.append(img,span);
     const notice=document.getElementById('authError');if(notice)notice.textContent='';
     if(!challenge||selected<0){$('wt28CaptchaStatus').textContent=text('Resuelve el desafío antes de continuar.','Complete the challenge to continue.');return}
     busy=true;button.disabled=true;
-    const data=Object.fromEntries(new FormData(form).entries());data.captcha_id=challenge.id;data.captcha_choice=selected;
+    const data=Object.fromEntries(new FormData(form).entries());data.legal_accepted=data.legal_accepted==='true';data.privacy_authorized=data.privacy_authorized==='true';data.marketing_opt_in=data.marketing_opt_in==='true';data.legal_privacy_version='2026-11-03-v1';data.legal_terms_version='2026-11-03-v1';data.captcha_id=challenge.id;data.captcha_choice=selected;/* WORKTIC_LEGAL_V273600 */
     try{
       const r=await endpoint('/api/auth/register',data);
       if(r.pending_verification){showPanel('pending',email)}else{throw Error(text('No se recibió confirmación de registro pendiente.','Pending verification not confirmed.'))}
