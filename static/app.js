@@ -64,28 +64,46 @@ function loadMetaSDK(appId,version){
  return wtMetaSDKPromise
 }
 function embeddedSignupMessageListener(event){
- if(event.origin!=='https://www.facebook.com'&&event.origin!=='https://web.facebook.com')return;
- let data=event.data;try{if(typeof data==='string')data=JSON.parse(data)}catch(e){return}
- if(!data||data.type!=='WA_EMBEDDED_SIGNUP')return;
- const ev=String(data.event||'').toUpperCase(),d=data.data||{};
- wtEmbeddedSignupState.event=ev;
- if(ev==='FINISH'){
-  wtEmbeddedSignupState.waba_id=d.waba_id||d.wabaId||'';
-  wtEmbeddedSignupState.phone_number_id=d.phone_number_id||d.phoneNumberId||'';
-  wtEmbeddedSignupState.business_id=d.business_id||d.businessId||'';
-  const st=$('#waEmbeddedStatus');if(st)st.innerHTML='<b>Meta terminó la selección de activos.</b><br>Validando WABA, número y webhook con Worktic...';
-  completeWhatsAppEmbeddedIfReady()
- }else if(ev==='CANCEL'){
-  const st=$('#waEmbeddedStatus');if(st)st.textContent='El proceso de Meta fue cancelado. Puedes volver a intentarlo.'
- }else if(ev==='ERROR'){
-  const st=$('#waEmbeddedStatus');if(st)st.textContent='Meta reportó un error durante el onboarding.'
- }
+  if(event.origin!=='https://www.facebook.com'&&event.origin!=='https://web.facebook.com')return;
+  let data=event.data;
+  try{if(typeof data==='string')data=JSON.parse(data)}catch(e){return}
+  if(!data||data.type!=='WA_EMBEDDED_SIGNUP')return;
+  const ev=String(data.event||'').toUpperCase(),d=data.data||{};
+  // Solo asociar el resultado a un intento iniciado desde el tenant actual.
+  const state=wtEmbeddedSignupState;
+  if(!state.connection_id||state.completed)return;
+  state.event=ev;
+  if(['FINISH','FINISH_ONLY_WABA','FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING','FINISH_OBO_MIGRATION','FINISH_GRANT_ONLY_API_ACCESS'].includes(ev)){
+   state.waba_id=String(d.waba_id||d.wabaId||(Array.isArray(d.waba_ids)&&d.waba_ids.length===1?d.waba_ids[0]:'')||'');
+   state.phone_number_id=String(d.phone_number_id||d.phoneNumberId||'');
+   state.business_id=String(d.business_id||d.businessId||'');
+   console.info('[Worktic B1 Meta] Sesión finalizada',{evento:ev,tieneWABA:!!state.waba_id,tieneNumero:!!state.phone_number_id,tieneCodigo:!!state.code});
+   const el=$('#waEmbeddedStatus');
+   if(!state.code){if(el)el.textContent='Meta finalizó la selección. Comprobando el código de autorización para Worktic...';return}
+   if(el)el.textContent='Meta devolvió la autorización. Validando la conexión en Worktic...';
+   completeWhatsAppEmbeddedIfReady();
+  }else if(ev==='CANCEL'){
+   state.cancelled=true;
+   const el=$('#waEmbeddedStatus');if(el)el.textContent='Meta indicó que el proceso se canceló. No se modificó el canal.';
+  }else if(ev==='ERROR'){
+   state.cancelled=true;
+   const el=$('#waEmbeddedStatus');if(el)el.textContent='Meta informó un error en el registro. No se modificó el canal.';
+  }
 }
 window.addEventListener('message',embeddedSignupMessageListener);
 async function completeWhatsAppEmbeddedIfReady(){
  const st=wtEmbeddedSignupState;
- if(st.completing||st.completed||!st.code||!st.connection_id)return;
- // Meta puede enviar los IDs por postMessage unos instantes después del código. El backend también puede descubrirlos.
+ if(st.completing||st.completed||st.cancelled||!st.code||!st.connection_id)return;
+ // No adivinar WABA ni elegir números de otro negocio. Solo completar con sesión verificada.
+ const validFinish=['FINISH','FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING','FINISH_OBO_MIGRATION'].includes(st.event);
+ if(!validFinish||!st.waba_id||!st.phone_number_id){
+  const el=$('#waEmbeddedStatus');
+  if(el)el.textContent=st.event==='FINISH_ONLY_WABA'||st.event==='FINISH_GRANT_ONLY_API_ACCESS'
+   ?'Meta autorizó la cuenta, pero aún no terminó la vinculación de un número. No se activó el canal.'
+   :'Se recibió la autorización, pero falta la confirmación de Meta con WABA y Phone Number ID. Por seguridad no se conectó ningún número.';
+  console.info('[Worktic B1 Meta] Onboarding pendiente',{evento:st.event||'sin_evento',tieneWABA:!!st.waba_id,tieneNumero:!!st.phone_number_id});
+  return;
+ }
  st.completing=true;
  try{
   const pin=($('#waEmbeddedPin')?.value||'').trim();
@@ -107,12 +125,23 @@ async function startWhatsAppEmbeddedSignup(c){
   await loadMetaSDK(cfg.app_id,cfg.graph_version||'v25.0');
   wtEmbeddedSignupState={connection_id:c.id,agent_id:c.assigned_agent_id||0,code:'',waba_id:'',phone_number_id:'',completed:false,completing:false};
   if(status)status.textContent='Se abrirá Meta para seleccionar o crear la empresa, WABA y número de WhatsApp.';
-  FB.login(function(response){
-   if(!response?.authResponse?.code){const st=$('#waEmbeddedStatus');if(st)st.textContent='No se recibió autorización de Meta. Intenta nuevamente.';return}
-   wtEmbeddedSignupState.code=response.authResponse.code;
-   const st=$('#waEmbeddedStatus');if(st)st.innerHTML='<b>Autorización recibida.</b><br>Finalizando configuración oficial...';
-   setTimeout(completeWhatsAppEmbeddedIfReady,350)
-  },{config_id:cfg.config_id,response_type:'code',override_default_response_type:true,extras:{setup:{},featureType:'',sessionInfoVersion:'3'}})
+     FB.login(function(response){
+    const state=wtEmbeddedSignupState;
+    const code=typeof response?.authResponse?.code==='string'?response.authResponse.code.trim():'';
+    // Nunca registrar códigos OAuth, access tokens ni respuestas completas de Meta.
+    console.info('[Worktic B1 Meta] Resultado OAuth',{codigoRecibido:!!code,eventoSesion:state.event||'sin_evento',estadoMeta:String(response?.status||'no_reportado')});
+    if(!code){
+     const el=$('#waEmbeddedStatus');
+     if(el)el.textContent=state.event?.startsWith('FINISH')
+      ?'Meta finalizó, pero no entregó el código OAuth a Worktic. Pulsa «Finalizar» dentro del asistente (no solo cerrar la ventana). Si persiste, revisa el estado de permisos y App Review de Meta.'
+      :'No llegó el código OAuth desde Meta. Finaliza todos los pasos con «Finalizar». Si cancelaste o cerraste la ventana, vuelve a iniciar la conexión.';
+     return;
+    }
+    state.code=code;
+    const el=$('#waEmbeddedStatus');if(el)el.textContent='Autorización de Meta recibida. Validando la conexión con Worktic...';
+    // Iniciar en cuanto Meta confirme también los activos (postMessage).
+    completeWhatsAppEmbeddedIfReady();
+   },{config_id:cfg.config_id,auth_type:'rerequest',response_type:'code',override_default_response_type:true,extras:{setup:{}}})
  }catch(e){if(status)status.innerHTML=`<b>No fue posible iniciar Embedded Signup.</b><br>${esc(e.message)}`}
 }
 
