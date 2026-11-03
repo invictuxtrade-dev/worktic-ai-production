@@ -1,0 +1,84 @@
+/* WORKTIC_PUBLIC_LEGAL_FOOTER_V273601
+   Visual reference: /privacidad.html and /terminos.html.
+   Scoped to public footers. No dashboard, auth or business CSS is touched.
+*/
+footer.wt-public-legal-footer {
+  display:block !important;
+  width:100%;
+  position:relative;
+  z-index:1;
+  margin:0 !important;
+  padding:28px 22px !important;
+  border-top:1px solid #e0e5f3 !important;
+  border-radius:0 !important;
+  background:#fff !important;
+  color:#64718b !important;
+  font-family:'Instrument Sans',system-ui,-apple-system,sans-serif;
+  font-size:14px;
+  font-weight:400;
+  line-height:1.6;
+  box-shadow:none !important;
+}
+footer.wt-public-legal-footer .wt-legal-footer-inner{
+  max-width:1220px;
+  width:100%;
+  margin:0 auto;
+  padding:0;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:14px 22px;
+  flex-wrap:wrap;
+}
+footer.wt-public-legal-footer .wt-legal-copyright{
+  color:#64718b;
+  font-size:14px;
+  font-weight:400;
+}
+footer.wt-public-legal-footer .wt-legal-footer-links{
+  position:static !important;
+  top:auto !important;
+  z-index:auto !important;
+  height:auto !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+  box-shadow:none !important;
+  display:flex;
+  gap:5px 22px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+footer.wt-public-legal-footer .wt-legal-footer-links a{
+  color:#64718b !important;
+  font-size:14px;
+  font-weight:400;
+  line-height:1.6;
+  text-decoration:none !important;
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  padding:4px 0;
+  white-space:nowrap;
+  transition:color .18s ease;
+}
+footer.wt-public-legal-footer .wt-legal-footer-links a:hover{
+  color:#6332d2 !important;
+  text-decoration:underline !important;
+  text-underline-offset:3px;
+}
+footer.wt-public-legal-footer .wt-legal-footer-links a:focus-visible{
+  outline:3px solid #20cfff;
+  outline-offset:3px;
+  border-radius:3px;
+}
+html[lang="en"] footer.wt-public-legal-footer .wt-fl-es{display:none !important;}
+html:not([lang="en"]) footer.wt-public-legal-footer .wt-fl-en{display:none !important;}
+@media(max-width:700px){
+  footer.wt-public-legal-footer{padding:24px 17px !important;}
+  footer.wt-public-legal-footer .wt-legal-footer-inner{justify-content:center;text-align:center;}
+  footer.wt-public-legal-footer .wt-legal-footer-links{justify-content:center;gap:5px 17px;}
+  footer.wt-public-legal-footer .wt-legal-footer-links a{padding:8px 0;}
+}
