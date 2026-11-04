@@ -91,7 +91,34 @@ async function createConnection(){
 function mapped(c,type){return {...c,type};}
 function status(c){return c.type==='webchat'?(c.enabled?'Activo':'Pausado'):c.type==='voice_ai'?(c.enabled?'Activo':'Pausado'):(c.status||'Borrador')}
 function details(c){if(c.type==='whatsapp_cloud'){let conf={};try{conf=JSON.parse(c.config_json||'{}')||{}}catch(_){conf={}}return conf.display_phone_number||c.external_account_id||'Pendiente de vincular'}return c.type==='webchat'?c.origin:c.type==='voice_ai'?(c.phone||'Sin número conectado'):c.external_account_id||'Pendiente de vincular'}
-function card(c,key){const label=nativeTypes[c.type]||c.type,active=['connected','active','Activo'].includes(status(c));
+/* WORKTIC_B1_V273608_PREMIUM_CARD */
+function wtPremiumWhatsAppCard(c,key,agentLookup){
+ const raw=c.config_json;
+ let cfg={};try{cfg=(typeof raw==='string'?JSON.parse(raw||'{}'):raw)||{}}catch(_){cfg={}}
+ const state=status(c),online=state==='connected'||state==='active',isError=state==='error';
+ const stateLabel=online?'Conectado':isError?'Revisar conexión':state==='paused'?'Pausado':state==='draft'?'Pendiente de conexión':state;
+ const number=cfg.display_phone_number||c.display_phone_number||c.external_account_id||'Número por vincular';
+ const business=cfg.verified_name||'Cuenta de WhatsApp Business';
+ const agentId=Number(c.assigned_agent_id||0);
+ const agent=agentLookup.get(agentId);
+ const agentName=agentId===0?'Sin asignar':(agent?.name||'Agente asignado');
+ const agentHint=agentId===0?'Elige un agente en Configurar':agent?.status==='active'?'Activo':agent?'Revisar estado del agente':'Asignado al canal';
+ const initials=agentId===0?'IA':String(agent?.name||'IA').trim().slice(0,1).toUpperCase();
+ const whatsIcon='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.2 11.7a8.2 8.2 0 0 1-12 7.2L3 20l1.2-5a8.2 8.2 0 1 1 16-3.3Z"/><path d="M8.4 9c.3 2.9 2.5 5 5.4 5.8.7.2 1.1-.2 1.6-.9"/></svg>';
+ const action=(id,label,klass='')=>`<button type="button" class="${klass}" data-uc-action="${id}" data-uc-key="${esc(key)}">${label}</button>`;
+ return `<article class="card wt-unified-card wt-wa-premium-card" data-key="${esc(key)}" aria-label="WhatsApp Business Oficial: ${esc(c.name||'Canal')}">
+  <div class="wt-wa-head"><span class="wt-wa-brandicon">${whatsIcon}</span><div class="wt-wa-headtext"><div class="wt-wa-eyebrow">WHATSAPP BUSINESS</div><div class="wt-wa-subbrand">Cloud API oficial</div></div><span class="wt-wa-status ${online?'is-connected':isError?'is-error':'is-pending'}"><i aria-hidden="true"></i>${esc(stateLabel)}</span></div>
+  <div class="wt-wa-body"><h3 class="wt-wa-title">${esc(c.name||'WhatsApp Oficial')}</h3>
+   <div class="wt-wa-numberpanel"><div><div class="wt-wa-label">NÚMERO VINCULADO</div><div class="wt-wa-number">${esc(number)}</div><div class="wt-wa-verified">${esc(business)}</div></div><span class="wt-wa-numbericon" aria-hidden="true">✓</span></div>
+   <div class="wt-wa-agent"><div class="wt-wa-agentavatar" aria-hidden="true">${esc(initials)}</div><div class="wt-wa-agentinfo"><span>AGENTE IA</span><strong>${esc(agentName)}</strong><small>${esc(agentHint)}</small></div><span class="wt-wa-agentchevron" aria-hidden="true">✦</span></div>
+  </div>
+  <div class="wt-wa-footer"><div class="wt-wa-primaryactions">${action('configure','Configurar','wt-wa-btn-primary')}${action('templates','Plantillas','wt-wa-btn-secondary')}</div>
+   <div class="wt-wa-secondaryactions">${action('inbox','Conversaciones','wt-wa-textbtn')}${action('test','Probar conexión','wt-wa-textbtn')}${online?action('pause','Pausar','wt-wa-textbtn'):''}
+   <details class="wt-wa-more"><summary aria-label="Más acciones" title="Más acciones">•••</summary><div class="wt-wa-moremenu">${action('delete','Eliminar conexión','wt-wa-btn-danger')}</div></details></div>
+  </div></article>`;
+}
+
+function card(c,key,agentLookup){if(c.type==='whatsapp_cloud')return wtPremiumWhatsAppCard(c,key,agentLookup);const label=nativeTypes[c.type]||c.type,active=['connected','active','Activo'].includes(status(c));
  return `<article class="card wt-unified-card" data-key="${esc(key)}"><div class="top"><span class="badge ${esc(category[c.type]||'')}">${esc(label)}</span><span class="pill ${active?'wt-channel-on':''}">${esc(status(c))}</span></div><h3>${esc(c.name)}</h3><p class="wt-channel-detail">${esc(details(c))}</p><small>Agente asignado: ${esc(c.assigned_agent_id||c.agent_id||'Sin asignar')}</small>${c.type==='whatsapp_qr'?`<div id="qrbox-${esc(c.id)}"></div>`:''}<div class="actions">
  <button type="button" data-uc-action="configure" data-uc-key="${esc(key)}">Configurar</button>
  ${c.type==='webchat'?`<button type="button" class="secondary" data-uc-action="install" data-uc-key="${esc(key)}">Instalar widget</button><button type="button" class="secondary" data-uc-action="inbox" data-uc-key="${esc(key)}">Conversaciones</button>`:''}
@@ -100,12 +127,13 @@ function card(c,key){const label=nativeTypes[c.type]||c.type,active=['connected'
  ${!['webchat','voice_ai'].includes(c.type)?`<button type="button" class="secondary" data-uc-action="test" data-uc-key="${esc(key)}">Probar conexión</button><button type="button" class="secondary" data-uc-action="pause" data-uc-key="${esc(key)}">Pausar</button><button type="button" class="danger" data-uc-action="delete" data-uc-key="${esc(key)}">Eliminar</button>`:''}</div></article>`}
 async function refresh(){
  const grid=$('#channelConnections');if(!grid)return;
- const [base,health,web,voice]=await Promise.allSettled([api('/api/channels/connections'),api('/api/channels/health'),api('/api/webchat/channels'),api('/api/voice/v2735/overview')]);
+ const [base,health,web,voice,agentResponse]=await Promise.allSettled([api('/api/channels/connections'),api('/api/channels/health'),api('/api/webchat/channels'),api('/api/voice/v2735/overview'),api('/api/agents')]);
  if(base.status!=='fulfilled'){notice('Error consultando los canales: '+base.reason.message);return}
  const d=base.value,h=health.status==='fulfilled'?health.value:{states:{},messages:0};h.states=h.states||{};
  webAvailable=web.status==='fulfilled'&&web.value.feature_enabled!==false;voiceAvailable=voice.status==='fulfilled';
  const webItems=webAvailable?(web.value.channels||[]):[],voiceItems=voiceAvailable?(voice.value.channels||[]):[];
  allChannels=new Map();
+ const agentLookup=new Map();if(agentResponse.status==='fulfilled'){for(const a of (agentResponse.value.agents||[])){if(Number.isSafeInteger(Number(a.id))&&Number(a.id)>0)agentLookup.set(Number(a.id),{name:a.name,status:a.status});}}
  (d.connections||[]).forEach(c=>allChannels.set('native:'+c.id,mapped(c,c.type)));
  webItems.forEach(c=>allChannels.set('web:'+c.id,mapped(c,'webchat')));
  voiceItems.forEach(c=>allChannels.set('voice:'+c.id,mapped(c,'voice_ai')));
@@ -114,7 +142,7 @@ async function refresh(){
  $('#channelLimit').textContent=`${count} conexiones registradas · límite estándar del plan: ${Number(d.max_total||0)}`;
  const active=(h.states.connected||0)+webItems.filter(c=>c.enabled).length+voiceItems.filter(c=>c.enabled).length;
  $('#channelHealth').innerHTML=[['Activos',active],['Esperando QR',h.states.waiting_qr||0],['Con error',h.states.error||0],['Mensajes aislados',h.messages||0]].map(([label,v])=>`<div class="stat"><b>${Number(v)||0}</b><small>${label}</small></div>`).join('');
- grid.innerHTML=allChannels.size?[...allChannels.entries()].map(([key,c])=>card(c,key)).join(''):'<p>No hay conexiones. Usa «Nueva conexión» para conectar tu primer canal.</p>';
+ grid.innerHTML=allChannels.size?[...allChannels.entries()].map(([key,c])=>card(c,key,agentLookup)).join(''):'<p>No hay conexiones. Usa «Nueva conexión» para conectar tu primer canal.</p>';
  if(!webAvailable||!voiceAvailable){const p=document.createElement('p');p.className='wt-unified-note';p.textContent=[!webAvailable?'Chat Web no habilitado o no disponible.':'',!voiceAvailable?'Servicio de voz no disponible.':''].filter(Boolean).join(' ');grid.after(p);grid.parentElement.querySelectorAll('.wt-unified-note').forEach((el,i)=>{if(i>0)el.remove()})}
  else grid.parentElement.querySelectorAll('.wt-unified-note').forEach(el=>el.remove());
 }
@@ -132,6 +160,7 @@ async function action(evt){const b=evt.target.closest('[data-uc-action]');if(!b)
   if(name==='test')openVoiceAdvanced('test');
   return;
  }
+ if(name==='inbox'){$('aside nav button[data-view="inbox"]')?.click();return;}
  if(name==='configure')return window.connectTenantChannel(c);
  if(name==='test')return window.testTenantChannel(c);
  if(name==='templates')return window.manageWhatsAppTemplates(c);

@@ -1,0 +1,60 @@
+/* Worktic AI B1 V27.36.8 · Tarjeta premium de WhatsApp Oficial.
+   Ámbito restringido: #channelConnections .wt-wa-premium-card. */
+#channelConnections.channel-grid:has(> .wt-wa-premium-card){
+  grid-template-columns:repeat(auto-fill,minmax(min(100%,385px),440px));
+  align-items:start;gap:20px;justify-content:start;
+}
+#channelConnections .wt-wa-premium-card{
+  position:relative;display:flex;flex-direction:column;gap:0;box-sizing:border-box;
+  width:100%;max-width:440px;min-width:0;overflow:visible;
+  padding:0;border:1px solid #e4e8f3;border-radius:19px;
+  background:#fff;color:#1b2340;
+  box-shadow:0 5px 19px rgba(21,27,73,.045),0 2px 6px rgba(21,27,73,.025);
+  transition:box-shadow .2s ease,transform .2s ease;
+}
+#channelConnections .wt-wa-premium-card::before{
+  content:"";position:absolute;z-index:1;top:-1px;left:21px;right:21px;height:3px;
+  background:linear-gradient(90deg,#18cce9 0%,#5664f7 47%,#db36ee 100%);border-radius:0 0 4px 4px;
+}
+@media(hover:hover){#channelConnections .wt-wa-premium-card:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(28,36,103,.095),0 2px 7px rgba(28,36,103,.035)}}
+#channelConnections .wt-wa-head{display:flex;gap:12px;align-items:center;padding:23px 22px 14px;min-width:0}
+#channelConnections .wt-wa-brandicon{display:grid;place-items:center;flex:0 0 43px;height:43px;border-radius:13px;background:linear-gradient(135deg,#263979,#6c40ec 70%,#b73aeb);color:#fff;box-shadow:0 5px 14px rgba(95,71,224,.20)}
+#channelConnections .wt-wa-headtext{min-width:0;flex:1}
+#channelConnections .wt-wa-eyebrow{font-size:10px;font-weight:800;letter-spacing:1.1px;color:#515dbb;line-height:1.4}
+#channelConnections .wt-wa-subbrand{font-size:12px;font-weight:550;color:#7b85a1;margin-top:2px}
+#channelConnections .wt-wa-status{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid #dfe5f0;border-radius:100px;font-size:10.5px;white-space:nowrap;font-weight:750;line-height:1.2;background:#f5f6fa;color:#67728e}
+#channelConnections .wt-wa-status i{height:7px;width:7px;flex:0 0 7px;border-radius:50%;background:currentColor}
+#channelConnections .wt-wa-status.is-connected{background:#ecfbf4;color:#087e51;border-color:#c2efda}
+#channelConnections .wt-wa-status.is-error{background:#fff1f3;color:#b92343;border-color:#ffd6df}
+#channelConnections .wt-wa-body{padding:0 21px 20px;min-width:0}
+#channelConnections .wt-wa-title{margin:2px 0 17px;color:#141c37;font-size:18px;font-weight:780;line-height:1.32;letter-spacing:-.35px;overflow-wrap:anywhere}
+#channelConnections .wt-wa-numberpanel{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 15px;background:linear-gradient(112deg,#f6f9ff,#f3f4ff);border:1px solid #e5eafc;border-radius:12px;min-width:0}
+#channelConnections .wt-wa-numberpanel>div{min-width:0}
+#channelConnections .wt-wa-label{font-size:9.5px;letter-spacing:.9px;font-weight:800;color:#8894b2}
+#channelConnections .wt-wa-number{font-size:17px;font-weight:750;line-height:1.5;color:#202e70;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#channelConnections .wt-wa-verified{font-size:11px;color:#6c7898;margin-top:1px;overflow-wrap:anywhere}
+#channelConnections .wt-wa-numbericon{display:grid;place-items:center;flex:0 0 27px;height:27px;background:#e8f7ee;color:#199b66;border-radius:50%;font-weight:800;font-size:14px}
+#channelConnections .wt-wa-agent{display:flex;align-items:center;gap:11px;min-width:0;margin-top:12px;padding:12px 13px;background:#fff;border:1px solid #e8ebf5;border-radius:12px}
+#channelConnections .wt-wa-agentavatar{display:grid;place-items:center;flex:0 0 35px;height:35px;background:linear-gradient(135deg,#e9e5ff,#e9f7ff);color:#5744cf;border:1px solid #dddff8;border-radius:11px;font-size:13px;font-weight:800}
+#channelConnections .wt-wa-agentinfo{display:flex;flex:1;flex-direction:column;gap:2px;min-width:0}
+#channelConnections .wt-wa-agentinfo>span{font-size:9.5px;letter-spacing:.75px;font-weight:800;color:#8591ad}
+#channelConnections .wt-wa-agentinfo>strong{font-size:13px;font-weight:760;color:#242b4a;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#channelConnections .wt-wa-agentinfo>small{font-size:10.5px;color:#8390a8;line-height:1.35}
+#channelConnections .wt-wa-agentchevron{color:#836df3;font-size:17px}
+#channelConnections .wt-wa-footer{padding:16px 21px 18px;border-top:1px solid #eff1f7;background:linear-gradient(180deg,#fff,#fcfcff);border-radius:0 0 19px 19px}
+#channelConnections .wt-wa-primaryactions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+#channelConnections .wt-wa-primaryactions button{display:flex;justify-content:center;align-items:center;width:100%;min-width:0;min-height:40px;padding:10px 12px;margin:0;border-radius:10px;font-size:12px;font-weight:780;white-space:nowrap;box-shadow:none}
+#channelConnections .wt-wa-primaryactions .wt-wa-btn-primary{background:linear-gradient(110deg,#4967f7,#883feb 75%,#c331e9);color:#fff;border:1px solid transparent;box-shadow:0 4px 11px rgba(102,75,230,.17)}
+#channelConnections .wt-wa-primaryactions .wt-wa-btn-secondary{background:#fff;color:#4540b9;border:1px solid #dedbf9}
+#channelConnections .wt-wa-secondaryactions{display:flex;align-items:center;gap:4px;margin-top:13px;min-width:0;flex-wrap:wrap}
+#channelConnections .wt-wa-secondaryactions .wt-wa-textbtn{background:transparent;border:0;box-shadow:none;color:#66728e;font-weight:650;font-size:10.5px;padding:7px 5px;border-radius:7px;min-height:30px;margin:0}
+#channelConnections .wt-wa-secondaryactions .wt-wa-textbtn:hover{background:#f1f0ff;color:#5244c4}
+#channelConnections .wt-wa-more{position:relative;margin-left:auto}
+#channelConnections .wt-wa-more>summary{list-style:none;cursor:pointer;display:grid;place-items:center;height:30px;min-width:31px;padding:0 5px;border-radius:7px;color:#66728e;font-size:15px;font-weight:800;background:#f4f5fb}
+#channelConnections .wt-wa-more>summary::-webkit-details-marker{display:none}
+#channelConnections .wt-wa-moremenu{position:absolute;right:0;bottom:calc(100% + 6px);z-index:10;width:185px;padding:5px;border-radius:10px;background:#fff;border:1px solid #e5e7f2;box-shadow:0 10px 26px rgba(29,35,85,.14)}
+#channelConnections .wt-wa-moremenu .wt-wa-btn-danger{width:100%;background:#fff4f6;color:#b72549;border:0;border-radius:7px;padding:10px 9px;font-size:11px;font-weight:700;text-align:left;box-shadow:none}
+#channelConnections .wt-wa-premium-card button:focus-visible,
+#channelConnections .wt-wa-premium-card summary:focus-visible{outline:3px solid #8daaff;outline-offset:2px}
+@media(max-width:640px){#channelConnections.channel-grid:has(> .wt-wa-premium-card){grid-template-columns:minmax(0,1fr)}#channelConnections .wt-wa-head{padding:21px 16px 13px;gap:9px}#channelConnections .wt-wa-body{padding:0 15px 16px}#channelConnections .wt-wa-footer{padding:14px 15px 16px}#channelConnections .wt-wa-status{padding:6px 8px;font-size:10px}#channelConnections .wt-wa-number{font-size:16px}#channelConnections .wt-wa-title{font-size:17px}}
+@media(prefers-reduced-motion:reduce){#channelConnections .wt-wa-premium-card{transition:none}#channelConnections .wt-wa-premium-card:hover{transform:none}}
