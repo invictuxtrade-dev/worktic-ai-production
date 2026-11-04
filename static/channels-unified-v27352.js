@@ -66,12 +66,12 @@ async function createWeb(c){
 async function createConnection(){
  window.modal(`<h2>Nueva conexión</h2><p class="muted">Todos los canales se administran desde aquí. Selecciona el tipo de conexión.</p>
  <div class="form wt-channel-form"><label>Tipo de canal<select id="ucType">${Object.entries(nativeTypes).map(([id,label])=>`<option value="${id}">${esc(label)}</option>`).join('')}</select></label>
- <div id="ucNativeFields"><label>Nombre del canal<input id="ucName" maxlength="80" placeholder="Ej. Ventas y soporte"></label><label>Agente IA asignado<select id="ucAgent"><option value="0">Agente principal (sin asignación)</option></select></label></div>
+ <div id="ucNativeFields"><label>Nombre del canal<input id="ucName" maxlength="80" placeholder="Ej. Ventas y soporte"></label><label>Agente IA asignado<select id="ucAgent"><option value="0">Selecciona un agente activo</option></select></label></div>
  <div class="notice" id="ucDescription">La conexión se creará dentro de tu empresa, respetando los límites de tu plan.</div>
  <div class="actions"><button type="button" id="ucContinue">Crear conexión</button><button value="cancel" class="secondary">Cancelar</button></div></div>`);
- api('/api/agents').then(d=>{const s=$('#ucAgent');if(s)s.replaceChildren(new Option('Agente principal (sin asignación)','0'),...(d.agents||[]).filter(a=>a.status==='active').map(a=>new Option(a.name,a.id)))}).catch(()=>{});
+ api('/api/agents').then(d=>{const s=$('#ucAgent');if(s)s.replaceChildren(new Option('Selecciona un agente activo','0'),...(d.agents||[]).filter(a=>a.status==='active').map(a=>new Option(a.name,a.id)))}).catch(()=>{});
  const input=$('#ucType'), fields=$('#ucNativeFields'), btn=$('#ucContinue'),desc=$('#ucDescription');
- const update=()=>{desc.removeAttribute('role');desc.removeAttribute('style');const web=input.value==='webchat',voice=input.value==='voice_ai';fields.hidden=web||voice;btn.textContent=web||voice?'Continuar a configuración':'Crear conexión';desc.textContent=web?'Configura el dominio HTTPS, el agente y el código de instalación.':voice?'Selecciona la voz, el agente y los permisos de telefonía.': 'El backend validará tu plan y la asignación del agente.'};
+ const update=()=>{desc.removeAttribute('role');desc.removeAttribute('style');const web=input.value==='webchat',voice=input.value==='voice_ai',wa=input.value==='whatsapp_cloud';fields.hidden=web||voice;btn.textContent=wa?'Crear y conectar con Meta':web||voice?'Continuar a configuración':'Crear conexión';desc.textContent=web?'Configura el dominio HTTPS, el agente y el código de instalación.':voice?'Selecciona la voz, el agente y los permisos de telefonía.':wa?'Conexión oficial paso a paso: 1. Elige un agente activo. 2. Autoriza tu negocio y número directamente en Meta. 3. Verifica tu conexión. No necesitas copiar tokens ni configurar webhooks. La disponibilidad depende de tu plan y de la autorización de Meta.':'El backend validará tu plan y la asignación del agente.'};
  input.onchange=update;update();
  btn.onclick=async()=>{
   const type=input.value;
@@ -83,9 +83,16 @@ async function createConnection(){
   if(type==='voice_ai'){await voiceForm();return}
   const p={type,name:$('#ucName').value.trim(),assigned_agent_id:Number($('#ucAgent').value||0)};
   if(!p.name){notice('Escribe el nombre del canal');return}
+  if(type==='whatsapp_cloud'&&!p.assigned_agent_id){notice('Primero selecciona un agente IA activo de tu empresa.');return}
   btn.disabled=true;
-  try{await api('/api/channels/connections',{method:'POST',body:JSON.stringify(p)});closeModal();notice('Conexión creada');await refresh()}
-  catch(e){btn.disabled=false;notice(e.message)}
+  try{const created=await api('/api/channels/connections',{method:'POST',body:JSON.stringify(p)});closeModal();notice('Conexión creada en tu empresa');await refresh();
+    if(type==='whatsapp_cloud'){
+      // Second step: official Meta authorization, only after user clicks its own button.
+      // Meta SDK is prepared by the existing dialog before FB.login.
+      try{await window.connectTenantChannel({id:created.id,type:'whatsapp_cloud',name:p.name,status:'draft',assigned_agent_id:p.assigned_agent_id,config_json:'{}'});}
+      catch(err){notice('Conexión creada. Ábrela desde Mis Canales para finalizar con Meta: '+err.message)}
+    }
+  } catch(e){btn.disabled=false;notice(e.message)}
  };
 }
 function mapped(c,type){return {...c,type};}

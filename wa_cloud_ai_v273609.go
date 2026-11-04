@@ -63,7 +63,7 @@ func (a *App) waCloudAICompleteInboundV273609(c ChannelConnection, metaID, chat,
 	now := time.Now().UTC()
 	stamp := now.Format(time.RFC3339)
 	queued := false
-	if waCloudAIAllowedConnectionV273610(c) && waCloudAIQueueEligibleV273609(c.AssignedAgentID, kind, text, providerTime, now) {
+	if a.waCloudAIAllowedConnectionV273611(c) && waCloudAIQueueEligibleV273609(c.AssignedAgentID, kind, text, providerTime, now) {
 		added, err := tx.Exec(`INSERT OR IGNORE INTO wa_cloud_ai_jobs_v273609
           (tenant_id,connection_id,meta_message_id,chat_jid,agent_id,status,created_at,updated_at)
           VALUES(?,?,?,?,?,'pending',?,?)`, c.TenantID, c.ID, metaID, chat, c.AssignedAgentID, stamp, stamp)
@@ -145,7 +145,7 @@ func (a *App) waCloudAIGuardV273609(job waCloudAIJobV273609) (ChannelConnection,
 	if err != nil || c.ID != job.connection || c.AssignedAgentID != job.agent {
 		return empty, "", "channel_changed"
 	}
-	if !waCloudAIAllowedConnectionV273610(c) {
+	if !a.waCloudAIAllowedConnectionV273611(c) {
 		return empty, "", "scope_not_allowed"
 	}
 	if a.securityTenantAgentActive(job.tenant, job.agent) != nil {

@@ -389,6 +389,9 @@ func main() {
 	if err = initWACloudAIV273609Schema(db); err != nil {
 		log.Fatalf("WhatsApp Cloud AI B1 schema: %v", err)
 	}
+	if err = initWACloudAITenantV273611Schema(db); err != nil {
+		log.Fatalf("WhatsApp Cloud customer opt-in schema: %v", err)
+	}
 	if err = initMessengerProductionSchema(db); err != nil {
 		log.Fatalf("messenger production schema: %v", err)
 	}
@@ -632,6 +635,7 @@ func main() {
 	mux.HandleFunc("/api/whatsapp/templates", app.whatsappTemplatesHandler)
 	mux.HandleFunc("/api/whatsapp/embedded/config", app.whatsappEmbeddedConfigHandler)
 	mux.HandleFunc("/api/whatsapp/embedded/complete", app.whatsappEmbeddedCompleteHandler)
+	mux.HandleFunc("/api/whatsapp/cloud/ai-permission", app.whatsappCloudAIPermissionV273611Handler)
 	mux.HandleFunc("/api/whatsapp/business/overview", app.whatsappBusinessOverviewHandler)
 	mux.HandleFunc("/api/whatsapp/business/contacts", app.whatsappBusinessContactsHandler)
 	mux.HandleFunc("/api/whatsapp/business/analytics", app.whatsappBusinessAnalyticsHandler)

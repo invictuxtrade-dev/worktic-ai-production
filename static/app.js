@@ -1127,12 +1127,35 @@ window.wtB1ConnectedWhatsAppModal = async function(c) {
     <div class="notice" id="wtB1AgentFeedback">${esc(agentError || (!agents.length ? 'No hay agentes activos. Crea y activa uno desde Agentes IA.' : 'Al guardar se actualizará la asignación sin reconectar WhatsApp. El modo humano/IA de cada conversación se gestiona en Conversaciones.'))}</div>
     <div class="actions"><button type="button" id="wtB1SaveAssignedAgent" ${agentError ? 'disabled' : ''}>Guardar agente asignado</button></div>
    </div>
+   <div class="form-section"><h3 class="form-section-title">Respuestas automáticas por IA</h3>
+    <div id="wtB1TenantAIControl" class="notice" aria-live="polite">Consultando autorización de este canal...</div>
+   </div>
    <details class="manual-fallback"><summary>Administración avanzada · Reconectar o cambiar número</summary>
     <div class="notice">Solo usa esta opción si necesitas cambiar la autorización o registrar otro número. No desconectes la aplicación móvil ni migres el número existente por accidente.</div>
     <button type="button" class="secondary" id="wtB1StartReconnect">Cambiar o reconectar WhatsApp</button>
    </details>
    <div class="actions"><button value="cancel" class="secondary">Cerrar</button></div>
   </div>`);
+  const aiPanel = $('#wtB1TenantAIControl');
+  try {
+    const opt = await api('/api/whatsapp/cloud/ai-permission?connection_id='+encodeURIComponent(c.id));
+    if (aiPanel) {
+      if (opt.pilot) {
+        aiPanel.textContent = 'Canal piloto de Worktic: respuestas IA administradas de forma central. No se modifican desde esta cuenta.';
+      } else if (!opt.rollout_enabled || !opt.engine_enabled) {
+        aiPanel.textContent = 'Canal conectado. La activación autoservicio de IA estará disponible cuando Worktic habilite el lanzamiento para clientes. Puedes recibir mensajes y atender desde Conversaciones.';
+      } else {
+        aiPanel.innerHTML = '<label class="check"><input id="wtB1CustomerAI" type="checkbox" '+(opt.enabled?'checked':'')+'> Permitir que el agente asignado responda automáticamente a mensajes nuevos de este número</label><div class="actions"><button type="button" id="wtB1SaveCustomerAI">Guardar atención IA</button></div><small>Se respeta el control humano de cada conversación. Solo se habilita para esta empresa y este número.</small>';
+        $('#wtB1SaveCustomerAI').onclick = async () => {
+          const btn = $('#wtB1SaveCustomerAI');
+          btn.disabled = true;
+          try {const data=await api('/api/whatsapp/cloud/ai-permission',{method:'POST',body:JSON.stringify({connection_id:c.id,enabled:$('#wtB1CustomerAI').checked})});
+            toast(data.enabled?'Atención IA activada en este canal':'Atención IA desactivada en este canal');
+          } catch(e){formError(e.message)} finally {btn.disabled = false}
+        };
+      }
+    }
+  } catch(e) {if(aiPanel)aiPanel.textContent = 'No se pudo consultar el permiso IA: '+(e.message||'Error');}
   const save = $('#wtB1SaveAssignedAgent');
   const note = $('#wtB1AgentFeedback');
   if (save) save.onclick = async () => {
