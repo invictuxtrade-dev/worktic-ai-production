@@ -361,8 +361,8 @@ func (a *App) whatsappCloudWebhookHandler(w http.ResponseWriter, r *http.Request
 						}
 					}
 				}
-				if _, err := a.db.Exec(`UPDATE wa_cloud_receipts_v273599 SET crm_done=1 WHERE tenant_id=? AND connection_id=? AND meta_message_id=?`, c.TenantID, c.ID, m.ID); err != nil {
-					http.Error(w, "temporary receipt update failure", http.StatusServiceUnavailable)
+				if err := a.waCloudAICompleteInboundV273609(c, m.ID, chat, txt, m.Type, ts); err != nil {
+					http.Error(w, "temporary receipt/AI queue failure", http.StatusServiceUnavailable)
 					return
 				}
 				if newlyInserted {

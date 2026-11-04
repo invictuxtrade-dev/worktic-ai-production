@@ -386,6 +386,9 @@ func main() {
 	if err = initWACloudB1V273599Schema(db); err != nil {
 		log.Fatalf("WhatsApp Cloud B1 receipts schema: %v", err)
 	}
+	if err = initWACloudAIV273609Schema(db); err != nil {
+		log.Fatalf("WhatsApp Cloud AI B1 schema: %v", err)
+	}
 	if err = initMessengerProductionSchema(db); err != nil {
 		log.Fatalf("messenger production schema: %v", err)
 	}
@@ -498,6 +501,9 @@ func main() {
 	if cfg.BackgroundWorkersEnabled {
 		go app.runSocialPublisher()
 		go app.runAutomationWorker()
+		if waCloudAIEnabledV273609() {
+			go app.runWACloudAIWorkerV273609()
+		}
 		go app.runAnalyticsV24Sync()
 		go app.runAdsV25Sync()
 		go app.runMessengerConversationSync()
