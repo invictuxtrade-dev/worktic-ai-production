@@ -1,0 +1,31 @@
+/* Worktic AI B1 V27.36.12 — ajustes visuales del onboarding oficial. */
+/* Nunca representar un número pendiente como verificado. */
+#channelConnections .wt-wa-numberpanel.is-pending {
+  background:linear-gradient(112deg,#fffaf1,#fff7ed);
+  border-color:#f5dec0;
+}
+#channelConnections .wt-wa-numberpanel.is-pending .wt-wa-number {color:#865324}
+#channelConnections .wt-wa-numberpanel.is-pending .wt-wa-verified {color:#98754c}
+#channelConnections .wt-wa-numbericon.is-pending {
+  background:#ffedcf;
+  color:#a3651c;
+  border:1px solid #f1d4a7;
+}
+#channelConnections .wt-wa-numbericon.is-pending svg {
+  display:block;width:16px;height:16px;
+}
+/* Las herramientas técnicas se presentan únicamente a superadministración Worktic.
+   El control de acceso de APIs debe aplicarse SIEMPRE en el backend. */
+#modal .wt-wa-support-tools {
+  margin-top:14px;padding:12px 14px;
+  background:#fafbff;border:1px solid #e4e7f6;border-radius:12px;
+}
+#modal .wt-wa-support-tools > summary {
+  cursor:pointer;font-size:12px;font-weight:700;color:#565a80;
+  padding:2px 0;line-height:1.5;
+}
+#modal .wt-wa-support-tools > details {margin-top:12px}
+#modal .wt-wa-support-tools > .form-section {margin-top:12px}
+@media(max-width:640px) {
+  #modal .wt-wa-support-tools {padding:12px}
+}

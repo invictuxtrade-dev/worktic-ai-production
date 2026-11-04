@@ -104,8 +104,12 @@ function wtPremiumWhatsAppCard(c,key,agentLookup){
  let cfg={};try{cfg=(typeof raw==='string'?JSON.parse(raw||'{}'):raw)||{}}catch(_){cfg={}}
  const state=status(c),online=state==='connected'||state==='active',isError=state==='error';
  const stateLabel=online?'Conectado':isError?'Revisar conexión':state==='paused'?'Pausado':state==='draft'?'Pendiente de conexión':state;
- const number=cfg.display_phone_number||c.display_phone_number||c.external_account_id||'Número por vincular';
- const business=cfg.verified_name||'Cuenta de WhatsApp Business';
+ const connectedNumber=cfg.display_phone_number||c.display_phone_number||c.external_account_id||'';
+ const numberLinked=online&&String(connectedNumber).trim().length>0;
+ const number=numberLinked?connectedNumber:'Número por vincular';
+ const numberLabel=numberLinked?'NÚMERO VINCULADO':'NÚMERO PENDIENTE';
+ const business=numberLinked?(cfg.verified_name||'Cuenta de WhatsApp Business'):'Pendiente de autorización en Meta';
+ const waitingIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
  const agentId=Number(c.assigned_agent_id||0);
  const agent=agentLookup.get(agentId);
  const agentName=agentId===0?'Sin asignar':(agent?.name||'Agente asignado');
@@ -116,7 +120,7 @@ function wtPremiumWhatsAppCard(c,key,agentLookup){
  return `<article class="card wt-unified-card wt-wa-premium-card" data-key="${esc(key)}" aria-label="WhatsApp Business Oficial: ${esc(c.name||'Canal')}">
   <div class="wt-wa-head"><span class="wt-wa-brandicon">${whatsIcon}</span><div class="wt-wa-headtext"><div class="wt-wa-eyebrow">WHATSAPP BUSINESS</div><div class="wt-wa-subbrand">Cloud API oficial</div></div><span class="wt-wa-status ${online?'is-connected':isError?'is-error':'is-pending'}"><i aria-hidden="true"></i>${esc(stateLabel)}</span></div>
   <div class="wt-wa-body"><h3 class="wt-wa-title">${esc(c.name||'WhatsApp Oficial')}</h3>
-   <div class="wt-wa-numberpanel"><div><div class="wt-wa-label">NÚMERO VINCULADO</div><div class="wt-wa-number">${esc(number)}</div><div class="wt-wa-verified">${esc(business)}</div></div><span class="wt-wa-numbericon" aria-hidden="true">✓</span></div>
+   <div class="wt-wa-numberpanel ${numberLinked?'is-verified':'is-pending'}"><div><div class="wt-wa-label">${esc(numberLabel)}</div><div class="wt-wa-number">${esc(number)}</div><div class="wt-wa-verified">${esc(business)}</div></div><span class="wt-wa-numbericon ${numberLinked?'is-verified':'is-pending'}" role="img" aria-label="${numberLinked?'Número verificado':'Pendiente de vincular'}">${numberLinked?'✓':waitingIcon}</span></div>
    <div class="wt-wa-agent"><div class="wt-wa-agentavatar" aria-hidden="true">${esc(initials)}</div><div class="wt-wa-agentinfo"><span>AGENTE IA</span><strong>${esc(agentName)}</strong><small>${esc(agentHint)}</small></div><span class="wt-wa-agentchevron" aria-hidden="true">✦</span></div>
   </div>
   <div class="wt-wa-footer"><div class="wt-wa-primaryactions">${action('configure','Configurar','wt-wa-btn-primary')}${action('templates','Plantillas','wt-wa-btn-secondary')}</div>
