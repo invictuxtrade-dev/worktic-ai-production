@@ -90,7 +90,7 @@ async function createConnection(){
 }
 function mapped(c,type){return {...c,type};}
 function status(c){return c.type==='webchat'?(c.enabled?'Activo':'Pausado'):c.type==='voice_ai'?(c.enabled?'Activo':'Pausado'):(c.status||'Borrador')}
-function details(c){return c.type==='webchat'?c.origin:c.type==='voice_ai'?(c.phone||'Sin número conectado'):c.external_account_id||'Pendiente de vincular'}
+function details(c){if(c.type==='whatsapp_cloud'){let conf={};try{conf=JSON.parse(c.config_json||'{}')||{}}catch(_){conf={}}return conf.display_phone_number||c.external_account_id||'Pendiente de vincular'}return c.type==='webchat'?c.origin:c.type==='voice_ai'?(c.phone||'Sin número conectado'):c.external_account_id||'Pendiente de vincular'}
 function card(c,key){const label=nativeTypes[c.type]||c.type,active=['connected','active','Activo'].includes(status(c));
  return `<article class="card wt-unified-card" data-key="${esc(key)}"><div class="top"><span class="badge ${esc(category[c.type]||'')}">${esc(label)}</span><span class="pill ${active?'wt-channel-on':''}">${esc(status(c))}</span></div><h3>${esc(c.name)}</h3><p class="wt-channel-detail">${esc(details(c))}</p><small>Agente asignado: ${esc(c.assigned_agent_id||c.agent_id||'Sin asignar')}</small>${c.type==='whatsapp_qr'?`<div id="qrbox-${esc(c.id)}"></div>`:''}<div class="actions">
  <button type="button" data-uc-action="configure" data-uc-key="${esc(key)}">Configurar</button>

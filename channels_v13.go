@@ -758,11 +758,39 @@ func (a *App) channelActionHandler(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, result)
 			return
 		}
+	case "assign_agent":
+		// WORKTIC_B1_V273607_ASSIGN_AGENT: set the agent without reconnecting Cloud API.
+		if c.Type != "whatsapp_cloud" {
+			writeError(w, errors.New("la asignación solo aplica a WhatsApp Cloud"), 400)
+			return
+		}
+		if u.Role != "owner" && u.Role != "admin" && u.Role != "superadmin" {
+			writeError(w, errors.New("sin permiso para asignar agentes"), 403)
+			return
+		}
+		if c.Status != "connected" {
+			writeError(w, errors.New("conecta primero el canal de WhatsApp"), 409)
+			return
+		}
+		// Agent activation and tenant ownership were already checked above for nonzero IDs.
+		res, err := a.db.Exec(`UPDATE channel_connections SET assigned_agent_id=?,updated_at=? WHERE id=? AND tenant_id=? AND type='whatsapp_cloud' AND status='connected'`, q.AgentID, now, c.ID, tid)
+		if err != nil {
+			writeError(w, err, 500)
+			return
+		}
+		affected, err := res.RowsAffected()
+		if err != nil || affected != 1 {
+			writeError(w, errors.New("no se pudo confirmar la asignación del canal"), 409)
+			return
+		}
+		_, _ = a.db.Exec(`INSERT INTO channel_audit(tenant_id,connection_id,user_id,action,detail,created_at) VALUES(?,?,?,?,?,?)`, tid, c.ID, u.ID, "assign_agent", "whatsapp_cloud", now)
+		writeJSON(w, map[string]any{"ok": true, "id": c.ID, "assigned_agent_id": q.AgentID, "status": "connected"})
+		return
 	case "details":
 		if c.Type == "whatsapp_cloud" {
 			cfg := a.whatsappCloudConfigFor(c)
 			_, credErr := a.whatsappCloudCredentialsFor(c)
-			writeJSON(w, map[string]any{"ok": true, "platform": c.Type, "status": c.Status, "waba_id": cfg.WABAID, "phone_number_id": cfg.PhoneNumberID, "display_phone_number": cfg.DisplayPhone, "verified_name": cfg.VerifiedName, "quality_rating": cfg.QualityRating, "webhook_url": a.cfg.BaseURL + "/webhooks/meta/whatsapp", "verify_token": a.cfg.WhatsAppVerifyToken, "has_token": credErr == nil})
+			writeJSON(w, map[string]any{"ok": true, "platform": c.Type, "status": c.Status, "waba_id": cfg.WABAID, "phone_number_id": cfg.PhoneNumberID, "display_phone_number": cfg.DisplayPhone, "verified_name": cfg.VerifiedName, "quality_rating": cfg.QualityRating, "webhook_url": a.cfg.BaseURL + "/webhooks/meta/whatsapp", "verify_token_configured": a.cfg.WhatsAppVerifyToken != "", "has_token": credErr == nil})
 			return
 		}
 		if c.Type == "messenger" {

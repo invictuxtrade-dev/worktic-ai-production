@@ -160,7 +160,7 @@ func (a *App) configureWhatsAppCloud(ctx context.Context, c ChannelConnection, w
 	if _, err := a.db.Exec(`UPDATE channel_connections SET encrypted_credentials=?,external_account_id=?,config_json=?,status='connected',assigned_agent_id=?,last_connected_at=?,last_error='',updated_at=? WHERE id=? AND tenant_id=?`, encryptLocal(string(cr), a.cfg.ChannelEncryptionKey), cfg.PhoneNumberID, string(cb), agentID, now, now, c.ID, c.TenantID); err != nil {
 		return nil, err
 	}
-	return map[string]any{"ok": true, "waba_id": cfg.WABAID, "phone_number_id": cfg.PhoneNumberID, "display_phone_number": cfg.DisplayPhone, "verified_name": cfg.VerifiedName, "quality_rating": cfg.QualityRating, "webhook_url": cfg.WebhookURL, "verify_token": a.cfg.WhatsAppVerifyToken}, nil
+	return map[string]any{"ok": true, "waba_id": cfg.WABAID, "phone_number_id": cfg.PhoneNumberID, "display_phone_number": cfg.DisplayPhone, "verified_name": cfg.VerifiedName, "quality_rating": cfg.QualityRating, "webhook_url": cfg.WebhookURL, "verify_token_configured": a.cfg.WhatsAppVerifyToken != ""}, nil
 }
 
 func (a *App) testWhatsAppCloud(ctx context.Context, c ChannelConnection) (map[string]any, error) {
@@ -173,7 +173,7 @@ func (a *App) testWhatsAppCloud(ctx context.Context, c ChannelConnection) (map[s
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"ok": true, "waba_id": live.WABAID, "phone_number_id": live.PhoneNumberID, "display_phone_number": live.DisplayPhone, "verified_name": live.VerifiedName, "quality_rating": live.QualityRating, "webhook_url": a.cfg.BaseURL + "/webhooks/meta/whatsapp", "verify_token": a.cfg.WhatsAppVerifyToken, "official": true}, nil
+	return map[string]any{"ok": true, "waba_id": live.WABAID, "phone_number_id": live.PhoneNumberID, "display_phone_number": live.DisplayPhone, "verified_name": live.VerifiedName, "quality_rating": live.QualityRating, "webhook_url": a.cfg.BaseURL + "/webhooks/meta/whatsapp", "verify_token_configured": a.cfg.WhatsAppVerifyToken != "", "official": true}, nil
 }
 
 func (a *App) sendWhatsAppCloudText(ctx context.Context, c ChannelConnection, to, text string) (string, error) {
