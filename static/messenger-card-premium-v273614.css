@@ -1,0 +1,25 @@
+/* Worktic AI V27.36.14 — Messenger Premium Card
+   Hereda exclusivamente el diseño aprobado de WhatsApp Business.
+   No modifica el resto de canales ni los flujos OAuth. */
+#channelConnections .wt-ms-premium-card .wt-ms-brandicon {
+  background:linear-gradient(140deg,#1489fa 0%,#5258f5 58%,#c936eb 100%);
+  box-shadow:0 5px 14px rgba(69,89,235,.21);
+}
+#channelConnections .wt-ms-premium-card .wt-ms-page-name {
+  font-size:16px;line-height:1.5;font-weight:780;
+  overflow-wrap:anywhere;
+}
+#channelConnections .wt-ms-premium-card .wt-ms-page-id {
+  font-size:11px;line-height:1.55;
+  overflow-wrap:anywhere;
+}
+#channelConnections .wt-ms-premium-card .wt-wa-status.is-paused {
+  background:#f5f6fa;color:#68738f;border-color:#e3e6f0;
+}
+#channelConnections .wt-ms-premium-card .wt-wa-primaryactions button {
+  white-space:normal;text-align:center;
+}
+@media(max-width:390px) {
+  #channelConnections .wt-ms-premium-card .wt-wa-head {flex-wrap:wrap}
+  #channelConnections .wt-ms-premium-card .wt-wa-status {margin-left:55px}
+}

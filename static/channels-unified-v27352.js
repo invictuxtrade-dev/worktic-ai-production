@@ -133,7 +133,42 @@ function wtPremiumWhatsAppCard(c,key,agentLookup){
   </div></article>`;
 }
 
-function card(c,key,agentLookup){if(c.type==='whatsapp_cloud')return wtPremiumWhatsAppCard(c,key,agentLookup);const label=nativeTypes[c.type]||c.type,active=['connected','active','Activo'].includes(status(c));
+/* WORKTIC_B1_V273614_MESSENGER_PREMIUM_CARD: solo presentacion */
+function wtPremiumMessengerCard(c,key,agentLookup){
+ let cfg={};try{const raw=c.config_json;cfg=(typeof raw==='string'?JSON.parse(raw||'{}'):raw)||{}}catch(_){cfg={}}
+ const state=String(status(c)||'').toLowerCase();
+ const online=state==='connected'||state==='active'||state==='activo';
+ const isError=state==='error'||state==='failed';
+ const paused=state==='paused'||state==='pausado';
+ const stateLabel=online?'Conectado':isError?'Revisar conexión':paused?'Pausado':'Pendiente de conexión';
+ const pageId=String(c.external_account_id||cfg.page_id||'').trim();
+ const hasPage=pageId.length>0;
+ // El servidor actual conserva el ID de pagina; usa el nombre si lo proporciona.
+ // Como alternativa, solo se deduce de un nombre de canal con el sufijo exacto '- Messenger Oficial'.
+ const channelName=String(c.name||'');
+ const fromChannel=/^(.+?)\s*[-–—]\s*(?:Facebook\s+)?Messenger\s+Oficial\s*$/i.exec(channelName);
+ const pageName=String(cfg.page_name||c.page_name||(fromChannel?fromChannel[1].trim():'Página de Facebook')).trim();
+ const agentId=Number(c.assigned_agent_id||c.agent_id||0);
+ const agent=agentLookup.get(agentId);
+ const agentName=agentId===0?'Sin asignar':agent?.name||`Agente #${agentId}`;
+ const agentHint=agentId===0?'Atención humana · sin agente IA':agent?.status==='active'?'Activo':agent?'Revisar estado del agente':'Asignado al canal';
+ const initials=agentId===0?'IA':String(agentName).trim().slice(0,1).toUpperCase();
+ const messengerIcon='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.4c-5.1 0-9.2 3.6-9.2 8.1 0 2.4 1.1 4.6 3 6.1v3l3.1-1.7c1 .3 2 .5 3.1.5 5.1 0 9.2-3.6 9.2-8S17.1 3.4 12 3.4Z"/><path d="m7.3 14.2 3.2-3.6 2.7 2.1 3.5-3.6-3.2 4.9-2.8-2.2-3.4 2.4Z" fill="currentColor" stroke="none"/></svg>';
+ const waitingIcon='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+ const action=(id,label,klass='')=>`<button type="button" class="${klass}" data-uc-action="${id}" data-uc-key="${esc(key)}">${label}</button>`;
+ return `<article class="card wt-unified-card wt-wa-premium-card wt-ms-premium-card" data-key="${esc(key)}" aria-label="Facebook Messenger: ${esc(channelName||'Canal')}">
+  <div class="wt-wa-head"><span class="wt-wa-brandicon wt-ms-brandicon">${messengerIcon}</span><div class="wt-wa-headtext"><div class="wt-wa-eyebrow">FACEBOOK MESSENGER</div><div class="wt-wa-subbrand">Canal oficial de Meta</div></div><span class="wt-wa-status ${online?'is-connected':isError?'is-error':paused?'is-paused':'is-pending'}"><i aria-hidden="true"></i>${esc(stateLabel)}</span></div>
+  <div class="wt-wa-body"><h3 class="wt-wa-title">${esc(channelName||'Messenger Oficial')}</h3>
+   <div class="wt-wa-numberpanel ${hasPage?'is-verified':'is-pending'}"><div><div class="wt-wa-label">${hasPage?'PÁGINA VINCULADA':'PÁGINA PENDIENTE'}</div><div class="wt-wa-number wt-ms-page-name">${esc(hasPage?pageName:'Página por vincular')}</div><div class="wt-wa-verified wt-ms-page-id">${esc(hasPage?'ID de página: '+pageId:'Pendiente de autorización en Facebook')}</div></div><span class="wt-wa-numbericon ${online&&hasPage?'is-verified':'is-pending'}" role="img" aria-label="${online&&hasPage?'Página conectada':'Conexión pendiente'}">${online&&hasPage?'✓':waitingIcon}</span></div>
+   <div class="wt-wa-agent"><div class="wt-wa-agentavatar" aria-hidden="true">${esc(initials)}</div><div class="wt-wa-agentinfo"><span>AGENTE IA</span><strong>${esc(agentName)}</strong><small>${esc(agentHint)}</small></div><span class="wt-wa-agentchevron" aria-hidden="true">✦</span></div>
+  </div>
+  <div class="wt-wa-footer"><div class="wt-wa-primaryactions">${action('configure','Configurar','wt-wa-btn-primary')}${action('test','Probar conexión','wt-wa-btn-secondary')}</div>
+   <div class="wt-wa-secondaryactions">${action('inbox','Conversaciones','wt-wa-textbtn')}${online?action('pause','Pausar','wt-wa-textbtn'):''}
+   <details class="wt-wa-more"><summary aria-label="Más acciones" title="Más acciones">•••</summary><div class="wt-wa-moremenu">${action('delete','Eliminar conexión','wt-wa-btn-danger')}</div></details></div>
+  </div></article>`;
+}
+
+function card(c,key,agentLookup){if(c.type==='whatsapp_cloud')return wtPremiumWhatsAppCard(c,key,agentLookup);if(c.type==='messenger')return wtPremiumMessengerCard(c,key,agentLookup);const label=nativeTypes[c.type]||c.type,active=['connected','active','Activo'].includes(status(c));
  return `<article class="card wt-unified-card" data-key="${esc(key)}"><div class="top"><span class="badge ${esc(category[c.type]||'')}">${esc(label)}</span><span class="pill ${active?'wt-channel-on':''}">${esc(status(c))}</span></div><h3>${esc(c.name)}</h3><p class="wt-channel-detail">${esc(details(c))}</p><small>Agente asignado: ${esc(c.assigned_agent_id||c.agent_id||'Sin asignar')}</small>${c.type==='whatsapp_qr'?`<div id="qrbox-${esc(c.id)}"></div>`:''}<div class="actions">
  <button type="button" data-uc-action="configure" data-uc-key="${esc(key)}">Configurar</button>
  ${c.type==='webchat'?`<button type="button" class="secondary" data-uc-action="install" data-uc-key="${esc(key)}">Instalar widget</button><button type="button" class="secondary" data-uc-action="inbox" data-uc-key="${esc(key)}">Conversaciones</button>`:''}
