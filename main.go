@@ -395,6 +395,9 @@ func main() {
 	if err = initMessengerProductionSchema(db); err != nil {
 		log.Fatalf("messenger production schema: %v", err)
 	}
+	if err = initMessengerSelfServiceSchema(db); err != nil {
+		log.Fatalf("messenger self-service schema: %v", err)
+	}
 	if err = initCRMContactsPremiumSchema(db); err != nil {
 		log.Fatalf("crm contacts schema: %v", err)
 	}
@@ -630,6 +633,9 @@ func main() {
 	mux.HandleFunc("/api/telegram", app.telegramHandler)
 	mux.HandleFunc("/webhooks/telegram/", app.telegramWebhookHandler)
 	mux.HandleFunc("/api/messenger", app.messengerHandler)
+	mux.HandleFunc(messengerSelfServiceAPIPath, app.messengerSelfServiceHandler)
+	mux.HandleFunc(messengerOAuthCallbackPath, app.messengerOAuthCallback)
+	mux.HandleFunc(messengerSaaSWebhookPath, app.messengerSaaSWebhookHandler)
 	mux.HandleFunc("/webhooks/meta/messenger", app.messengerWebhookHandler)
 	mux.HandleFunc("/webhooks/meta/whatsapp", app.whatsappCloudWebhookHandler)
 	mux.HandleFunc("/api/whatsapp/templates", app.whatsappTemplatesHandler)

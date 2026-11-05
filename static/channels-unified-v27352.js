@@ -71,7 +71,7 @@ async function createConnection(){
  <div class="actions"><button type="button" id="ucContinue">Crear conexión</button><button value="cancel" class="secondary">Cancelar</button></div></div>`);
  api('/api/agents').then(d=>{const s=$('#ucAgent');if(s)s.replaceChildren(new Option('Selecciona un agente activo','0'),...(d.agents||[]).filter(a=>a.status==='active').map(a=>new Option(a.name,a.id)))}).catch(()=>{});
  const input=$('#ucType'), fields=$('#ucNativeFields'), btn=$('#ucContinue'),desc=$('#ucDescription');
- const update=()=>{desc.removeAttribute('role');desc.removeAttribute('style');const web=input.value==='webchat',voice=input.value==='voice_ai',wa=input.value==='whatsapp_cloud';fields.hidden=web||voice;btn.textContent=wa?'Crear y conectar con Meta':web||voice?'Continuar a configuración':'Crear conexión';desc.textContent=web?'Configura el dominio HTTPS, el agente y el código de instalación.':voice?'Selecciona la voz, el agente y los permisos de telefonía.':wa?'Conexión oficial paso a paso: 1. Elige un agente activo. 2. Autoriza tu negocio y número directamente en Meta. 3. Verifica tu conexión. No necesitas copiar tokens ni configurar webhooks. La disponibilidad depende de tu plan y de la autorización de Meta.':'El backend validará tu plan y la asignación del agente.'};
+ const update=()=>{desc.removeAttribute('role');desc.removeAttribute('style');const web=input.value==='webchat',voice=input.value==='voice_ai',wa=input.value==='whatsapp_cloud',ms=input.value==='messenger';fields.hidden=web||voice;btn.textContent=wa?'Crear y conectar con Meta':ms?'Crear y conectar con Facebook':web||voice?'Continuar a configuración':'Crear conexión';desc.textContent=web?'Configura el dominio HTTPS, el agente y el código de instalación.':voice?'Selecciona la voz, el agente y los permisos de telefonía.':wa?'Conexión oficial paso a paso: 1. Elige un agente activo. 2. Autoriza tu negocio y número directamente en Meta. 3. Verifica tu conexión. No necesitas copiar tokens ni configurar webhooks. La disponibilidad depende de tu plan y de la autorización de Meta.':'El backend validará tu plan y la asignación del agente.'};
  input.onchange=update;update();
  btn.onclick=async()=>{
   const type=input.value;
@@ -91,6 +91,10 @@ async function createConnection(){
       // Meta SDK is prepared by the existing dialog before FB.login.
       try{await window.connectTenantChannel({id:created.id,type:'whatsapp_cloud',name:p.name,status:'draft',assigned_agent_id:p.assigned_agent_id,config_json:'{}'});}
       catch(err){notice('Conexión creada. Ábrela desde Mis Canales para finalizar con Meta: '+err.message)}
+    }
+    if(type==='messenger'){
+      try{await window.workticMessengerWizard.open({id:created.id,type:'messenger',name:p.name,status:'draft',assigned_agent_id:p.assigned_agent_id});}
+      catch(err){notice('Canal creado. Configúralo desde Mis Canales: '+err.message)}
     }
   } catch(e){btn.disabled=false;notice(e.message)}
  };
