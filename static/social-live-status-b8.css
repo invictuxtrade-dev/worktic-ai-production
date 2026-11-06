@@ -1,0 +1,21 @@
+/* B8: discreet status bar; existing premium cards/layout retained */
+#socialLiveB8Status[hidden] { display: none !important; }
+.wt-social-live-b8 {
+  display: flex; align-items: center; gap: 10px;
+  margin: 12px 0 16px; padding: 12px 14px;
+  border: 1px solid #d8d7fd; border-radius: 13px;
+  background: #f6f5ff; color: #40358f;
+  font-size: 13px; line-height: 1.45; font-weight: 500;
+}
+.wt-social-live-b8.is-success {background: #f0fcf5; border-color: #c5e9d2; color: #176943;}
+.wt-social-live-b8.is-error {background: #fff4f5; border-color: #f3c8d0; color: #992d46;}
+.wt-social-live-b8.is-info {background: #f1f7ff; border-color: #cdddf9; color: #27568b;}
+.wt-social-live-dot {width: 9px; height: 9px; border-radius: 50%; background: #7b53ed; flex: 0 0 9px;}
+.wt-social-live-b8.is-pending .wt-social-live-dot { animation: wtSocialB8Pulse 1.2s ease-in-out infinite; }
+.wt-social-live-b8.is-success .wt-social-live-dot {background: #16965b;}
+.wt-social-live-b8.is-error .wt-social-live-dot {background: #d34763;}
+.wt-social-live-b8.is-info .wt-social-live-dot {background: #488cce;}
+#socialPostsTable .wt-social-b8-processing {border-color: #cfc6ff; background: #f5f0ff; color: #5134a0;}
+#socialPostsTable button[aria-disabled="true"] {opacity: .6; cursor: not-allowed;}
+@keyframes wtSocialB8Pulse {0%, 100% {opacity: .65; transform: scale(.9);} 50% {opacity: 1; transform: scale(1.3);}}
+@media (prefers-reduced-motion: reduce) {.wt-social-live-b8.is-pending .wt-social-live-dot {animation: none;}}
