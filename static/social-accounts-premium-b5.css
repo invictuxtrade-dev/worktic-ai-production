@@ -1,0 +1,136 @@
+/* Worktic AI · B5 · Premium Social Accounts — visually aligned with Mis Canales.
+   Scoped strictly to #socialConnectionsGrid. */
+#socialConnectionsGrid.social-grid-3{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,390px),440px));
+  gap:20px;align-items:start;justify-content:start;
+}
+#socialConnectionsGrid .wt-social-b5-card{
+  position:relative;display:flex;flex-direction:column;gap:0;
+  width:100%;max-width:440px;min-width:0;padding:0;overflow:visible;
+  border:1px solid #e3e8f5;border-radius:19px;
+  background:#fff;color:#19213d;
+  box-shadow:0 5px 18px rgba(28,35,82,.045),0 2px 5px rgba(28,35,82,.022);
+  transition:transform .2s ease,box-shadow .2s ease;
+  box-sizing:border-box;
+}
+#socialConnectionsGrid .wt-social-b5-card:before{
+  content:"";position:absolute;top:-1px;left:20px;right:20px;height:3px;
+  background:linear-gradient(90deg,#1ac5e8,#5665f6 50%,#d537ec);
+  border-radius:0 0 4px 4px;
+}
+#socialConnectionsGrid .wt-social-b5-head{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:22px 20px 13px;min-width:0;
+}
+#socialConnectionsGrid .wt-social-b5-brand{display:flex;align-items:center;gap:11px;min-width:0;flex:1}
+#socialConnectionsGrid .wt-social-b5-brand-mark{
+  flex:0 0 42px;width:42px;height:42px;display:grid;place-items:center;
+  border-radius:13px;color:#fff;font-weight:900;font-size:23px;line-height:1;
+  background:linear-gradient(135deg,#315df8,#703cec 70%,#ca31ed);
+  box-shadow:0 5px 14px rgba(79,83,224,.19);
+  font-family:Arial,Helvetica,sans-serif;
+}
+#socialConnectionsGrid .wt-social-b5-facebook{background:linear-gradient(135deg,#2680ff,#3b4fea 65%,#9648f5)}
+#socialConnectionsGrid .wt-social-b5-instagram{background:linear-gradient(135deg,#fb8a31,#eb35a3 55%,#7f44df)}
+#socialConnectionsGrid .wt-social-b5-youtube{background:linear-gradient(135deg,#fc6565,#e92156)}
+#socialConnectionsGrid .wt-social-b5-linkedin{background:linear-gradient(135deg,#208ee9,#1966ac);font-size:17px}
+#socialConnectionsGrid .wt-social-b5-telegram{background:linear-gradient(135deg,#3dc9ee,#317ed9)}
+#socialConnectionsGrid .wt-social-b5-tiktok{background:linear-gradient(135deg,#142033,#344164);font-size:20px}
+#socialConnectionsGrid .wt-social-b5-brand-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+#socialConnectionsGrid .wt-social-b5-brand-title{color:#3c4fc4;font-size:11px;font-weight:800;line-height:1.2;letter-spacing:.8px;text-transform:uppercase}
+#socialConnectionsGrid .wt-social-b5-brand-sub{font-size:11px;color:#8b94ad;font-weight:600;line-height:1.25}
+#socialConnectionsGrid .wt-social-b5-status{
+  display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+  border-radius:100px;padding:7px 10px;border:1px solid #e3e7f0;
+  background:#f5f6fb;color:#68718b;font-size:10.5px;font-weight:760;line-height:1.15;
+}
+#socialConnectionsGrid .wt-social-b5-status:before{content:"";width:7px;height:7px;background:currentColor;border-radius:50%;flex-shrink:0}
+#socialConnectionsGrid .wt-social-b5-status.is-connected{color:#087f53;background:#eafbf3;border-color:#beeeda}
+#socialConnectionsGrid .wt-social-b5-status.is-error{color:#b92b43;background:#fff1f3;border-color:#f8d0dc}
+#socialConnectionsGrid .wt-social-b5-status.is-pending{color:#9a6712;background:#fff8e8;border-color:#f1dfb9}
+#socialConnectionsGrid .wt-social-b5-body{padding:0 20px 19px;min-width:0}
+#socialConnectionsGrid .wt-social-b5-account-title{
+  margin:4px 0 17px;color:#162042;font-size:18px;font-weight:790;line-height:1.3;letter-spacing:-.35px;
+  overflow-wrap:anywhere;
+}
+#socialConnectionsGrid .wt-social-b5-identity{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;min-width:0;
+  padding:14px 15px;border:1px solid #e5eafb;border-radius:12px;
+  background:linear-gradient(112deg,#f6f9ff,#f2f3ff);
+}
+#socialConnectionsGrid .wt-social-b5-identity-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+#socialConnectionsGrid .wt-social-b5-kicker,
+#socialConnectionsGrid .wt-social-b5-fact-label{font-size:9.5px;font-weight:800;letter-spacing:.65px;color:#8793b4}
+#socialConnectionsGrid .wt-social-b5-identity-name{color:#202e72;font-size:16px;font-weight:760;line-height:1.3;overflow-wrap:anywhere}
+#socialConnectionsGrid .wt-social-b5-identity-id{font-size:10.5px;color:#7583a3;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+#socialConnectionsGrid .wt-social-b5-identity-check{
+  flex:0 0 28px;height:28px;display:grid;place-items:center;
+  color:#149c63;background:#e1f7ec;border-radius:50%;font-weight:900;font-size:15px;
+}
+#socialConnectionsGrid .wt-social-b5-facts{
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:13px 0 12px;margin-top:10px;
+}
+#socialConnectionsGrid .wt-social-b5-fact{min-width:0;display:flex;flex-direction:column;gap:5px;padding:0 3px}
+#socialConnectionsGrid .wt-social-b5-fact strong{color:#28314f;font-size:12px;font-weight:700;line-height:1.4;overflow-wrap:anywhere}
+#socialConnectionsGrid .wt-social-b5-permissions{
+  border:1px solid #e8eafa;border-radius:11px;background:#fbfbff;margin:3px 0 0;
+}
+#socialConnectionsGrid .wt-social-b5-permissions>summary{
+  display:flex;align-items:center;gap:9px;cursor:pointer;padding:10px 13px;
+  color:#4650a2;font-size:11.5px;font-weight:740;list-style:none;
+}
+#socialConnectionsGrid .wt-social-b5-permissions>summary::-webkit-details-marker{display:none}
+#socialConnectionsGrid .wt-social-b5-permissions>summary:after{content:'⌄';font-size:16px;font-weight:700;margin-left:auto;line-height:1;color:#9184d6;transition:transform .15s ease}
+#socialConnectionsGrid .wt-social-b5-permissions[open]>summary:after{transform:rotate(180deg)}
+#socialConnectionsGrid .wt-social-b5-perm-count{padding:2px 8px;border-radius:10px;background:#edebff;color:#6655c5;font-size:10px}
+#socialConnectionsGrid .wt-social-b5-permission-list{display:flex;flex-wrap:wrap;gap:6px;padding:4px 12px 13px;max-width:100%;border-top:1px solid #eeeefa}
+#socialConnectionsGrid .wt-social-b5-perm{display:inline-flex;max-width:100%;overflow-wrap:anywhere;font-size:10px;line-height:1.35;padding:6px 8px;border:1px solid #e0e4f8;background:#f3f5ff;color:#4b519b;border-radius:8px;font-weight:640}
+#socialConnectionsGrid .wt-social-b5-permission-unknown{font-size:11px;color:#777f9a}
+#socialConnectionsGrid .wt-social-b5-notice{margin-top:12px;border-radius:10px;font-size:11px;overflow-wrap:anywhere}
+#socialConnectionsGrid .wt-social-b5-body small.muted{display:block;margin-top:12px;font-size:11px}
+#socialConnectionsGrid .wt-social-b5-footer{
+  display:flex;align-items:center;gap:9px;padding:15px 20px 18px;
+  border-top:1px solid #eff1f7;background:linear-gradient(180deg,#fff,#fcfcff);
+  border-radius:0 0 19px 19px;
+}
+#socialConnectionsGrid .wt-social-b5-test{
+  flex:1;display:flex;align-items:center;justify-content:center;min-width:0;min-height:41px;
+  border-radius:10px;padding:10px 12px;margin:0;
+  background:linear-gradient(110deg,#4967f7,#8840ec 75%,#c431e7);
+  color:#fff;border:1px solid transparent;font-size:12px;font-weight:770;
+  box-shadow:0 4px 12px rgba(102,77,230,.18);
+}
+#socialConnectionsGrid .wt-social-b5-more{position:relative;margin-left:auto}
+#socialConnectionsGrid .wt-social-b5-more>summary{
+  cursor:pointer;list-style:none;display:grid;place-items:center;
+  min-width:41px;height:41px;padding:0 8px;border:1px solid #e1e4f5;
+  background:#f6f7fc;color:#5c6488;border-radius:10px;font-size:20px;line-height:1;
+}
+#socialConnectionsGrid .wt-social-b5-more>summary::-webkit-details-marker{display:none}
+#socialConnectionsGrid .wt-social-b5-more-menu{
+  position:absolute;z-index:20;right:0;bottom:calc(100% + 7px);min-width:190px;
+  background:#fff;border:1px solid #e3e7f5;border-radius:11px;
+  padding:6px;box-shadow:0 14px 28px rgba(28,35,82,.13);
+}
+#socialConnectionsGrid .wt-social-b5-delete{
+  width:100%;margin:0;padding:10px 12px;background:#fff2f4;color:#bd294c;
+  font-size:11.5px;font-weight:740;border:0;border-radius:7px;box-shadow:none;text-align:left;
+}
+#socialConnectionsGrid .wt-social-b5-delete:hover{background:#ffe4e9}
+#socialConnectionsGrid .wt-social-b5-card button:focus-visible,
+#socialConnectionsGrid .wt-social-b5-card summary:focus-visible{outline:3px solid #8daaff;outline-offset:2px}
+@media (hover:hover){#socialConnectionsGrid .wt-social-b5-card:hover{transform:translateY(-2px);box-shadow:0 12px 29px rgba(28,35,103,.095),0 2px 6px rgba(28,35,103,.03)}}
+@media (max-width:640px){
+ #socialConnectionsGrid.social-grid-3{grid-template-columns:minmax(0,1fr);gap:15px}
+ #socialConnectionsGrid .wt-social-b5-head{padding:19px 15px 12px;gap:8px}
+ #socialConnectionsGrid .wt-social-b5-body{padding:0 15px 16px}
+ #socialConnectionsGrid .wt-social-b5-footer{padding:13px 15px 16px}
+ #socialConnectionsGrid .wt-social-b5-account-title{font-size:17px}
+ #socialConnectionsGrid .wt-social-b5-identity-name{font-size:15px}
+ #socialConnectionsGrid .wt-social-b5-facts{gap:8px}
+}
+@media (max-width:380px){
+ #socialConnectionsGrid .wt-social-b5-facts{grid-template-columns:1fr;gap:10px}
+ #socialConnectionsGrid .wt-social-b5-status{padding:6px 8px;font-size:10px}
+}
+@media (prefers-reduced-motion:reduce){#socialConnectionsGrid .wt-social-b5-card{transition:none}#socialConnectionsGrid .wt-social-b5-card:hover{transform:none}}
