@@ -249,6 +249,12 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		if req.Action == "publish" || req.Action == "schedule" {
+			if err := a.socialB6PublishPrerequisites(t, req.Platforms); err != nil {
+				http.Error(w, err.Error(), http.StatusConflict)
+				return
+			}
+		}
 		decision := a.socialGovernanceDecisionV231(t, req.CampaignID, req.Platforms, req.MasterContent, req.Action)
 		if decision.Blocked && (req.Action == "publish" || req.Action == "schedule") {
 			a.auditSocialGovernanceV231(t, 0, req.CampaignID, u.ID, req.Action, req.Platforms, decision)
@@ -353,6 +359,12 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			if _, err := time.Parse(time.RFC3339, req.ScheduledAt); err != nil {
 				http.Error(w, "fecha de programación inválida", 400)
+				return
+			}
+		}
+		if req.Action == "publish" || req.Action == "schedule" {
+			if err := a.socialB6PublishPrerequisites(t, req.Platforms); err != nil {
+				http.Error(w, err.Error(), http.StatusConflict)
 				return
 			}
 		}

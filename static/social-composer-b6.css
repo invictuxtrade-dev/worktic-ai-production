@@ -1,0 +1,6 @@
+.social-b6-alert{margin:14px 0 8px;padding:12px 14px;border:1px solid #f5d8a2;border-left:3px solid #e9a23d;background:#fffbf1;color:#674414;border-radius:12px;font-size:12px;line-height:1.55}
+.social-b6-alert[hidden]{display:none!important}
+.social-b6-error{margin:14px 18px;padding:16px;border:1px solid #f8c9d0;border-left:4px solid #e14368;border-radius:14px;background:linear-gradient(140deg,#fff9fb,#fff);color:#69233a;box-shadow:0 4px 18px rgba(54,33,89,.06)}
+.social-b6-error strong{display:block;font-size:13px;margin-bottom:7px}
+.social-b6-error ul{margin:0;padding-left:18px}
+.social-b6-error li{margin:6px 0;font-size:12px;line-height:1.55;overflow-wrap:anywhere}
