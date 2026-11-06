@@ -965,6 +965,23 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	if len(mediaURLs) > 0 {
 		media = mediaURLs[0]
 	}
+	// B7: Meta recibe una URL HTTPS publica, no la ruta relativa del editor.
+	// Normalizar todos los elementos, incluidos los carruseles de Facebook.
+	if p.Platform == "facebook" && len(mediaURLs) > 0 {
+		for i, raw := range mediaURLs {
+			publicURL, mediaErr := socialB7CanonicalMediaURL(a.cfg.BaseURL, raw)
+			if mediaErr != nil {
+				permanentErr := fmt.Errorf("Facebook: recurso multimedia invalido: %w", mediaErr)
+				var attemptNo int
+				_ = a.db.QueryRow(`SELECT COUNT(*)+1 FROM social_publish_attempts WHERE tenant_id=? AND post_id=?`, tid, id).Scan(&attemptNo)
+				_, _ = a.db.Exec(`INSERT INTO social_publish_attempts(tenant_id,post_id,attempt_no,status,error_message,created_at) VALUES(?,?,?,?,?,?)`, tid, id, attemptNo, "failed", permanentErr.Error(), now)
+				_, _ = a.db.Exec(`UPDATE social_posts SET status='failed',error_message=?,updated_at=? WHERE id=? AND tenant_id=? AND status<>'published'`, permanentErr.Error(), now, id, tid)
+				return nil, permanentErr
+			}
+			mediaURLs[i] = publicURL
+		}
+		media = mediaURLs[0]
+	}
 	var result map[string]any
 	switch p.Platform {
 	case "facebook":
@@ -1008,7 +1025,7 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	if err != nil {
 		_, _ = a.db.Exec(`INSERT INTO social_publish_attempts(tenant_id,post_id,attempt_no,status,error_message,created_at) VALUES(?,?,?,?,?,?)`, tid, id, attempt, "failed", err.Error(), now)
 		nextStatus := "failed"
-		if attempt < 4 {
+		if attempt < 4 && !socialB7IsPermanentMediaURLFailure(err) {
 			nextStatus = "retrying"
 		}
 		_, _ = a.db.Exec(`UPDATE social_posts SET status=?,error_message=?,updated_at=?,scheduled_at=? WHERE id=? AND tenant_id=?`, nextStatus, err.Error(), now, time.Now().UTC().Add(time.Duration(attempt*5)*time.Minute).Format(time.RFC3339), id, tid)
