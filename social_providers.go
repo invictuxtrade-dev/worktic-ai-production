@@ -11,9 +11,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -43,11 +46,14 @@ func ensureSocialProviderSchema(db *DB) {
 		`ALTER TABLE social_connections ADD COLUMN token_expires_at TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE social_connections ADD COLUMN refresh_status TEXT NOT NULL DEFAULT ''`,
 		`CREATE TABLE IF NOT EXISTS social_oauth_states(id INTEGER PRIMARY KEY AUTOINCREMENT,state TEXT UNIQUE NOT NULL,tenant_id INTEGER NOT NULL,platform TEXT NOT NULL,created_at TEXT NOT NULL,expires_at TEXT NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS social_oauth_pending(state TEXT PRIMARY KEY,tenant_id INTEGER NOT NULL,platform TEXT NOT NULL,encrypted_user_token TEXT NOT NULL,created_at TEXT NOT NULL,expires_at TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS social_publish_attempts(id INTEGER PRIMARY KEY AUTOINCREMENT,tenant_id INTEGER NOT NULL,post_id INTEGER NOT NULL,attempt_no INTEGER NOT NULL DEFAULT 1,status TEXT NOT NULL,provider_response TEXT NOT NULL DEFAULT '',error_message TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL)`,
 	}
 	for _, q := range alters {
 		_, _ = db.Exec(q)
 	}
+	// Depurar periodicamente autorizaciones temporales abandonadas.
+	_, _ = db.Exec(`DELETE FROM social_oauth_pending WHERE expires_at<?`, time.Now().UTC().Format(time.RFC3339))
 }
 
 func decryptLocal(s, key string) string {
@@ -112,7 +118,26 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "META_APP_ID no configurado", 409)
 			return
 		}
-		q := url.Values{"client_id": {a.cfg.MetaAppID}, "redirect_uri": {redirect}, "state": {state}, "response_type": {"code"}, "scope": {"pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata,pages_manage_engagement,leads_retrieval,instagram_basic,instagram_content_publish,instagram_manage_comments,business_management"}}
+		// B2: Meta define los permisos mediante una configuracion independiente por flujo.
+		// Fallar cerrado impide volver a pedir scopes no disponibles en esta aplicacion.
+		key := "WORKTIC_META_SOCIAL_FACEBOOK_CONFIG_ID"
+		if p == "instagram" {
+			key = "WORKTIC_META_SOCIAL_INSTAGRAM_CONFIG_ID"
+		}
+		configID := strings.TrimSpace(os.Getenv(key))
+		if configID == "" || !isMetaSocialConfigID(configID) {
+			http.Error(w, key+" no configurado o invalido", http.StatusConflict)
+			return
+		}
+		if strings.TrimSpace(a.cfg.ChannelEncryptionKey) == "" {
+			http.Error(w, "CHANNEL_ENCRYPTION_KEY no configurado", http.StatusConflict)
+			return
+		}
+		q := url.Values{
+			"client_id": {a.cfg.MetaAppID}, "redirect_uri": {redirect},
+			"state": {state}, "response_type": {"code"},
+			"config_id": {configID}, "override_default_response_type": {"true"},
+		}
 		auth = "https://www.facebook.com/" + a.cfg.MetaGraphVersion + "/dialog/oauth?" + q.Encode()
 	case "linkedin":
 		if a.cfg.LinkedInClientID == "" {
@@ -139,38 +164,69 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"authorization_url": auth, "state": state})
 }
 
+// isMetaSocialConfigID solo admite los identificadores numericos provistos por Meta.
+func isMetaSocialConfigID(id string) bool {
+	if len(id) < 8 || len(id) > 32 {
+		return false
+	}
+	for _, r := range id {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func (a *App) socialOAuthCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	ensureSocialProviderSchema(a.db)
 	p := strings.TrimPrefix(r.URL.Path, "/api/social/oauth/callback/")
+	if r.Method == http.MethodPost && (p == "facebook" || p == "instagram") {
+		a.completeMetaSocialSelection(w, r, p)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "metodo no permitido", http.StatusMethodNotAllowed)
+		return
+	}
 	state, code := r.URL.Query().Get("state"), r.URL.Query().Get("code")
 	if e := r.URL.Query().Get("error"); e != "" {
-		http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape(e), 302)
+		http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape(e), http.StatusFound)
 		return
 	}
 	var tid int64
 	var storedP, expires string
 	err := a.db.QueryRow(`SELECT tenant_id,platform,expires_at FROM social_oauth_states WHERE state=?`, state).Scan(&tid, &storedP, &expires)
 	if err != nil || storedP != p || code == "" {
-		http.Error(w, "OAuth inválido o vencido", 400)
+		http.Error(w, "OAuth invalido o vencido", http.StatusBadRequest)
 		return
 	}
-	ex, _ := time.Parse(time.RFC3339, expires)
-	if time.Now().After(ex) {
-		http.Error(w, "OAuth vencido", 400)
+	ex, err := time.Parse(time.RFC3339, expires)
+	if err != nil || time.Now().After(ex) {
+		http.Error(w, "OAuth vencido", http.StatusBadRequest)
 		return
 	}
-	_, _ = a.db.Exec(`DELETE FROM social_oauth_states WHERE state=?`, state)
+	if _, err = a.db.Exec(`DELETE FROM social_oauth_states WHERE state=?`, state); err != nil {
+		http.Error(w, "No fue posible finalizar el estado OAuth", http.StatusInternalServerError)
+		return
+	}
 	redirect := a.cfg.BaseURL + "/api/social/oauth/callback/" + p
 	token, err := a.exchangeSocialCode(r.Context(), p, code, redirect)
 	if err != nil {
-		http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape(err.Error()), 302)
+		http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape("No se pudo completar el intercambio OAuth con el proveedor"), http.StatusFound)
+		return
+	}
+	if p == "facebook" || p == "instagram" {
+		// Nunca activar todas las paginas sin que el usuario las seleccione.
+		if err = a.beginMetaSocialSelection(w, r, tid, p, token); err != nil {
+			http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape(err.Error()), http.StatusFound)
+		}
 		return
 	}
 	if err = a.discoverAndSaveSocialConnection(r.Context(), tid, p, token); err != nil {
-		http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape(err.Error()), 302)
+		http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape(err.Error()), http.StatusFound)
 		return
 	}
-	http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=success&platform="+url.QueryEscape(p), 302)
+	http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=success&platform="+url.QueryEscape(p), http.StatusFound)
 }
 
 func (a *App) exchangeSocialCode(ctx context.Context, p, code, redirect string) (socialToken, error) {
@@ -263,6 +319,9 @@ func apiJSON(ctx context.Context, method, endpoint, token string, body any, out 
 }
 
 func (a *App) saveOfficialConnection(tid int64, p, name, external string, tok socialToken, cfg socialProviderConfig, scopes string) error {
+	if (p == "facebook" || p == "instagram") && (strings.TrimSpace(a.cfg.ChannelEncryptionKey) == "" || strings.TrimSpace(tok.AccessToken) == "") {
+		return errors.New("credenciales Meta invalidas: falta token o clave de cifrado")
+	}
 	now := time.Now().UTC()
 	exp := ""
 	if tok.ExpiresIn > 0 {
@@ -277,30 +336,8 @@ func (a *App) saveOfficialConnection(tid int64, p, name, external string, tok so
 func (a *App) discoverAndSaveSocialConnection(ctx context.Context, tid int64, p string, t socialToken) error {
 	switch p {
 	case "facebook", "instagram":
-		var pages struct {
-			Data []struct {
-				ID, Name, AccessToken string `json:"id"`
-				Instagram             *struct {
-					ID string `json:"id"`
-				} `json:"instagram_business_account"`
-			} `json:"data"`
-		}
-		ep := "https://graph.facebook.com/" + a.cfg.MetaGraphVersion + "/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=" + url.QueryEscape(t.AccessToken)
-		if err := apiJSON(ctx, "GET", ep, "", nil, &pages); err != nil {
-			return err
-		}
-		if len(pages.Data) == 0 {
-			return errors.New("no se encontraron páginas administradas")
-		}
-		for _, pg := range pages.Data {
-			pt := t
-			pt.AccessToken = pg.AccessToken
-			_ = a.saveOfficialConnection(tid, "facebook", pg.Name, pg.ID, pt, socialProviderConfig{PageID: pg.ID}, "pages_manage_posts,pages_read_engagement,pages_manage_metadata,leads_retrieval")
-			if pg.Instagram != nil {
-				_ = a.saveOfficialConnection(tid, "instagram", pg.Name+" · Instagram", pg.Instagram.ID, pt, socialProviderConfig{PageID: pg.ID, InstagramID: pg.Instagram.ID}, "instagram_basic,instagram_content_publish")
-			}
-		}
-		return nil
+		// Estas plataformas solo se activan con seleccion explicita en el callback.
+		return errors.New("Facebook e Instagram requieren elegir la pagina antes de conectar")
 	case "linkedin":
 		var me struct {
 			Sub, Name string `json:"sub"`
@@ -341,6 +378,317 @@ func (a *App) discoverAndSaveSocialConnection(ctx context.Context, tid int64, p 
 		return a.saveOfficialConnection(tid, p, ch.Items[0].Snippet.Title, ch.Items[0].ID, t, socialProviderConfig{ChannelID: ch.Items[0].ID}, "youtube.upload,youtube.readonly")
 	}
 	return errors.New("proveedor no soportado")
+}
+
+// metaSocialPage es la respuesta real de /me/accounts (incluye tareas por pagina).
+type metaSocialPage struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	AccessToken string   `json:"access_token"`
+	Tasks       []string `json:"tasks"`
+	Instagram   *struct {
+		ID string `json:"id"`
+	} `json:"instagram_business_account"`
+}
+
+type metaSocialPermission struct {
+	Permission string `json:"permission"`
+	Status     string `json:"status"`
+}
+
+func metaGrantedSocialPermissions(items []metaSocialPermission) map[string]bool {
+	granted := make(map[string]bool)
+	for _, item := range items {
+		if strings.EqualFold(item.Status, "granted") {
+			granted[item.Permission] = true
+		}
+	}
+	return granted
+}
+
+func metaTask(tasks []string, allowed ...string) bool {
+	for _, task := range tasks {
+		for _, a := range allowed {
+			if strings.EqualFold(task, a) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// No anunciar permisos que no fueron concedidos; las tareas restringen la
+// capacidad operativa incluso si la persona otorgo un permiso general.
+func metaEffectiveSocialScopes(p string, granted map[string]bool, tasks []string) string {
+	var permissions []string
+	if p == "facebook" {
+		for _, name := range []string{"pages_show_list", "pages_read_engagement", "business_management"} {
+			if granted[name] {
+				permissions = append(permissions, name)
+			}
+		}
+		if granted["pages_manage_metadata"] && metaTask(tasks, "MANAGE") {
+			permissions = append(permissions, "pages_manage_metadata")
+		}
+		if granted["pages_manage_posts"] && metaTask(tasks, "CREATE_CONTENT", "MANAGE") {
+			permissions = append(permissions, "pages_manage_posts")
+		}
+		if granted["pages_manage_engagement"] && metaTask(tasks, "MODERATE", "MANAGE") {
+			permissions = append(permissions, "pages_manage_engagement")
+		}
+		if granted["pages_read_user_content"] && metaTask(tasks, "MODERATE", "MANAGE") {
+			permissions = append(permissions, "pages_read_user_content")
+		}
+		if granted["leads_retrieval"] && metaTask(tasks, "MANAGE_LEADS", "MANAGE") {
+			permissions = append(permissions, "leads_retrieval")
+		}
+	} else if p == "instagram" {
+		for _, name := range []string{"instagram_basic", "instagram_manage_insights"} {
+			if granted[name] {
+				permissions = append(permissions, name)
+			}
+		}
+		if granted["instagram_content_publish"] && metaTask(tasks, "CREATE_CONTENT", "MANAGE") {
+			permissions = append(permissions, "instagram_content_publish")
+		}
+		if granted["instagram_manage_comments"] && metaTask(tasks, "MODERATE", "MANAGE") {
+			permissions = append(permissions, "instagram_manage_comments")
+		}
+	}
+	sort.Strings(permissions)
+	return strings.Join(permissions, ",")
+}
+
+func (a *App) metaSocialPermissions(ctx context.Context, token string) (map[string]bool, error) {
+	var out struct {
+		Data []metaSocialPermission `json:"data"`
+	}
+	url := "https://graph.facebook.com/" + a.cfg.MetaGraphVersion + "/me/permissions?fields=permission,status&limit=100"
+	if err := apiJSON(ctx, http.MethodGet, url, token, nil, &out); err != nil {
+		return nil, errors.New("Meta no permitio comprobar los permisos otorgados")
+	}
+	return metaGrantedSocialPermissions(out.Data), nil
+}
+
+func (a *App) metaSocialPages(ctx context.Context, p, token string) ([]metaSocialPage, error) {
+	var pages []metaSocialPage
+	fields := "id,name,access_token,tasks"
+	if p == "instagram" {
+		fields += ",instagram_business_account"
+	}
+	base := "https://graph.facebook.com/" + a.cfg.MetaGraphVersion + "/me/accounts?fields=" + fields + "&limit=100"
+	var after string
+	for batch := 0; batch < 5; batch++ {
+		endpoint := base
+		if after != "" {
+			endpoint += "&after=" + url.QueryEscape(after)
+		}
+		var out struct {
+			Data   []metaSocialPage `json:"data"`
+			Paging struct {
+				Next    string `json:"next"`
+				Cursors struct {
+					After string `json:"after"`
+				} `json:"cursors"`
+			} `json:"paging"`
+		}
+		if err := apiJSON(ctx, http.MethodGet, endpoint, token, nil, &out); err != nil {
+			return nil, errors.New("Meta no permitio consultar las paginas autorizadas")
+		}
+		pages = append(pages, out.Data...)
+		if out.Paging.Next == "" {
+			return pages, nil
+		}
+		if out.Paging.Cursors.After == "" || out.Paging.Cursors.After == after {
+			return nil, errors.New("Meta devolvio una paginacion invalida de paginas")
+		}
+		after = out.Paging.Cursors.After
+	}
+	return nil, errors.New("Demasiadas paginas para la seleccion; vuelve a intentar con menos activos")
+}
+
+// La pantalla intermedia selecciona una pagina (se puede repetir para agregar
+// otras) sin entregar tokens de usuario/pagina al navegador.
+var metaSocialSelectTemplate = template.Must(template.New("social-meta-select").Parse(`<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conectar red social | Worktic AI</title><style>
+body{margin:0;background:#f5f6fc;font:16px system-ui,sans-serif;color:#17172a;display:flex;min-height:100vh;align-items:center;justify-content:center}
+main{max-width:540px;background:#fff;padding:32px;border:1px solid #e4def7;border-radius:20px;box-shadow:0 12px 35px #20204b12;margin:20px}
+h1{font-size:24px;margin:0 0 10px}p{color:#59617d;line-height:1.5}label{display:block;margin:20px 0 8px;font-weight:600}
+select{width:100%;padding:15px;border:1px solid #b9a8ef;border-radius:12px;font:inherit}
+button{margin-top:24px;width:100%;border:0;border-radius:12px;padding:16px;color:#fff;font:600 16px system-ui;background:linear-gradient(95deg,#5060ff,#cf30ed);cursor:pointer}
+small{display:block;color:#667085;margin-top:14px}a{color:#514cbb}</style></head><body><main>
+<h1>Conectar {{if eq .Platform "facebook"}}Facebook{{else}}Instagram{{end}}</h1>
+<p>Tu autorizacion de Meta fue recibida. Elige la pagina que deseas conectar a este espacio de Worktic AI. Puedes repetir el proceso para agregar otra.</p>
+<form method="post" action="{{.Action}}">
+<input type="hidden" name="selection_state" value="{{.State}}">
+<label for="page">Pagina autorizada</label>
+<select id="page" name="page_id" required>
+<option value="">Selecciona una pagina</option>
+{{range .Pages}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+</select><button type="submit">Conectar pagina seleccionada</button>
+</form><small>No se instalaran conexiones para las demas paginas. Los permisos que no otorgo Meta permaneceran deshabilitados.</small>
+</main></body></html>`))
+
+func (a *App) beginMetaSocialSelection(w http.ResponseWriter, r *http.Request, tid int64, p string, tok socialToken) error {
+	if strings.TrimSpace(a.cfg.ChannelEncryptionKey) == "" {
+		return errors.New("No esta configurada la clave de cifrado")
+	}
+	granted, err := a.metaSocialPermissions(r.Context(), tok.AccessToken)
+	if err != nil {
+		return err
+	}
+	if !granted["pages_show_list"] {
+		return errors.New("La autorizacion no incluye pages_show_list")
+	}
+	if p == "facebook" && !granted["pages_read_engagement"] {
+		return errors.New("La autorizacion no incluye pages_read_engagement")
+	}
+	if p == "instagram" && !granted["instagram_basic"] {
+		return errors.New("La autorizacion no incluye instagram_basic")
+	}
+	pages, err := a.metaSocialPages(r.Context(), p, tok.AccessToken)
+	if err != nil {
+		return err
+	}
+	var choices []metaSocialPage
+	for _, page := range pages {
+		if page.ID == "" || page.AccessToken == "" {
+			continue
+		}
+		if p == "instagram" && (page.Instagram == nil || page.Instagram.ID == "") {
+			continue
+		}
+		choices = append(choices, page)
+	}
+	if len(choices) == 0 {
+		return errors.New("No se encontraron paginas con token valido para esta integracion")
+	}
+	b, err := json.Marshal(tok)
+	if err != nil {
+		return errors.New("No fue posible preparar el token de Meta")
+	}
+	selectionState := randomState()
+	now := time.Now().UTC()
+	_, err = a.db.Exec(`INSERT INTO social_oauth_pending(state,tenant_id,platform,encrypted_user_token,created_at,expires_at) VALUES(?,?,?,?,?,?)`,
+		selectionState, tid, p, encryptLocal(string(b), a.cfg.ChannelEncryptionKey), now.Format(time.RFC3339), now.Add(15*time.Minute).Format(time.RFC3339))
+	if err != nil {
+		return errors.New("No fue posible preparar la seleccion de paginas")
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
+	return metaSocialSelectTemplate.Execute(w, struct {
+		Platform string
+		State    string
+		Action   string
+		Pages    []metaSocialPage
+	}{p, selectionState, a.cfg.BaseURL + "/api/social/oauth/callback/" + p, choices})
+}
+
+func (a *App) completeMetaSocialSelection(w http.ResponseWriter, r *http.Request, p string) {
+	const maxFormBytes = 16384
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Solicitud de seleccion invalida", http.StatusBadRequest)
+		return
+	}
+	selectionState := strings.TrimSpace(r.PostForm.Get("selection_state"))
+	pageID := strings.TrimSpace(r.PostForm.Get("page_id"))
+	if len(selectionState) < 32 || len(pageID) == 0 || len(pageID) > 128 {
+		http.Error(w, "Seleccion incompleta", http.StatusBadRequest)
+		return
+	}
+	var tid int64
+	var storedP, encrypted, expiry string
+	err := a.db.QueryRow(`SELECT tenant_id,platform,encrypted_user_token,expires_at FROM social_oauth_pending WHERE state=?`, selectionState).Scan(&tid, &storedP, &encrypted, &expiry)
+	if err != nil || storedP != p {
+		http.Error(w, "Seleccion vencida o no encontrada", http.StatusBadRequest)
+		return
+	}
+	ex, err := time.Parse(time.RFC3339, expiry)
+	if err != nil || time.Now().After(ex) {
+		_, _ = a.db.Exec(`DELETE FROM social_oauth_pending WHERE state=?`, selectionState)
+		http.Error(w, "Seleccion vencida; vuelve a conectar desde Worktic AI", http.StatusBadRequest)
+		return
+	}
+	var userToken socialToken
+	if json.Unmarshal([]byte(decryptLocal(encrypted, a.cfg.ChannelEncryptionKey)), &userToken) != nil || userToken.AccessToken == "" {
+		http.Error(w, "Credenciales vencidas o invalidas", http.StatusConflict)
+		return
+	}
+	granted, err := a.metaSocialPermissions(r.Context(), userToken.AccessToken)
+	if err != nil || !granted["pages_show_list"] {
+		http.Error(w, "Meta no confirmo acceso a las paginas", http.StatusConflict)
+		return
+	}
+	pages, err := a.metaSocialPages(r.Context(), p, userToken.AccessToken)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	var chosen *metaSocialPage
+	for i := range pages {
+		if pages[i].ID == pageID && pages[i].AccessToken != "" {
+			chosen = &pages[i]
+			break
+		}
+	}
+	if chosen == nil {
+		http.Error(w, "Pagina no autorizada o sin token de pagina", http.StatusForbidden)
+		return
+	}
+	pageScopes := metaEffectiveSocialScopes(p, granted, chosen.Tasks)
+	var externalID, accountName string
+	cfg := socialProviderConfig{PageID: chosen.ID}
+	if p == "facebook" {
+		if !granted["pages_read_engagement"] {
+			http.Error(w, "Falta pages_read_engagement", http.StatusForbidden)
+			return
+		}
+		// Prueba real de lectura de publicaciones; una pagina sin publicaciones
+		// tambien puede responder correctamente con una lista vacia.
+		var posts struct {
+			Data []struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		endpoint := "https://graph.facebook.com/" + a.cfg.MetaGraphVersion + "/" + url.PathEscape(chosen.ID) + "/posts?fields=id&limit=1"
+		if apiJSON(r.Context(), http.MethodGet, endpoint, chosen.AccessToken, nil, &posts) != nil {
+			http.Error(w, "Meta no permitio leer las publicaciones de esta pagina con el token autorizado", http.StatusConflict)
+			return
+		}
+		externalID, accountName = chosen.ID, chosen.Name
+	} else {
+		if !granted["instagram_basic"] || chosen.Instagram == nil || chosen.Instagram.ID == "" {
+			http.Error(w, "La pagina no tiene Instagram autorizada", http.StatusForbidden)
+			return
+		}
+		cfg.InstagramID = chosen.Instagram.ID
+		var ig struct {
+			ID       string `json:"id"`
+			Username string `json:"username"`
+		}
+		endpoint := "https://graph.facebook.com/" + a.cfg.MetaGraphVersion + "/" + url.PathEscape(cfg.InstagramID) + "?fields=id,username"
+		if apiJSON(r.Context(), http.MethodGet, endpoint, chosen.AccessToken, nil, &ig) != nil || ig.ID != cfg.InstagramID {
+			http.Error(w, "Meta no permitio leer la cuenta de Instagram", http.StatusConflict)
+			return
+		}
+		externalID, accountName = cfg.InstagramID, ig.Username
+	}
+	pageToken := userToken
+	pageToken.AccessToken = chosen.AccessToken
+	// No atribuir a los page access tokens la caducidad del user token.
+	// Meta determina por separado vigencia y revocacion de cada credencial.
+	pageToken.ExpiresIn = 0
+	pageToken.RefreshToken = ""
+	if err = a.saveOfficialConnection(tid, p, accountName, externalID, pageToken, cfg, pageScopes); err != nil {
+		http.Error(w, "No se pudo guardar la conexion verificada", http.StatusInternalServerError)
+		return
+	}
+	_, _ = a.db.Exec(`DELETE FROM social_oauth_pending WHERE state=?`, selectionState)
+	http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=success&platform="+url.QueryEscape(p), http.StatusSeeOther)
 }
 
 func (a *App) socialConnectionTestHandler(w http.ResponseWriter, r *http.Request) {
@@ -501,12 +849,22 @@ func (a *App) runSocialPublisher() {
 	}
 }
 
+// metaHasScope evita coincidencias parciales entre nombres de permisos.
+func metaHasScope(scopes, required string) bool {
+	for _, scope := range strings.Split(scopes, ",") {
+		if strings.TrimSpace(scope) == required {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]any, error) {
 	ensureSocialProviderSchema(a.db)
 	_ = a.ensureSocialTrackingURLV24(tid, id)
 	var p SocialPost
-	var mode, cstatus, enc, cfgj, master, groupUpdated string
-	err := a.db.QueryRow(`SELECT p.id,p.tenant_id,p.group_id,p.campaign_id,p.connection_id,p.platform,p.format,p.title,p.caption,CASE WHEN TRIM(COALESCE(p.tracking_url,''))<>'' THEN p.tracking_url ELSE p.link_url END,p.media_json,p.status,COALESCE(g.master_content,p.caption),COALESCE(g.updated_at,''),COALESCE(c.provider_mode,''),COALESCE(c.status,''),COALESCE(c.encrypted_credentials,''),COALESCE(c.config_json,'{}') FROM social_posts p LEFT JOIN social_post_groups g ON g.id=p.group_id AND g.tenant_id=p.tenant_id LEFT JOIN social_connections c ON c.id=p.connection_id AND c.tenant_id=p.tenant_id WHERE p.id=? AND p.tenant_id=?`, id, tid).Scan(&p.ID, &p.TenantID, &p.GroupID, &p.CampaignID, &p.ConnectionID, &p.Platform, &p.Format, &p.Title, &p.Caption, &p.LinkURL, &p.MediaJSON, &p.Status, &master, &groupUpdated, &mode, &cstatus, &enc, &cfgj)
+	var mode, cstatus, enc, cfgj, connScopes, master, groupUpdated string
+	err := a.db.QueryRow(`SELECT p.id,p.tenant_id,p.group_id,p.campaign_id,p.connection_id,p.platform,p.format,p.title,p.caption,CASE WHEN TRIM(COALESCE(p.tracking_url,''))<>'' THEN p.tracking_url ELSE p.link_url END,p.media_json,p.status,COALESCE(g.master_content,p.caption),COALESCE(g.updated_at,''),COALESCE(c.provider_mode,''),COALESCE(c.status,''),COALESCE(c.encrypted_credentials,''),COALESCE(c.config_json,'{}'),COALESCE(c.scopes,'') FROM social_posts p LEFT JOIN social_post_groups g ON g.id=p.group_id AND g.tenant_id=p.tenant_id LEFT JOIN social_connections c ON c.id=p.connection_id AND c.tenant_id=p.tenant_id WHERE p.id=? AND p.tenant_id=?`, id, tid).Scan(&p.ID, &p.TenantID, &p.GroupID, &p.CampaignID, &p.ConnectionID, &p.Platform, &p.Format, &p.Title, &p.Caption, &p.LinkURL, &p.MediaJSON, &p.Status, &master, &groupUpdated, &mode, &cstatus, &enc, &cfgj, &connScopes)
 	if err != nil {
 		return nil, err
 	}
@@ -552,6 +910,18 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	}
 	if p.ConnectionID == 0 || cstatus != "connected" {
 		return nil, errors.New("conecta una cuenta activa para esta red")
+	}
+	// No ejecutar ni reintentar tareas Meta sin los permisos de publicacion.
+	if mode != "sandbox" && (p.Platform == "facebook" || p.Platform == "instagram") {
+		required := "pages_manage_posts"
+		if p.Platform == "instagram" {
+			required = "instagram_content_publish"
+		}
+		if !metaHasScope(connScopes, required) {
+			msg := "La conexion requiere el permiso " + required + " antes de publicar; autorizalo en Meta"
+			_, _ = a.db.Exec(`UPDATE social_posts SET status='failed',error_message=?,updated_at=? WHERE id=? AND tenant_id=? AND status<>'published'`, msg, now, id, tid)
+			return nil, errors.New(msg)
+		}
 	}
 	if consumptionV2723Enabled() {
 		claim, claimErr := a.db.Exec(`UPDATE social_posts SET status='publishing',updated_at=? WHERE id=? AND tenant_id=? AND status NOT IN ('published','publishing')`, now, id, tid)
