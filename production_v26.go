@@ -237,7 +237,20 @@ func (a *App) productionMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/") && r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
-			if origin := strings.ToLower(strings.TrimSpace(r.Header.Get("Origin"))); origin != "" && allowedOrigin != "" && origin != allowedOrigin {
+			origin := strings.ToLower(strings.TrimSpace(r.Header.Get("Origin")))
+
+			isFacebookPagePost := r.Method == http.MethodPost &&
+				r.URL.Path == "/api/social/oauth/callback/facebook"
+
+			isWorkticBase := allowedOrigin == "https://www.workticai.com" ||
+				allowedOrigin == "https://workticai.com"
+
+			isWorkticOrigin := origin == "https://www.workticai.com" ||
+				origin == "https://workticai.com"
+
+			if origin != "" && allowedOrigin != "" &&
+				origin != allowedOrigin &&
+				!(isFacebookPagePost && isWorkticBase && isWorkticOrigin) {
 				writeError(w, errors.New("origen no permitido"), http.StatusForbidden)
 				return
 			}
