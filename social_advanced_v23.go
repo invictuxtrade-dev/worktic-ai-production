@@ -338,10 +338,11 @@ func (a *App) socialRepurposeV23Handler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var q struct {
-		GroupID            int64    `json:"group_id"`
-		Content            string   `json:"content"`
-		Platforms, Formats []string `json:"platforms"`
-		Objective, Tone    string
+		GroupID         int64    `json:"group_id"`
+		Content         string   `json:"content"`
+		Platforms       []string `json:"platforms"`
+		Formats         []string `json:"formats"`
+		Objective, Tone string
 	}
 	if json.NewDecoder(r.Body).Decode(&q) != nil {
 		http.Error(w, "datos inválidos", 400)

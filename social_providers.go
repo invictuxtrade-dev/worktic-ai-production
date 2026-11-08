@@ -99,23 +99,23 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	p := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("platform")))
 	if !validSocialPlatform(p) || p == "telegram" {
-		http.Error(w, "plataforma OAuth no válida", 400)
+		http.Error(w, "plataforma OAuth no vÃ¡lida", 400)
+		return
+	}
+	// Validate provider configuration before creating a pending authorization.
+	// In B9, Instagram Unified Login is gated until Meta's SUAT/account
+	// discovery is verified; the old Page-based callback is NOT compatible.
+	if p == "instagram" && !strings.EqualFold(strings.TrimSpace(os.Getenv("WORKTIC_B9_INSTAGRAM_UNIFIED_MODE")), "enabled") {
+		http.Error(w, "B9 Instagram Unified Login requiere habilitacion explicita; el OAuth antiguo esta bloqueado", http.StatusConflict)
 		return
 	}
 	state := randomState()
-	now := time.Now().UTC()
-	exp := now.Add(15 * time.Minute)
-	_, err = a.db.Exec(`INSERT INTO social_oauth_states(state,tenant_id,platform,created_at,expires_at) VALUES(?,?,?,?,?)`, state, tid, p, now.Format(time.RFC3339), exp.Format(time.RFC3339))
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
 	redirect := a.cfg.BaseURL + "/api/social/oauth/callback/" + p
 	var auth string
 	switch p {
 	case "facebook", "instagram":
-		if a.cfg.MetaAppID == "" {
-			http.Error(w, "META_APP_ID no configurado", 409)
+		if a.cfg.MetaAppID == "" || (p == "instagram" && socialB9Enabled() && a.cfg.MetaAppSecret == "") {
+			http.Error(w, "Credenciales Meta incompletas", 409)
 			return
 		}
 		// B2: Meta define los permisos mediante una configuracion independiente por flujo.
@@ -137,6 +137,9 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 			"client_id": {a.cfg.MetaAppID}, "redirect_uri": {redirect},
 			"state": {state}, "response_type": {"code"},
 			"config_id": {configID}, "override_default_response_type": {"true"},
+		}
+		if p == "instagram" && socialB9Enabled() {
+			q.Set("prompt", "login")
 		}
 		auth = "https://www.facebook.com/" + a.cfg.MetaGraphVersion + "/dialog/oauth?" + q.Encode()
 	case "linkedin":
@@ -161,7 +164,19 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 		q := url.Values{"client_id": {a.cfg.GoogleClientID}, "redirect_uri": {redirect}, "response_type": {"code"}, "scope": {"https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl"}, "access_type": {"offline"}, "prompt": {"consent"}, "state": {state}}
 		auth = "https://accounts.google.com/o/oauth2/v2/auth?" + q.Encode()
 	}
-	writeJSON(w, map[string]any{"authorization_url": auth, "state": state})
+	if auth == "" {
+		http.Error(w, "Proveedor OAuth no configurado", http.StatusConflict)
+		return
+	}
+	now := time.Now().UTC()
+	exp := now.Add(15 * time.Minute)
+	_, err = a.db.Exec(`INSERT INTO social_oauth_states(state,tenant_id,platform,created_at,expires_at) VALUES(?,?,?,?,?)`, state, tid, p, now.Format(time.RFC3339), exp.Format(time.RFC3339))
+	if err != nil {
+		http.Error(w, "No fue posible iniciar la autorizacion", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, map[string]any{"authorization_url": auth})
 }
 
 // isMetaSocialConfigID solo admite los identificadores numericos provistos por Meta.
@@ -180,6 +195,10 @@ func isMetaSocialConfigID(id string) bool {
 func (a *App) socialOAuthCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	ensureSocialProviderSchema(a.db)
 	p := strings.TrimPrefix(r.URL.Path, "/api/social/oauth/callback/")
+	if r.Method == http.MethodPost && p == "instagram" && socialB9Enabled() {
+		a.completeInstagramB9Selection(w, r)
+		return
+	}
 	if r.Method == http.MethodPost && (p == "facebook" || p == "instagram") {
 		a.completeMetaSocialSelection(w, r, p)
 		return
@@ -193,26 +212,30 @@ func (a *App) socialOAuthCallbackHandler(w http.ResponseWriter, r *http.Request)
 		http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape(e), http.StatusFound)
 		return
 	}
+	if len(state) < 32 || len(state) > 128 || code == "" {
+		http.Error(w, "OAuth invalido", http.StatusBadRequest)
+		return
+	}
+	// One atomic statement prevents concurrent callbacks from reusing a state.
+	// Both SQLite (modernc) and PostgreSQL support DELETE ... RETURNING.
 	var tid int64
-	var storedP, expires string
-	err := a.db.QueryRow(`SELECT tenant_id,platform,expires_at FROM social_oauth_states WHERE state=?`, state).Scan(&tid, &storedP, &expires)
-	if err != nil || storedP != p || code == "" {
-		http.Error(w, "OAuth invalido o vencido", http.StatusBadRequest)
-		return
-	}
-	ex, err := time.Parse(time.RFC3339, expires)
-	if err != nil || time.Now().After(ex) {
-		http.Error(w, "OAuth vencido", http.StatusBadRequest)
-		return
-	}
-	if _, err = a.db.Exec(`DELETE FROM social_oauth_states WHERE state=?`, state); err != nil {
-		http.Error(w, "No fue posible finalizar el estado OAuth", http.StatusInternalServerError)
+	err := a.db.QueryRow(`DELETE FROM social_oauth_states
+		WHERE state=? AND platform=? AND expires_at>?
+		RETURNING tenant_id`, state, p, time.Now().UTC().Format(time.RFC3339)).Scan(&tid)
+	if err != nil {
+		http.Error(w, "OAuth invalido, vencido o utilizado", http.StatusBadRequest)
 		return
 	}
 	redirect := a.cfg.BaseURL + "/api/social/oauth/callback/" + p
 	token, err := a.exchangeSocialCode(r.Context(), p, code, redirect)
 	if err != nil {
 		http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape("No se pudo completar el intercambio OAuth con el proveedor"), http.StatusFound)
+		return
+	}
+	if p == "instagram" && socialB9Enabled() {
+		if err = a.beginInstagramB9Selection(w, r, tid, token); err != nil {
+			http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape("No se pudieron verificar las cuentas de Instagram autorizadas"), http.StatusFound)
+		}
 		return
 	}
 	if p == "facebook" || p == "instagram" {
@@ -264,11 +287,11 @@ func (a *App) exchangeSocialCode(ctx context.Context, p, code, redirect string) 
 		return t, err
 	}
 	if t.AccessToken == "" {
-		return t, errors.New("proveedor no devolvió access token")
+		return t, errors.New("proveedor no devolviÃ³ access token")
 	}
 	// Meta entrega inicialmente un token de usuario corto. Se intercambia por uno
-	// de larga duración antes de descubrir las páginas y sus tokens.
-	if p == "facebook" || p == "instagram" {
+	// de larga duraciÃ³n antes de descubrir las pÃ¡ginas y sus tokens.
+	if p == "facebook" || (p == "instagram" && !socialB9Enabled()) {
 		q := url.Values{
 			"grant_type":        {"fb_exchange_token"},
 			"client_id":         {a.cfg.MetaAppID},
@@ -340,7 +363,8 @@ func (a *App) discoverAndSaveSocialConnection(ctx context.Context, tid int64, p 
 		return errors.New("Facebook e Instagram requieren elegir la pagina antes de conectar")
 	case "linkedin":
 		var me struct {
-			Sub, Name string `json:"sub"`
+			Sub  string `json:"sub"`
+			Name string `json:"name"`
 		}
 		if err := apiJSON(ctx, "GET", "https://api.linkedin.com/v2/userinfo", t.AccessToken, nil, &me); err != nil {
 			return err
@@ -373,7 +397,7 @@ func (a *App) discoverAndSaveSocialConnection(ctx context.Context, tid int64, p 
 			return err
 		}
 		if len(ch.Items) == 0 {
-			return errors.New("no se encontró canal de YouTube")
+			return errors.New("no se encontrÃ³ canal de YouTube")
 		}
 		return a.saveOfficialConnection(tid, p, ch.Items[0].Snippet.Title, ch.Items[0].ID, t, socialProviderConfig{ChannelID: ch.Items[0].ID}, "youtube.upload,youtube.readonly")
 	}
@@ -712,17 +736,17 @@ func (a *App) socialConnectionTestHandler(w http.ResponseWriter, r *http.Request
 	var p, mode, enc, cfgj string
 	err = a.db.QueryRow(`SELECT platform,provider_mode,encrypted_credentials,config_json FROM social_connections WHERE id=? AND tenant_id=?`, q.ID, tid).Scan(&p, &mode, &enc, &cfgj)
 	if err != nil {
-		http.Error(w, "conexión no encontrada", 404)
+		http.Error(w, "conexiÃ³n no encontrada", 404)
 		return
 	}
 	if mode == "sandbox" {
-		writeJSON(w, map[string]any{"ok": true, "platform": p, "status": "connected", "message": "Conexión sandbox activa"})
+		writeJSON(w, map[string]any{"ok": true, "platform": p, "status": "connected", "message": "ConexiÃ³n sandbox activa"})
 		return
 	}
 	var tok socialToken
 	if json.Unmarshal([]byte(decryptLocal(enc, a.cfg.ChannelEncryptionKey)), &tok) != nil || tok.AccessToken == "" {
 		a.markSocialConnectionTest(q.ID, tid, false, "No fue posible descifrar las credenciales. Verifica CHANNEL_ENCRYPTION_KEY.")
-		http.Error(w, "credenciales inválidas", 409)
+		http.Error(w, "credenciales invÃ¡lidas", 409)
 		return
 	}
 	var cfg socialProviderConfig
@@ -770,7 +794,7 @@ func (a *App) socialConnectionTestHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	a.markSocialConnectionTest(q.ID, tid, true, "")
-	writeJSON(w, map[string]any{"ok": true, "platform": p, "status": "connected", "detail": detail, "message": "Conexión oficial verificada correctamente"})
+	writeJSON(w, map[string]any{"ok": true, "platform": p, "status": "connected", "detail": detail, "message": "ConexiÃ³n oficial verificada correctamente"})
 }
 
 func (a *App) markSocialConnectionTest(id, tid int64, ok bool, msg string) {
@@ -813,7 +837,7 @@ func (a *App) refreshSocialTokenIfNeeded(ctx context.Context, connectionID, tid 
 	}
 	var nt socialToken
 	if json.Unmarshal(b, &nt) != nil || nt.AccessToken == "" {
-		return tok, errors.New("el proveedor no devolvió un token renovado")
+		return tok, errors.New("el proveedor no devolviÃ³ un token renovado")
 	}
 	if nt.RefreshToken == "" {
 		nt.RefreshToken = tok.RefreshToken
@@ -897,16 +921,16 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 				_, _ = a.db.Exec(`INSERT INTO social_approvals(tenant_id,group_id,requested_by,desired_action,desired_scheduled_at,request_note,status,requested_at) VALUES(?,?,?,?,?,?,?,?)`, tid, p.GroupID, 0, "publish", "", "Generado por el publisher al aplicar gobernanza V23.1", "pending", now)
 			}
 			a.auditSocialGovernanceV231(tid, p.GroupID, p.CampaignID, 0, "publish", platforms, decision)
-			return nil, errors.New("La política de Social Hub requiere aprobación antes de publicar")
+			return nil, errors.New("La polÃ­tica de Social Hub requiere aprobaciÃ³n antes de publicar")
 		}
 	}
 	if gov.EmergencyPause {
 		_, _ = a.db.Exec(`UPDATE social_posts SET status='governance_hold',error_message='GOVERNANCE_PAUSE',updated_at=? WHERE id=? AND tenant_id=?`, now, id, tid)
-		return nil, errors.New("Autopilot está pausado globalmente para esta empresa")
+		return nil, errors.New("Autopilot estÃ¡ pausado globalmente para esta empresa")
 	}
 	if kw := containsAnyKeywordV231(p.Caption, gov.BlockedKeywords); kw != "" {
 		_, _ = a.db.Exec(`UPDATE social_posts SET status='governance_hold',error_message=?,updated_at=? WHERE id=? AND tenant_id=?`, "GOVERNANCE_BLOCK:"+kw, now, id, tid)
-		return nil, errors.New("Publicación retenida por una regla de contenido bloqueado: " + kw)
+		return nil, errors.New("PublicaciÃ³n retenida por una regla de contenido bloqueado: " + kw)
 	}
 	if p.ConnectionID == 0 || cstatus != "connected" {
 		return nil, errors.New("conecta una cuenta activa para esta red")
@@ -930,7 +954,7 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 		}
 		claimed, _ := claim.RowsAffected()
 		if claimed != 1 {
-			return nil, errors.New("publicación ya iniciada o publicada; revisar antes de reintentar")
+			return nil, errors.New("publicaciÃ³n ya iniciada o publicada; revisar antes de reintentar")
 		}
 	} else {
 		_, _ = a.db.Exec(`UPDATE social_posts SET status='publishing',updated_at=? WHERE id=? AND tenant_id=?`, now, id, tid)
@@ -943,7 +967,7 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	}
 	var tok socialToken
 	if json.Unmarshal([]byte(decryptLocal(enc, a.cfg.ChannelEncryptionKey)), &tok) != nil || tok.AccessToken == "" {
-		return nil, errors.New("credenciales inválidas")
+		return nil, errors.New("credenciales invÃ¡lidas")
 	}
 	var cfg socialProviderConfig
 	_ = json.Unmarshal([]byte(cfgj), &cfg)
@@ -998,7 +1022,7 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 		}
 	case "linkedin":
 		if p.Format == "carousel" && len(mediaURLs) > 1 {
-			err = errors.New("LinkedIn carousel requiere un flujo de documentos/media distinto y no se publica automáticamente en V23")
+			err = errors.New("LinkedIn carousel requiere un flujo de documentos/media distinto y no se publica automÃ¡ticamente en V23")
 		} else {
 			result, err = a.publishLinkedIn(ctx, tok.AccessToken, cfg.AuthorURN, p.Caption, p.LinkURL)
 		}
@@ -1012,7 +1036,7 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 		result, err = a.publishTikTok(ctx, tok.AccessToken, p.Caption, mediaURLs, p.Format)
 	case "youtube":
 		if len(mediaURLs) > 1 {
-			err = errors.New("YouTube admite un video por publicación")
+			err = errors.New("YouTube admite un video por publicaciÃ³n")
 		} else {
 			result, err = a.publishYouTube(ctx, tok.AccessToken, p.Title, p.Caption, media)
 		}
@@ -1082,7 +1106,7 @@ func (a *App) publishFacebook(ctx context.Context, token, pageID, caption, link,
 }
 func (a *App) publishInstagram(ctx context.Context, token, igID, caption, media, format string) (map[string]any, error) {
 	if media == "" {
-		return nil, errors.New("Instagram requiere URL pública de imagen o video")
+		return nil, errors.New("Instagram requiere URL pÃºblica de imagen o video")
 	}
 	vals := url.Values{"caption": {caption}, "access_token": {token}}
 	if format == "reel" || format == "video" {
@@ -1126,7 +1150,7 @@ func (a *App) publishInstagram(ctx context.Context, token, igID, caption, media,
 }
 func (a *App) publishFacebookCarousel(ctx context.Context, token, pageID, caption string, media []string) (map[string]any, error) {
 	if len(media) < 2 {
-		return nil, errors.New("Facebook carrusel requiere al menos 2 imágenes")
+		return nil, errors.New("Facebook carrusel requiere al menos 2 imÃ¡genes")
 	}
 	if len(media) > 10 {
 		media = media[:10]
@@ -1252,7 +1276,7 @@ func (a *App) publishInstagramCarousel(ctx context.Context, token, igID, caption
 
 func (a *App) publishTelegramAlbum(ctx context.Context, token, chatID, caption string, media []string) (map[string]any, error) {
 	if len(media) < 2 {
-		return nil, errors.New("Telegram álbum requiere al menos 2 recursos")
+		return nil, errors.New("Telegram Ã¡lbum requiere al menos 2 recursos")
 	}
 	if len(media) > 10 {
 		media = media[:10]
@@ -1299,7 +1323,7 @@ func (a *App) publishTelegramAlbum(ctx context.Context, token, chatID, caption s
 func (a *App) publishLinkedIn(ctx context.Context, token, author, caption, link string) (map[string]any, error) {
 	content := map[string]any{"author": author, "commentary": caption, "visibility": "PUBLIC", "distribution": map[string]any{"feedDistribution": "MAIN_FEED", "targetEntities": []any{}, "thirdPartyDistributionChannels": []any{}}, "lifecycleState": "PUBLISHED", "isReshareDisabledByAuthor": false}
 	if link != "" {
-		content["content"] = map[string]any{"article": map[string]any{"source": link, "title": "Ver más"}}
+		content["content"] = map[string]any{"article": map[string]any{"source": link, "title": "Ver mÃ¡s"}}
 	}
 	b, _ := json.Marshal(content)
 	req, _ := http.NewRequestWithContext(ctx, "POST", "https://api.linkedin.com/rest/posts", bytes.NewReader(b))
@@ -1360,7 +1384,7 @@ func (a *App) publishTikTok(ctx context.Context, token, caption string, media []
 		return nil, errors.New("TikTok requiere URL de video o foto en dominio verificado")
 	}
 	// TikTok exige consultar creator_info antes del Direct Post para conocer
-	// opciones vigentes (privacidad, límites y capacidades) del creador.
+	// opciones vigentes (privacidad, lÃ­mites y capacidades) del creador.
 	var creator map[string]any
 	if err := apiJSON(ctx, "POST", "https://open.tiktokapis.com/v2/post/publish/creator_info/query/", token, map[string]any{}, &creator); err != nil {
 		return nil, fmt.Errorf("TikTok creator info: %w", err)
@@ -1414,7 +1438,7 @@ func (a *App) publishTikTok(ctx context.Context, token, caption string, media []
 
 func (a *App) publishYouTube(ctx context.Context, token, title, description, media string) (map[string]any, error) {
 	if media == "" {
-		return nil, errors.New("YouTube requiere URL pública de video")
+		return nil, errors.New("YouTube requiere URL pÃºblica de video")
 	}
 	download, err := http.NewRequestWithContext(ctx, "GET", media, nil)
 	if err != nil {
@@ -1454,7 +1478,7 @@ func (a *App) publishYouTube(ctx context.Context, token, title, description, med
 	}
 	location := initResp.Header.Get("Location")
 	if location == "" {
-		return nil, errors.New("YouTube no devolvió URL de carga")
+		return nil, errors.New("YouTube no devolviÃ³ URL de carga")
 	}
 	putReq, _ := http.NewRequestWithContext(ctx, "PUT", location, bytes.NewReader(data))
 	putReq.Header.Set("Authorization", "Bearer "+token)

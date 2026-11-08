@@ -705,6 +705,7 @@ func main() {
 	mux.HandleFunc("/api/social/upload", app.socialMediaUploadHandler)
 	mux.HandleFunc("/uploads/social/", app.socialMediaFileHandler)
 	mux.HandleFunc("/api/social/publish", app.socialPublishHandler)
+	mux.HandleFunc("/api/social/b9/readiness", app.socialB9ReadinessHandler)
 	mux.HandleFunc("/api/social/oauth/start", app.socialOAuthStartHandler)
 	mux.HandleFunc("/api/social/oauth/callback/", app.socialOAuthCallbackHandler)
 	mux.HandleFunc("/api/social/test", app.socialConnectionTestHandler)
