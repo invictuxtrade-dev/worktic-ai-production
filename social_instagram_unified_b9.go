@@ -97,7 +97,7 @@ func (a *App) beginInstagramB9Selection(w http.ResponseWriter, r *http.Request, 
 		return err
 	}
 	if len(accounts) == 0 {
-		return errors.New("Meta no devolvio cuentas Instagram profesionales asignadas")
+		return errors.New("Meta no devolvio cuentas Instagram profesionales asignadas " + a.instagramB9SUATDiagnostic(r.Context(), tok.AccessToken))
 	}
 	raw, err := json.Marshal(tok)
 	if err != nil {
