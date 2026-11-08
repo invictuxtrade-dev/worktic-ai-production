@@ -700,6 +700,7 @@ func main() {
 	mux.HandleFunc("/api/social/analytics", app.socialAnalyticsHandler)
 	mux.HandleFunc("/api/social/metrics/ingest", app.socialMetricsIngestHandler)
 	mux.HandleFunc("/api/social/connections", app.socialConnectionsHandler)
+	mux.HandleFunc("/api/social/b10/instagram-channel", app.instagramChannelPreparationHandler)
 	mux.HandleFunc("/api/social/posts", app.socialPostsHandler)
 	mux.HandleFunc("/api/social/generate", app.socialGenerateContentHandler)
 	mux.HandleFunc("/api/social/upload", app.socialMediaUploadHandler)
