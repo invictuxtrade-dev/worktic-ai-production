@@ -706,6 +706,7 @@ func main() {
 	mux.HandleFunc("/uploads/social/", app.socialMediaFileHandler)
 	mux.HandleFunc("/api/social/publish", app.socialPublishHandler)
 	mux.HandleFunc("/api/social/b9/readiness", app.socialB9ReadinessHandler)
+	mux.HandleFunc("/api/social/b9/internal-bootstrap", app.socialB9InternalBootstrapHandler)
 	mux.HandleFunc("/api/social/oauth/start", app.socialOAuthStartHandler)
 	mux.HandleFunc("/api/social/oauth/callback/", app.socialOAuthCallbackHandler)
 	mux.HandleFunc("/api/social/test", app.socialConnectionTestHandler)
@@ -2322,20 +2323,20 @@ func (a *App) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var q struct {
-		Name          string `json:"name"`
-		Email         string `json:"email"`
-		Password      string `json:"password"`
-		Company       string `json:"company"`
-		AccountType   string `json:"account_type"`
-		PartnerRef    string `json:"partner_ref"`
-		CaptchaID     string `json:"captcha_id"`
-		CaptchaChoice int    `json:"captcha_choice"`
-		Website       string `json:"website"`
-		LegalAccepted bool `json:"legal_accepted"` // WORKTIC_LEGAL_V273600
-		PrivacyAuthorized bool `json:"privacy_authorized"`
-		MarketingOptIn bool `json:"marketing_opt_in"`
+		Name                string `json:"name"`
+		Email               string `json:"email"`
+		Password            string `json:"password"`
+		Company             string `json:"company"`
+		AccountType         string `json:"account_type"`
+		PartnerRef          string `json:"partner_ref"`
+		CaptchaID           string `json:"captcha_id"`
+		CaptchaChoice       int    `json:"captcha_choice"`
+		Website             string `json:"website"`
+		LegalAccepted       bool   `json:"legal_accepted"` // WORKTIC_LEGAL_V273600
+		PrivacyAuthorized   bool   `json:"privacy_authorized"`
+		MarketingOptIn      bool   `json:"marketing_opt_in"`
 		LegalPrivacyVersion string `json:"legal_privacy_version"`
-		LegalTermsVersion string `json:"legal_terms_version"`
+		LegalTermsVersion   string `json:"legal_terms_version"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&q)
 	if err := workticLegalRegistrationValidV273600(q.LegalAccepted, q.PrivacyAuthorized, q.LegalPrivacyVersion, q.LegalTermsVersion); err != nil {
