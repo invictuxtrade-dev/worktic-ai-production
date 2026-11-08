@@ -16,7 +16,8 @@ import (
 func (a *App) instagramWebhookB103(w http.ResponseWriter, r *http.Request) {
 	verify := strings.TrimSpace(os.Getenv("WORKTIC_IG_WEBHOOK_VERIFY_TOKEN"))
 	enabled := strings.EqualFold(os.Getenv("WORKTIC_IG_WEBHOOK_B103_ENABLED"), "true")
-	if !enabled || verify == "" || a.cfg.MetaAppSecret == "" {
+	secret, secretSource := b103cSigningSecret(a.cfg.MetaAppSecret)
+	if !enabled || verify == "" || secret == "" {
 		http.Error(w, "not configured", http.StatusServiceUnavailable)
 		return
 	}
@@ -40,7 +41,8 @@ func (a *App) instagramWebhookB103(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "payload too large or unreadable", http.StatusRequestEntityTooLarge)
 		return
 	}
-	if !validMetaSignature(body, r.Header.Get("X-Hub-Signature-256"), a.cfg.MetaAppSecret) {
+	if reason := b103cVerifySignature(body, r.Header.Get("X-Hub-Signature-256"), secret); reason != "" {
+		b103cLogSignatureFailure(reason, secretSource)
 		http.Error(w, "invalid signature", http.StatusUnauthorized)
 		return
 	}
