@@ -638,6 +638,7 @@ func main() {
 	mux.HandleFunc(messengerSaaSWebhookPath, app.messengerSaaSWebhookHandler)
 	mux.HandleFunc("/webhooks/meta/messenger", app.messengerWebhookHandler)
 	mux.HandleFunc("/webhooks/meta/instagram", app.instagramWebhookB103)
+	mux.HandleFunc("/api/social/b10/instagram-webhook-subscription", app.instagramSubscriptionB103B)
 	mux.HandleFunc("/webhooks/meta/whatsapp", app.whatsappCloudWebhookHandler)
 	mux.HandleFunc("/api/whatsapp/templates", app.whatsappTemplatesHandler)
 	mux.HandleFunc("/api/whatsapp/embedded/config", app.whatsappEmbeddedConfigHandler)
