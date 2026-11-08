@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -47,21 +48,32 @@ func (a *App) instagramB9SUATDiagnostic(parent context.Context, token string) st
 	}
 	ctx, cancel := context.WithTimeout(parent, 6*time.Second)
 	defer cancel()
-	// Use POST body for input_token so it never appears in URL/query access logs.
+	// B9_DEBUG_TOKEN_GET_V2: debug_token documents GET. Never log request URL or token.
+	// WARNING: GET sends input_token in an outbound URL; ensure HTTP URL logs are redacted.
 	endpoint := "https://graph.facebook.com/" + a.cfg.MetaGraphVersion + "/debug_token"
-	form := url.Values{"input_token": {token}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+	q := url.Values{"input_token": {token}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+q.Encode(), nil)
 	if err != nil {
+		log.Printf("B9_DEBUG_TOKEN stage=REQUEST_BUILD_ERROR")
 		return b9SignalsString(s)
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Authorization", "Bearer "+a.cfg.MetaAppID+"|"+a.cfg.MetaAppSecret)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		// Never log err.Error(): transport errors may include the URL and input token.
+		log.Printf("B9_DEBUG_TOKEN stage=NETWORK_OR_TIMEOUT")
 		return b9SignalsString(s)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
+		var graphErr struct {
+			Error struct {
+				Code    int `json:"code"`
+				Subcode int `json:"error_subcode"`
+			} `json:"error"`
+		}
+		_ = json.NewDecoder(io.LimitReader(resp.Body, 65536)).Decode(&graphErr)
+		log.Printf("B9_DEBUG_TOKEN stage=HTTP_ERROR status=%d graph_code=%d graph_subcode=%d", resp.StatusCode, graphErr.Error.Code, graphErr.Error.Subcode)
 		return b9SignalsString(s)
 	}
 	var out struct {
@@ -78,8 +90,10 @@ func (a *App) instagramB9SUATDiagnostic(parent context.Context, token string) st
 		} `json:"data"`
 	}
 	if json.NewDecoder(io.LimitReader(resp.Body, 1048576)).Decode(&out) != nil {
+		log.Printf("B9_DEBUG_TOKEN stage=JSON_DECODE_ERROR")
 		return b9SignalsString(s)
 	}
+	log.Printf("B9_DEBUG_TOKEN stage=SUCCESS")
 	s.TokenType = b9SafeTokenType(out.Data.Type)
 	if out.Data.IsValid {
 		s.Valid = "YES"
