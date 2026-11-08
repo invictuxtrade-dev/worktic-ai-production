@@ -234,7 +234,13 @@ func (a *App) socialOAuthCallbackHandler(w http.ResponseWriter, r *http.Request)
 	}
 	if p == "instagram" && socialB9Enabled() {
 		if err = a.beginInstagramB9Selection(w, r, tid, token); err != nil {
-			http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape("No se pudieron verificar las cuentas de Instagram autorizadas"), http.StatusFound)
+			reason := "Instagram B9: error preparando seleccion [SELECTION_SETUP_ERROR]"
+			if err.Error() == "Meta no permitio consultar cuentas Instagram asignadas" {
+				reason = "Instagram B9: Meta rechazo la consulta de cuentas [DISCOVERY_API_ERROR]"
+			} else if err.Error() == "Meta no devolvio cuentas Instagram profesionales asignadas" {
+				reason = "Instagram B9: Meta devolvio cero cuentas autorizadas [DISCOVERY_EMPTY]"
+			}
+			http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape(reason), http.StatusFound)
 		}
 		return
 	}
