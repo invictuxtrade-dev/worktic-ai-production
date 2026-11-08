@@ -997,7 +997,7 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	}
 	// B7: Meta recibe una URL HTTPS publica, no la ruta relativa del editor.
 	// Normalizar todos los elementos, incluidos los carruseles de Facebook.
-	if p.Platform == "facebook" && len(mediaURLs) > 0 {
+	if (p.Platform == "facebook" || p.Platform == "instagram") && len(mediaURLs) > 0 {
 		for i, raw := range mediaURLs {
 			publicURL, mediaErr := socialB7CanonicalMediaURL(a.cfg.BaseURL, raw)
 			if mediaErr != nil {
