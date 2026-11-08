@@ -5,7 +5,7 @@
 (()=>{'use strict';
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const nativeTypes={whatsapp_cloud:'WhatsApp Business Cloud (Oficial)',whatsapp_qr:'WhatsApp QR',telegram:'Telegram Bot',messenger:'Facebook Messenger',webchat:'Chat Web',voice_ai:'Llamadas IA'};
+const nativeTypes={whatsapp_cloud:'WhatsApp Business Cloud (Oficial)',whatsapp_qr:'WhatsApp QR',telegram:'Telegram Bot',messenger:'Facebook Messenger',webchat:'Chat Web',voice_ai:'Llamadas IA',instagram:'Instagram (oficial de Meta)'};
 const category={whatsapp_cloud:'whatsapp_cloud',whatsapp_qr:'whatsapp_qr',telegram:'telegram',messenger:'messenger',webchat:'web',voice_ai:'voice'};
 let allChannels=new Map(),webAvailable=false,voiceAvailable=false,webCountFallback=0;
 const notice=e=>{if(window.toast)window.toast(e);else alert(e)};
@@ -71,7 +71,7 @@ async function createConnection(){
  <div class="actions"><button type="button" id="ucContinue">Crear conexión</button><button value="cancel" class="secondary">Cancelar</button></div></div>`);
  api('/api/agents').then(d=>{const s=$('#ucAgent');if(s)s.replaceChildren(new Option('Selecciona un agente activo','0'),...(d.agents||[]).filter(a=>a.status==='active').map(a=>new Option(a.name,a.id)))}).catch(()=>{});
  const input=$('#ucType'), fields=$('#ucNativeFields'), btn=$('#ucContinue'),desc=$('#ucDescription');
- const update=()=>{desc.removeAttribute('role');desc.removeAttribute('style');const web=input.value==='webchat',voice=input.value==='voice_ai',wa=input.value==='whatsapp_cloud',ms=input.value==='messenger';fields.hidden=web||voice;btn.textContent=wa?'Crear y conectar con Meta':ms?'Crear y conectar con Facebook':web||voice?'Continuar a configuración':'Crear conexión';desc.textContent=web?'Configura el dominio HTTPS, el agente y el código de instalación.':voice?'Selecciona la voz, el agente y los permisos de telefonía.':wa?'Conexión oficial paso a paso: 1. Elige un agente activo. 2. Autoriza tu negocio y número directamente en Meta. 3. Verifica tu conexión. No necesitas copiar tokens ni configurar webhooks. La disponibilidad depende de tu plan y de la autorización de Meta.':'El backend validará tu plan y la asignación del agente.'};
+ const update=()=>{desc.removeAttribute('role');desc.removeAttribute('style');const web=input.value==='webchat',voice=input.value==='voice_ai',wa=input.value==='whatsapp_cloud',ms=input.value==='messenger',ig=input.value==='instagram';fields.hidden=web||voice||ig;btn.textContent=wa?'Crear y conectar con Meta':ms?'Crear y conectar con Facebook':ig?'Ir a conectar Instagram':web||voice?'Continuar a configuración':'Crear conexión';desc.textContent=ig?'Instagram se autoriza una sola vez desde Redes Sociales > Cuentas. Una vez conectada, aparecerá aquí para asignar un agente IA. La conexión de clientes externos mediante Unified Login sigue en pruebas; no se garantiza aún mensajería.':web?'Configura el dominio HTTPS, el agente y el código de instalación.':voice?'Selecciona la voz, el agente y los permisos de telefonía.':wa?'Conexión oficial paso a paso: 1. Elige un agente activo. 2. Autoriza tu negocio y número directamente en Meta. 3. Verifica tu conexión. No necesitas copiar tokens ni configurar webhooks. La disponibilidad depende de tu plan y de la autorización de Meta.':'El backend validará tu plan y la asignación del agente.'};
  input.onchange=update;update();
  btn.onclick=async()=>{
   const type=input.value;
@@ -81,6 +81,7 @@ async function createConnection(){
    return;
   }
   if(type==='voice_ai'){await voiceForm();return}
+  if(type==='instagram'){closeModal();const nav=$('aside nav button[data-view="socialhub"]');if(!nav){notice('No se encontro Redes Sociales');return}nav.click();setTimeout(()=>{if(typeof window.switchSocialTab==='function')window.switchSocialTab('connections');else $('button[data-social-tab="connections"]')?.click();notice('Conecta Instagram desde Cuentas. Cuando se autorice, vuelve a Mis Canales para asignar el agente.')},200);return}
   const p={type,name:$('#ucName').value.trim(),assigned_agent_id:Number($('#ucAgent').value||0)};
   if(!p.name){notice('Escribe el nombre del canal');return}
   if(type==='whatsapp_cloud'&&!p.assigned_agent_id){notice('Primero selecciona un agente IA activo de tu empresa.');return}
