@@ -155,29 +155,49 @@ func instagramB103DParseShort(raw []byte) (instagramB103DShortToken, string, err
 	return tok, id, nil
 }
 
-func instagramB103DProfile(ctx context.Context, token string, expectedID string) (string, error) {
-	var result struct {
-		UserID      json.RawMessage `json:"user_id"`
+// B10.3E keeps two Instagram identifiers separate:
+// - id is the app-scoped identity used by the OAuth code exchange.
+// - user_id is the professional Instagram account ID used for webhook routing.
+// The callback only accepts an ID match established by the authenticated /me response.
+func instagramB103DResolveProfile(shortID string, raw []byte) (string, string, error) {
+	var profile struct {
 		ID          json.RawMessage `json:"id"`
+		UserID      json.RawMessage `json:"user_id"`
 		Username    string          `json:"username"`
 		AccountType string          `json:"account_type"`
 	}
-	err := instagramB103DJSONRequest(ctx, http.MethodGet, "https://graph.instagram.com/me", url.Values{"fields": {"user_id,username,account_type"}}, token, &result)
-	if err != nil {
-		return "", err
+	if err := json.Unmarshal(raw, &profile); err != nil {
+		return "", "", errors.New("IG_PROFILE_FORMAT")
 	}
-	id := instagramB103DID(result.UserID)
-	if id == "" {
-		id = instagramB103DID(result.ID)
+	scoped := instagramB103DID(profile.ID)
+	professional := instagramB103DID(profile.UserID)
+	if shortID == "" || (scoped != shortID && professional != shortID) {
+		return "", "", errors.New("IG_PROFILE_ID_MISMATCH")
 	}
-	if id != expectedID || strings.TrimSpace(result.Username) == "" {
-		return "", errors.New("Instagram no confirmo la identidad autorizada")
+	if professional == "" {
+		// Do not guess the webhook account ID from the app-scoped OAuth ID.
+		return "", "", errors.New("IG_PROFILE_PRO_ID_MISSING")
 	}
-	kind := strings.ToUpper(result.AccountType)
+	username := strings.TrimSpace(profile.Username)
+	if username == "" {
+		return "", "", errors.New("IG_PROFILE_USERNAME_MISSING")
+	}
+	kind := strings.ToUpper(strings.TrimSpace(profile.AccountType))
 	if kind != "BUSINESS" && kind != "MEDIA_CREATOR" && kind != "CREATOR" {
-		return "", errors.New("La cuenta autorizada no es profesional de Instagram")
+		return "", "", errors.New("IG_PROFILE_NOT_PROFESSIONAL")
 	}
-	return result.Username, nil
+	return username, professional, nil
+}
+
+func instagramB103DProfile(ctx context.Context, token string, expectedID string) (string, string, error) {
+	var raw json.RawMessage
+	err := instagramB103DJSONRequest(ctx, http.MethodGet,
+		"https://graph.instagram.com/me",
+		url.Values{"fields": {"id,user_id,username,account_type"}}, token, &raw)
+	if err != nil {
+		return "", "", fmt.Errorf("IG_PROFILE_FETCH: %w", err)
+	}
+	return instagramB103DResolveProfile(expectedID, raw)
 }
 
 func (a *App) completeInstagramB103DOAuth(w http.ResponseWriter, r *http.Request, tid int64, code, redirect string) error {
@@ -186,21 +206,21 @@ func (a *App) completeInstagramB103DOAuth(w http.ResponseWriter, r *http.Request
 		return err
 	}
 	if strings.TrimSpace(a.cfg.ChannelEncryptionKey) == "" {
-		return errors.New("Cifrado no configurado")
+		return errors.New("IG_ENCRYPTION_NOT_CONFIGURED")
 	}
 	if len(code) > 4096 {
-		return errors.New("Codigo OAuth invalido")
+		return errors.New("IG_CODE_INVALID")
 	}
 
 	vals := url.Values{"client_id": {id}, "client_secret": {secret}, "grant_type": {"authorization_code"}, "redirect_uri": {redirect}, "code": {code}}
 	// The code exchange may return flat JSON or a single-element data array.
 	var response json.RawMessage
 	if err = instagramB103DJSONRequest(r.Context(), http.MethodPost, "https://api.instagram.com/oauth/access_token", vals, "", &response); err != nil {
-		return err
+		return fmt.Errorf("IG_SHORT_EXCHANGE: %w", err)
 	}
 	short, userID, err := instagramB103DParseShort(response)
 	if err != nil {
-		return err
+		return fmt.Errorf("IG_SHORT_FORMAT: %w", err)
 	}
 	var long struct {
 		AccessToken string `json:"access_token"`
@@ -209,28 +229,28 @@ func (a *App) completeInstagramB103DOAuth(w http.ResponseWriter, r *http.Request
 	}
 	params := url.Values{"grant_type": {"ig_exchange_token"}, "client_secret": {secret}, "access_token": {short.AccessToken}}
 	if err = instagramB103DJSONRequest(r.Context(), http.MethodGet, "https://graph.instagram.com/access_token", params, "", &long); err != nil {
-		return err
+		return fmt.Errorf("IG_LONG_EXCHANGE: %w", err)
 	}
 	if long.AccessToken == "" || long.ExpiresIn < 86400 || len(long.AccessToken) > 8192 {
-		return errors.New("Instagram no entrego token de larga duracion valido")
+		return errors.New("IG_LONG_INVALID")
 	}
-	username, err := instagramB103DProfile(r.Context(), long.AccessToken, userID)
+	username, professionalID, err := instagramB103DProfile(r.Context(), long.AccessToken, userID)
 	if err != nil {
 		return err
 	}
 
 	// Fail closed: neither reassign other tenants nor overwrite existing IG credentials.
 	var existing int
-	if err = a.db.QueryRow(`SELECT COUNT(*) FROM social_connections WHERE platform='instagram' AND external_account_id=?`, userID).Scan(&existing); err != nil {
-		return errors.New("No fue posible verificar exclusividad de la cuenta Instagram")
+	if err = a.db.QueryRow(`SELECT COUNT(*) FROM social_connections WHERE platform='instagram' AND external_account_id IN (?,?)`, userID, professionalID).Scan(&existing); err != nil {
+		return errors.New("IG_DUPLICATE_CHECK")
 	}
 	if existing != 0 {
-		return errors.New("Esta cuenta de Instagram ya tiene una conexion; no se reemplazaron sus credenciales")
+		return errors.New("IG_ALREADY_CONNECTED")
 	}
 	tok := socialToken{AccessToken: long.AccessToken, TokenType: "INSTAGRAM_USER", ExpiresIn: long.ExpiresIn}
-	cfg := socialProviderConfig{InstagramID: userID, InstagramAuthMethod: "instagram_login"}
-	if err = a.saveOfficialConnection(tid, "instagram", username, userID, tok, cfg, "instagram_business_basic"); err != nil {
-		return errors.New("No fue posible guardar la conexion Instagram")
+	cfg := socialProviderConfig{InstagramID: professionalID, InstagramAuthMethod: "instagram_login"}
+	if err = a.saveOfficialConnection(tid, "instagram", username, professionalID, tok, cfg, "instagram_business_basic"); err != nil {
+		return errors.New("IG_SAVE_FAILED")
 	}
 	http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=success&platform=instagram", http.StatusSeeOther)
 	return nil

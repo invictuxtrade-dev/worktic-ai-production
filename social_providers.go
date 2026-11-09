@@ -238,10 +238,7 @@ func (a *App) socialOAuthCallbackHandler(w http.ResponseWriter, r *http.Request)
 	redirect := a.cfg.BaseURL + "/api/social/oauth/callback/" + p
 	if p == "instagram" && instagramB103DEnabled() {
 		if err := a.completeInstagramB103DOAuth(w, r, tid, code, redirect); err != nil {
-			reason := "Instagram B10.3D: error en autorizacion o verificacion [IG_LOGIN_ERROR]"
-			if strings.Contains(err.Error(), "ya tiene una conexion") {
-				reason = "Instagram B10.3D: cuenta ya vinculada [IG_ALREADY_CONNECTED]"
-			}
+			reason := "Instagram B10.3E: " + instagramB103ESafeReason(err)
 			http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape(reason), http.StatusFound)
 		}
 		return
@@ -792,7 +789,7 @@ func (a *App) socialConnectionTestHandler(w http.ResponseWriter, r *http.Request
 		detail = fmt.Sprint(out["name"])
 	case "instagram":
 		if cfg.InstagramAuthMethod == "instagram_login" {
-			detail, err = instagramB103DProfile(r.Context(), tok.AccessToken, cfg.InstagramID)
+			detail, _, err = instagramB103DProfile(r.Context(), tok.AccessToken, cfg.InstagramID)
 		} else {
 			var out map[string]any
 			err = apiJSON(r.Context(), "GET", "https://graph.facebook.com/"+a.cfg.MetaGraphVersion+"/"+url.PathEscape(cfg.InstagramID)+"?fields=id,username&access_token="+url.QueryEscape(tok.AccessToken), "", nil, &out)
