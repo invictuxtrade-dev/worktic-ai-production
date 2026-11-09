@@ -31,12 +31,13 @@ type socialToken struct {
 }
 
 type socialProviderConfig struct {
-	PageID      string `json:"page_id,omitempty"`
-	InstagramID string `json:"instagram_id,omitempty"`
-	AuthorURN   string `json:"author_urn,omitempty"`
-	ChatID      string `json:"chat_id,omitempty"`
-	ChannelID   string `json:"channel_id,omitempty"`
-	OpenID      string `json:"open_id,omitempty"`
+	InstagramAuthMethod string `json:"instagram_auth_method,omitempty"`
+	PageID              string `json:"page_id,omitempty"`
+	InstagramID         string `json:"instagram_id,omitempty"`
+	AuthorURN           string `json:"author_urn,omitempty"`
+	ChatID              string `json:"chat_id,omitempty"`
+	ChannelID           string `json:"channel_id,omitempty"`
+	OpenID              string `json:"open_id,omitempty"`
 }
 
 func ensureSocialProviderSchema(db *DB) {
@@ -105,64 +106,72 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 	// Validate provider configuration before creating a pending authorization.
 	// In B9, Instagram Unified Login is gated until Meta's SUAT/account
 	// discovery is verified; the old Page-based callback is NOT compatible.
-	if p == "instagram" && !strings.EqualFold(strings.TrimSpace(os.Getenv("WORKTIC_B9_INSTAGRAM_UNIFIED_MODE")), "enabled") {
+	if p == "instagram" && !socialB9Enabled() && !instagramB103DEnabled() {
 		http.Error(w, "B9 Instagram Unified Login requiere habilitacion explicita; el OAuth antiguo esta bloqueado", http.StatusConflict)
 		return
 	}
 	state := randomState()
 	redirect := a.cfg.BaseURL + "/api/social/oauth/callback/" + p
 	var auth string
-	switch p {
-	case "facebook", "instagram":
-		if a.cfg.MetaAppID == "" || (p == "instagram" && socialB9Enabled() && a.cfg.MetaAppSecret == "") {
-			http.Error(w, "Credenciales Meta incompletas", 409)
+	if p == "instagram" && instagramB103DEnabled() {
+		auth, err = instagramB103DAuthorizationURL(state, redirect)
+		if err != nil {
+			http.Error(w, "Instagram Login no esta configurado", http.StatusConflict)
 			return
 		}
-		// B2: Meta define los permisos mediante una configuracion independiente por flujo.
-		// Fallar cerrado impide volver a pedir scopes no disponibles en esta aplicacion.
-		key := "WORKTIC_META_SOCIAL_FACEBOOK_CONFIG_ID"
-		if p == "instagram" {
-			key = "WORKTIC_META_SOCIAL_INSTAGRAM_CONFIG_ID"
+	} else {
+		switch p {
+		case "facebook", "instagram":
+			if a.cfg.MetaAppID == "" || (p == "instagram" && socialB9Enabled() && a.cfg.MetaAppSecret == "") {
+				http.Error(w, "Credenciales Meta incompletas", 409)
+				return
+			}
+			// B2: Meta define los permisos mediante una configuracion independiente por flujo.
+			// Fallar cerrado impide volver a pedir scopes no disponibles en esta aplicacion.
+			key := "WORKTIC_META_SOCIAL_FACEBOOK_CONFIG_ID"
+			if p == "instagram" {
+				key = "WORKTIC_META_SOCIAL_INSTAGRAM_CONFIG_ID"
+			}
+			configID := strings.TrimSpace(os.Getenv(key))
+			if configID == "" || !isMetaSocialConfigID(configID) {
+				http.Error(w, key+" no configurado o invalido", http.StatusConflict)
+				return
+			}
+			if strings.TrimSpace(a.cfg.ChannelEncryptionKey) == "" {
+				http.Error(w, "CHANNEL_ENCRYPTION_KEY no configurado", http.StatusConflict)
+				return
+			}
+			q := url.Values{
+				"client_id": {a.cfg.MetaAppID}, "redirect_uri": {redirect},
+				"state": {state}, "response_type": {"code"},
+				"config_id": {configID}, "override_default_response_type": {"true"},
+			}
+			if p == "instagram" && socialB9Enabled() {
+				q.Set("prompt", "login")
+			}
+			auth = "https://www.facebook.com/" + a.cfg.MetaGraphVersion + "/dialog/oauth?" + q.Encode()
+		case "linkedin":
+			if a.cfg.LinkedInClientID == "" {
+				http.Error(w, "LINKEDIN_CLIENT_ID no configurado", 409)
+				return
+			}
+			q := url.Values{"response_type": {"code"}, "client_id": {a.cfg.LinkedInClientID}, "redirect_uri": {redirect}, "state": {state}, "scope": {"openid profile w_member_social"}}
+			auth = "https://www.linkedin.com/oauth/v2/authorization?" + q.Encode()
+		case "tiktok":
+			if a.cfg.TikTokClientKey == "" {
+				http.Error(w, "TIKTOK_CLIENT_KEY no configurado", 409)
+				return
+			}
+			q := url.Values{"client_key": {a.cfg.TikTokClientKey}, "response_type": {"code"}, "scope": {"user.info.basic,video.upload,video.publish"}, "redirect_uri": {redirect}, "state": {state}}
+			auth = "https://www.tiktok.com/v2/auth/authorize/?" + q.Encode()
+		case "youtube":
+			if a.cfg.GoogleClientID == "" {
+				http.Error(w, "GOOGLE_CLIENT_ID no configurado", 409)
+				return
+			}
+			q := url.Values{"client_id": {a.cfg.GoogleClientID}, "redirect_uri": {redirect}, "response_type": {"code"}, "scope": {"https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl"}, "access_type": {"offline"}, "prompt": {"consent"}, "state": {state}}
+			auth = "https://accounts.google.com/o/oauth2/v2/auth?" + q.Encode()
 		}
-		configID := strings.TrimSpace(os.Getenv(key))
-		if configID == "" || !isMetaSocialConfigID(configID) {
-			http.Error(w, key+" no configurado o invalido", http.StatusConflict)
-			return
-		}
-		if strings.TrimSpace(a.cfg.ChannelEncryptionKey) == "" {
-			http.Error(w, "CHANNEL_ENCRYPTION_KEY no configurado", http.StatusConflict)
-			return
-		}
-		q := url.Values{
-			"client_id": {a.cfg.MetaAppID}, "redirect_uri": {redirect},
-			"state": {state}, "response_type": {"code"},
-			"config_id": {configID}, "override_default_response_type": {"true"},
-		}
-		if p == "instagram" && socialB9Enabled() {
-			q.Set("prompt", "login")
-		}
-		auth = "https://www.facebook.com/" + a.cfg.MetaGraphVersion + "/dialog/oauth?" + q.Encode()
-	case "linkedin":
-		if a.cfg.LinkedInClientID == "" {
-			http.Error(w, "LINKEDIN_CLIENT_ID no configurado", 409)
-			return
-		}
-		q := url.Values{"response_type": {"code"}, "client_id": {a.cfg.LinkedInClientID}, "redirect_uri": {redirect}, "state": {state}, "scope": {"openid profile w_member_social"}}
-		auth = "https://www.linkedin.com/oauth/v2/authorization?" + q.Encode()
-	case "tiktok":
-		if a.cfg.TikTokClientKey == "" {
-			http.Error(w, "TIKTOK_CLIENT_KEY no configurado", 409)
-			return
-		}
-		q := url.Values{"client_key": {a.cfg.TikTokClientKey}, "response_type": {"code"}, "scope": {"user.info.basic,video.upload,video.publish"}, "redirect_uri": {redirect}, "state": {state}}
-		auth = "https://www.tiktok.com/v2/auth/authorize/?" + q.Encode()
-	case "youtube":
-		if a.cfg.GoogleClientID == "" {
-			http.Error(w, "GOOGLE_CLIENT_ID no configurado", 409)
-			return
-		}
-		q := url.Values{"client_id": {a.cfg.GoogleClientID}, "redirect_uri": {redirect}, "response_type": {"code"}, "scope": {"https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl"}, "access_type": {"offline"}, "prompt": {"consent"}, "state": {state}}
-		auth = "https://accounts.google.com/o/oauth2/v2/auth?" + q.Encode()
 	}
 	if auth == "" {
 		http.Error(w, "Proveedor OAuth no configurado", http.StatusConflict)
@@ -227,6 +236,16 @@ func (a *App) socialOAuthCallbackHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	redirect := a.cfg.BaseURL + "/api/social/oauth/callback/" + p
+	if p == "instagram" && instagramB103DEnabled() {
+		if err := a.completeInstagramB103DOAuth(w, r, tid, code, redirect); err != nil {
+			reason := "Instagram B10.3D: error en autorizacion o verificacion [IG_LOGIN_ERROR]"
+			if strings.Contains(err.Error(), "ya tiene una conexion") {
+				reason = "Instagram B10.3D: cuenta ya vinculada [IG_ALREADY_CONNECTED]"
+			}
+			http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape(reason), http.StatusFound)
+		}
+		return
+	}
 	token, err := a.exchangeSocialCode(r.Context(), p, code, redirect)
 	if err != nil {
 		http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape("No se pudo completar el intercambio OAuth con el proveedor"), http.StatusFound)
@@ -772,9 +791,13 @@ func (a *App) socialConnectionTestHandler(w http.ResponseWriter, r *http.Request
 		err = apiJSON(r.Context(), "GET", "https://graph.facebook.com/"+a.cfg.MetaGraphVersion+"/"+url.PathEscape(cfg.PageID)+"?fields=id,name&access_token="+url.QueryEscape(tok.AccessToken), "", nil, &out)
 		detail = fmt.Sprint(out["name"])
 	case "instagram":
-		var out map[string]any
-		err = apiJSON(r.Context(), "GET", "https://graph.facebook.com/"+a.cfg.MetaGraphVersion+"/"+url.PathEscape(cfg.InstagramID)+"?fields=id,username&access_token="+url.QueryEscape(tok.AccessToken), "", nil, &out)
-		detail = fmt.Sprint(out["username"])
+		if cfg.InstagramAuthMethod == "instagram_login" {
+			detail, err = instagramB103DProfile(r.Context(), tok.AccessToken, cfg.InstagramID)
+		} else {
+			var out map[string]any
+			err = apiJSON(r.Context(), "GET", "https://graph.facebook.com/"+a.cfg.MetaGraphVersion+"/"+url.PathEscape(cfg.InstagramID)+"?fields=id,username&access_token="+url.QueryEscape(tok.AccessToken), "", nil, &out)
+			detail = fmt.Sprint(out["username"])
+		}
 	case "linkedin":
 		var out map[string]any
 		err = apiJSON(r.Context(), "GET", "https://api.linkedin.com/v2/userinfo", tok.AccessToken, nil, &out)
