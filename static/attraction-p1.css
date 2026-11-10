@@ -1,0 +1,35 @@
+/* Atracción de Clientes P1A: interfaz aislada, sin modificar Captación de Clientes. */
+#attraction-p1 .wtap1-page{max-width:1260px;margin:auto;padding:8px 0 40px;font-family:inherit;color:var(--text,#1c2046)}
+#attraction-p1 .wtap1-hero{padding:30px 32px;border-radius:24px;background:linear-gradient(115deg,#111633,#353286 62%,#8831d1);color:white;display:flex;justify-content:space-between;align-items:center;gap:22px;box-shadow:0 12px 35px #1a1b6126}
+#attraction-p1 .wtap1-eyebrow{color:#9ce9ff;font-size:11px;letter-spacing:1.3px;font-weight:800}
+#attraction-p1 .wtap1-hero h2{font-size:29px;margin:12px 0 8px;color:#fff}
+#attraction-p1 .wtap1-hero p{max-width:700px;line-height:1.55;color:#e7eaff;margin:0}
+#attraction-p1 .wtap1-hero-badge{border:1px solid #ffffff66;border-radius:30px;padding:11px 16px;font-size:12px;font-weight:700;white-space:nowrap;background:#ffffff1a}
+#attraction-p1 .wtap1-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:18px 0}
+#attraction-p1 .wtap1-metrics>div{background:#fff;border:1px solid #e5e9f5;border-radius:17px;padding:17px 21px;display:flex;flex-direction:column;gap:6px}
+#attraction-p1 .wtap1-metrics span{font-size:12px;color:#696f93}#attraction-p1 .wtap1-metrics strong{font-size:29px;color:#28265c}
+#attraction-p1 .wtap1-tabs{display:flex;gap:9px;border-bottom:1px solid #e8e9f5;padding-bottom:12px;margin:21px 0}
+#attraction-p1 .wtap1-tabs button{border:1px solid #dedff0;background:#fff;color:#44466c;border-radius:12px;padding:11px 18px;cursor:pointer;font-weight:700}
+#attraction-p1 .wtap1-tabs button.is-active{background:linear-gradient(100deg,#455cf6,#ba24e6);color:#fff;border-color:transparent}
+#attraction-p1 .wtap1-two{display:grid;grid-template-columns:1fr 1.3fr;gap:17px}
+#attraction-p1 .wtap1-card{background:#fff;border:1px solid #e4e7f4;border-radius:20px;padding:23px;box-shadow:0 8px 24px #2824590b}
+#attraction-p1 .wtap1-card h3{font-size:18px;margin:0 0 8px;color:#23254c}#attraction-p1 .wtap1-card p{color:#6d7391;font-size:13px;line-height:1.55}
+#attraction-p1 .wtap1-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+#attraction-p1 .wtap1-card label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:#424666;margin:12px 0}
+#attraction-p1 .wtap1-card input,#attraction-p1 .wtap1-card textarea{width:100%;box-sizing:border-box;border:1px solid #dce1ef;background:#fcfdff;border-radius:11px;padding:11px 12px;font-family:inherit;font-size:13px;color:#222b4a}
+#attraction-p1 .wtap1-card button{border:0;border-radius:11px;padding:12px 17px;background:linear-gradient(90deg,#485df4,#a82ad8);color:#fff;font-weight:700;cursor:pointer}
+#attraction-p1 .wtap1-card button:disabled{opacity:.5;cursor:default}
+#attraction-p1 .wtap1-secondary{background:#eef0ff!important;color:#5144a4!important}
+#attraction-p1 .wtap1-note{margin-top:14px;padding:12px;border-radius:11px;background:#f6f5ff;color:#6e7190;font-size:12px;line-height:1.5}
+#attraction-p1 .wtap1-links{margin:15px 0;display:grid;gap:8px}
+#attraction-p1 .wtap1-links a{background:#f5f8ff;border:1px solid #e4e9f6;padding:10px 12px;border-radius:10px;color:#3744ad;text-decoration:none;font-size:13px}
+#attraction-p1 .wtap1-listhead{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#attraction-p1 .wtap1-results{display:grid;gap:12px;margin-top:15px}
+#attraction-p1 .wtap1-item{display:flex;justify-content:space-between;align-items:center;gap:16px;border:1px solid #e4e9f4;border-radius:14px;padding:15px}
+#attraction-p1 .wtap1-item strong{display:block;color:#2c2c54;font-size:15px}
+#attraction-p1 .wtap1-item small{color:#6f7591;display:block;line-height:1.55}
+#attraction-p1 .wtap1-item .wtap1-score{background:#f3edff;color:#6846ba;border-radius:40px;padding:7px 10px;font-size:12px;font-weight:700}
+#attraction-p1 .wtap1-item-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+#attraction-p1 .wtap1-footer{margin-top:16px;color:#4d5271;font-size:13px;min-height:22px}
+@media(max-width:900px){#attraction-p1 .wtap1-hero{display:block;padding:21px}#attraction-p1 .wtap1-hero-badge{display:inline-block;margin-top:16px}#attraction-p1 .wtap1-two{grid-template-columns:1fr}}
+@media(max-width:580px){#attraction-p1 .wtap1-metrics{gap:7px}#attraction-p1 .wtap1-metrics>div{padding:12px}#attraction-p1 .wtap1-metrics strong{font-size:21px}#attraction-p1 .wtap1-tabs{overflow:auto}#attraction-p1 .wtap1-tabs button{white-space:nowrap}#attraction-p1 .wtap1-grid{grid-template-columns:1fr}#attraction-p1 .wtap1-item{display:block}#attraction-p1 .wtap1-item-actions{margin-top:11px}}

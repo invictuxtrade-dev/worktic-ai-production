@@ -790,6 +790,8 @@ func main() {
 	mux.HandleFunc("/api/marketing/landings/channels", app.landingChannelsHandler)
 	mux.HandleFunc("/api/marketing/landings/upload", app.landingImageUploadHandler)
 	mux.HandleFunc("/uploads/landings/", app.landingUploadFileHandler)
+	mux.HandleFunc("/api/attraction/p1/candidates", app.attractionP1CandidatesHandler)
+	mux.HandleFunc("/api/attraction/p1/promote", app.attractionP1PromoteHandler)
 	mux.HandleFunc("/api/groups/limits", app.groupLimitsHandler)
 	mux.HandleFunc("/api/groups", app.groupsHandler)
 	mux.HandleFunc("/api/groups/send", app.groupSendHandler)
