@@ -46,6 +46,11 @@ func (a *App) instagramWebhookB103(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid signature", http.StatusUnauthorized)
 		return
 	}
+	// B10.4A is opt-in and runs only after signature validation above.
+	if instagramB104InboxEnabled() {
+		a.instagramB104Receive(w, r, body)
+		return
+	}
 	var env struct {
 		Object string `json:"object"`
 		Entry  []struct {

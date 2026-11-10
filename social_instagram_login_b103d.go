@@ -36,9 +36,13 @@ func instagramB103DAuthorizationURL(state, redirect string) (string, error) {
 	if len(state) < 32 || !strings.HasPrefix(redirect, "https://") {
 		return "", errors.New("OAuth Instagram invalido")
 	}
+	scope := "instagram_business_basic"
+	if instagramB104ScopeEnabled() {
+		scope += "," + instagramB104MessagesPermission
+	}
 	vals := url.Values{
 		"client_id": {id}, "redirect_uri": {redirect}, "response_type": {"code"},
-		"scope": {"instagram_business_basic"}, "state": {state},
+		"scope": {scope}, "state": {state},
 	}
 	return "https://www.instagram.com/oauth/authorize?" + vals.Encode(), nil
 }
@@ -234,22 +238,37 @@ func (a *App) completeInstagramB103DOAuth(w http.ResponseWriter, r *http.Request
 	if long.AccessToken == "" || long.ExpiresIn < 86400 || len(long.AccessToken) > 8192 {
 		return errors.New("IG_LONG_INVALID")
 	}
+	// Never claim an unobserved permission, even if the authorization URL requested it.
+	scopes := "instagram_business_basic"
+	if instagramB104ScopeEnabled() {
+		if !instagramB104Granted(short.Permissions, "instagram_business_basic") || !instagramB104Granted(short.Permissions, instagramB104MessagesPermission) {
+			return errors.New("IG_B104_MESSAGES_GRANT_UNCONFIRMED")
+		}
+		scopes += "," + instagramB104MessagesPermission
+	}
 	username, professionalID, err := instagramB103DProfile(r.Context(), long.AccessToken, userID)
 	if err != nil {
 		return err
 	}
 
-	// Fail closed: neither reassign other tenants nor overwrite existing IG credentials.
+	// Never reassign accounts between tenants. Only a verified scope upgrade
+	// of this tenant's same Instagram Login account is allowed.
 	var existing int
-	if err = a.db.QueryRow(`SELECT COUNT(*) FROM social_connections WHERE platform='instagram' AND external_account_id IN (?,?)`, userID, professionalID).Scan(&existing); err != nil {
+	var existingTenant int64
+	var existingCfg string
+	if err = a.db.QueryRow(`SELECT COUNT(*),COALESCE(MIN(tenant_id),0),COALESCE(MIN(config_json),'') FROM social_connections WHERE platform='instagram' AND external_account_id IN (?,?)`, userID, professionalID).Scan(&existing, &existingTenant, &existingCfg); err != nil {
 		return errors.New("IG_DUPLICATE_CHECK")
 	}
 	if existing != 0 {
-		return errors.New("IG_ALREADY_CONNECTED")
+		var prior socialProviderConfig
+		_ = json.Unmarshal([]byte(existingCfg), &prior)
+		if existing != 1 || existingTenant != tid || !instagramB104ScopeEnabled() || prior.InstagramAuthMethod != "instagram_login" {
+			return errors.New("IG_ALREADY_CONNECTED")
+		}
 	}
 	tok := socialToken{AccessToken: long.AccessToken, TokenType: "INSTAGRAM_USER", ExpiresIn: long.ExpiresIn}
 	cfg := socialProviderConfig{InstagramID: professionalID, InstagramAuthMethod: "instagram_login"}
-	if err = a.saveOfficialConnection(tid, "instagram", username, professionalID, tok, cfg, "instagram_business_basic"); err != nil {
+	if err = a.saveOfficialConnection(tid, "instagram", username, professionalID, tok, cfg, scopes); err != nil {
 		return errors.New("IG_SAVE_FAILED")
 	}
 	http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=success&platform=instagram", http.StatusSeeOther)

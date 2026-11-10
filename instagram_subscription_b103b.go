@@ -70,8 +70,8 @@ func (a *App) instagramSubscriptionB103B(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "connection_id invalido", http.StatusBadRequest)
 		return
 	}
-	var encrypted, accountID string
-	err = a.db.QueryRow(`SELECT encrypted_credentials,external_account_id FROM social_connections WHERE id=? AND tenant_id=? AND platform='instagram' AND provider_mode='official' AND status='connected'`, connectionID, tid).Scan(&encrypted, &accountID)
+	var encrypted, accountID, configJSON string
+	err = a.db.QueryRow(`SELECT encrypted_credentials,external_account_id,config_json FROM social_connections WHERE id=? AND tenant_id=? AND platform='instagram' AND provider_mode='official' AND status='connected'`, connectionID, tid).Scan(&encrypted, &accountID, &configJSON)
 	if err != nil || accountID == "" {
 		http.Error(w, "Cuenta Instagram no encontrada", http.StatusNotFound)
 		return
@@ -87,6 +87,15 @@ func (a *App) instagramSubscriptionB103B(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	endpoint := "https://graph.facebook.com/" + graphVersion + "/" + url.PathEscape(accountID) + "/subscribed_apps"
+	// Instagram Login uses Instagram's Graph host and user token, not a Facebook Page token.
+	var cfg socialProviderConfig
+	if json.Unmarshal([]byte(configJSON), &cfg) != nil {
+		http.Error(w, "Configuracion Instagram no disponible", 503)
+		return
+	}
+	if cfg.InstagramAuthMethod == "instagram_login" {
+		endpoint = "https://graph.instagram.com/" + graphVersion + "/me/subscribed_apps"
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 	defer cancel()
 	method := http.MethodGet

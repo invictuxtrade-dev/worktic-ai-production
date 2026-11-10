@@ -638,6 +638,7 @@ func main() {
 	mux.HandleFunc(messengerSaaSWebhookPath, app.messengerSaaSWebhookHandler)
 	mux.HandleFunc("/webhooks/meta/messenger", app.messengerWebhookHandler)
 	mux.HandleFunc("/webhooks/meta/instagram", app.instagramWebhookB103)
+	mux.HandleFunc("/api/social/b10/instagram-messaging-readiness", app.instagramB104Readiness)
 	mux.HandleFunc("/api/social/b10/instagram-webhook-subscription", app.instagramSubscriptionB103B)
 	mux.HandleFunc("/webhooks/meta/whatsapp", app.whatsappCloudWebhookHandler)
 	mux.HandleFunc("/api/whatsapp/templates", app.whatsappTemplatesHandler)
@@ -1465,6 +1466,20 @@ func (a *App) sendHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, map[string]any{"ok": true, "message_id": "webchat"})
+		return
+	}
+	if strings.HasPrefix(target, "instagram:") {
+		tenantID, _, tenantErr := a.tenantForRequest(r)
+		if tenantErr != nil {
+			writeError(w, tenantErr, http.StatusUnauthorized)
+			return
+		}
+		messageID, sendErr := a.instagramB104SendText(r.Context(), tenantID, target, strings.TrimSpace(req.Text))
+		if sendErr != nil {
+			writeError(w, sendErr, http.StatusConflict)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "message_id": messageID})
 		return
 	}
 	if tenantHardeningV2730Enabled() && !strings.HasPrefix(target, "wacloud:") && !strings.HasPrefix(target, "messenger:") {

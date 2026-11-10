@@ -11,6 +11,7 @@ func instagramB103ESafeReason(err error) string {
 	msg := err.Error()
 	cases := []struct{ code, description string }{
 		{"IG_ALREADY_CONNECTED", "cuenta ya vinculada"},
+		{"IG_B104_MESSAGES_GRANT_UNCONFIRMED", "Instagram no confirmo el permiso de mensajes"},
 		{"IG_ENCRYPTION_NOT_CONFIGURED", "cifrado no disponible"},
 		{"IG_CODE_INVALID", "codigo OAuth invalido"},
 		{"IG_SHORT_EXCHANGE", "intercambio de codigo rechazado por Instagram"},
