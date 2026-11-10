@@ -202,7 +202,7 @@ var I18N = {
 
 /* ══════════════════ AGENTE CLÁSICO ══════════════════ */
 "agent.builder_title":{es:"Constructor guiado del agente",en:"Guided agent builder"},
-"agent.openai_notice":{es:"La API de OpenAI es administrada por Worktic. Tus usuarios nunca deben pegar ni ver la clave.",en:"The AI API key is managed by Worktic. Your users never need to paste or see it."},
+"agent.openai_notice":{es:"El motor de IA está administrado por Worktic AI. Tus usuarios no necesitan configurar credenciales.",en:"The AI API key is managed by Worktic. Your users never need to paste or see it."},
 "agent.name_label":{es:"Nombre del asistente",en:"Assistant name"},
 "agent.company_label":{es:"Empresa",en:"Company"},
 "agent.objective_label":{es:"Objetivo",en:"Goal"},
@@ -551,8 +551,8 @@ var I18N = {
 "setup.team_billing_desc":{es:"En <b>Plan y membresía</b>, compara planes y paga con USDT (BEP20 o TRC20). La activación depende de la verificación blockchain configurada.",en:"In <b>Plan & Billing</b>, compare plans and pay with USDT (BEP20 or TRC20). Activation depends on the blockchain verifier configured."},
 
 "setup.tech_title":{es:"Configuración técnica",en:"Technical configuration"},
-"setup.tech_openai_title":{es:"OpenAI central",en:"Central AI provider"},
-"setup.tech_openai_desc":{es:"El propietario configura <code>OPENAI_API_KEY</code> en el archivo <code>.env</code>. La clave nunca se solicita ni se muestra a los usuarios finales.",en:"The owner configures <code>OPENAI_API_KEY</code> in the <code>.env</code> file. The key is never requested from or shown to end users."},
+"setup.tech_openai_title":{es:"Motor IA de Worktic",en:"Central AI provider"},
+"setup.tech_openai_desc":{es:"Las credenciales del motor de IA se gestionan exclusivamente en el servidor de Worktic AI y no son visibles para usuarios finales.",en:"AI engine credentials are managed securely on the Worktic AI server and are never requested from or displayed to end users."},
 "setup.tech_domain_title":{es:"Dominio propio y HTTPS",en:"Custom domain & HTTPS"},
 "setup.tech_domain_desc":{es:"Una vez tengas tu dominio apuntando al servicio, actualiza <code>BASE_URL</code> en las variables de entorno para que los enlaces públicos de landing pages y webhooks se generen correctamente.",en:"Once your domain points to the service, update <code>BASE_URL</code> in your environment variables so public landing page links and webhooks are generated correctly."},
 

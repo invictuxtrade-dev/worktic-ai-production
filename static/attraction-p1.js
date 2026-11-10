@@ -6,6 +6,7 @@ const $=(selector)=>root.querySelector(selector);
 const $$=(selector)=>Array.from(root.querySelectorAll(selector));
 let candidates=[],campaigns=[],config=null;
 function status(s){$('#wtap1-status').textContent=s}
+function publicError(value){return String(value||'Error desconocido').replace(/OPENAI_API_KEY/gi,'credenciales del motor IA').replace(/openai/gi,'motor IA').replace(/\bgpt-[\w.-]+/gi,'modelo interno de IA')}
 function append(parent,tag,label,cls){const node=document.createElement(tag);node.textContent=label||'';if(cls)node.className=cls;parent.append(node);return node}
 function safeURL(s){try{const u=new URL(s);if(!['https:','http:'].includes(u.protocol))return null;return u.href}catch{return null}}
 async function request(path,opts={}){
@@ -30,13 +31,13 @@ function renderCampaigns(){
   append(info,'small',`${mode} · Cada ${c.interval_hours} h · ${c.enabled?'Activa':'Pausada'}`);
   append(info,'small',`Último ciclo: ${timeLabel(c.last_run)} · Próximo: ${timeLabel(c.next_run)}`);
   append(info,'small',`Estado: ${c.last_status||'pendiente'} · Nuevos hallazgos: ${c.last_found||0}`);
-  if(c.last_error)append(info,'small',c.last_error);
+  if(c.last_error)append(info,'small',publicError(c.last_error));
   const a=append(row,'div','','wtap1-item-actions');
   const toggle=append(a,'button',c.enabled?'Pausar':'Reanudar','wtap1-secondary');
   toggle.addEventListener('click',async()=>{
    toggle.disabled=true;
    try{await request('/api/attraction/p1b/control',{method:'POST',body:JSON.stringify({id:c.id,action:c.enabled?'pause':'resume'})});await load();status('Campaña actualizada correctamente.');}
-   catch(e){toggle.disabled=false;status(e.message)}
+   catch(e){toggle.disabled=false;status(publicError(e.message))}
   });
  }
 }
@@ -57,14 +58,14 @@ async function load(){
  try{
   const r=await Promise.allSettled([request('/api/attraction/p1b/config'),request('/api/attraction/p1b/campaigns'),request('/api/attraction/p1/candidates')]);
   if(r[0].status==='fulfilled'){config=r[0].value;let ready=config.enabled&&config.key_configured&&config.worker_configured;
-   $('#wtap1-health').textContent=ready?`OpenAI operativo · ${config.model} · Máximo ${config.daily_run_limit} ciclos diarios por empresa`:'Autopilot inactivo: verifica las variables del servidor y los trabajadores';
+   $('#wtap1-health').textContent=ready?`Motor de Atracción IA activo · Hasta ${config.daily_run_limit} investigaciones diarias`:'Motor de Atracción IA no disponible. Contacta al administrador de Worktic AI.';
    $('#wtap1-create').disabled=!ready;
   }
   if(r[1].status==='fulfilled')campaigns=r[1].value.items||[];
   if(r[2].status==='fulfilled')candidates=r[2].value.items||[];
   metrics();renderCampaigns();renderCandidates();
-  const err=r.find(x=>x.status==='rejected');status(err?'No se pudo completar la actualización: '+err.reason.message:'Autopilot IA actualizado. No se envían mensajes a prospectos.');
- }catch(e){status('Error cargando Autopilot: '+e.message)}
+  const err=r.find(x=>x.status==='rejected');status(err?'No se pudo completar la actualización: '+publicError(err.reason.message):'Autopilot IA actualizado. No se envían mensajes a prospectos.');
+ }catch(e){status('No se pudo actualizar el módulo: '+publicError(e.message))}
 }
 function tab(key){
  $$('[data-wtap1-tab]').forEach(b=>b.classList.toggle('is-active',b.dataset.wtap1Tab===key));
@@ -72,18 +73,18 @@ function tab(key){
  if(key==='list')renderCandidates();
 }
 $('#wtap1-campaign-form').addEventListener('submit',async e=>{
- e.preventDefault();if(!config?.enabled)return status('Primero activa Autopilot IA en el servidor.');
+ e.preventDefault();if(!config?.enabled)return status('Esta función no está disponible por el momento. Contacta al administrador.');
  const form=e.currentTarget,btn=$('#wtap1-create');btn.disabled=true;
  const x=Object.fromEntries(new FormData(form).entries());x.interval_hours=Number(x.interval_hours)||24;
  try{await request('/api/attraction/p1b/campaigns',{method:'POST',body:JSON.stringify(x)});form.reset();await load();status('Campaña creada. El servidor investigará automáticamente las fuentes públicas.');}
- catch(err){status('No se pudo crear la campaña: '+err.message)}finally{btn.disabled=false}
+ catch(err){status('No se pudo crear la campaña: '+publicError(err.message))}finally{btn.disabled=false}
 });
 $$('[data-wtap1-tab]').forEach(b=>b.addEventListener('click',()=>tab(b.dataset.wtap1Tab)));
 $('#wtap1-refresh').addEventListener('click',load);
 $('#wtap1-reload').addEventListener('click',load);
 const nav=document.querySelector('#appSidebar button[data-view="attraction-p1"]');
 if(nav)nav.addEventListener('click',()=>{
- requestAnimationFrame(()=>{const title=document.getElementById('title'),sub=document.getElementById('subtitle');if(title)title.textContent='Atracción de Clientes';if(sub)sub.textContent='Prospección autónoma con OpenAI';});
+ requestAnimationFrame(()=>{const title=document.getElementById('title'),sub=document.getElementById('subtitle');if(title)title.textContent='Atracción de Clientes';if(sub)sub.textContent='Prospección autónoma impulsada por Worktic AI';});
  load();
 });
 window.setInterval(()=>{if(root.classList.contains('active')&&document.visibilityState==='visible')load()},30000);

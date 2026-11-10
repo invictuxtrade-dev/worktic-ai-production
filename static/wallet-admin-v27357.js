@@ -59,7 +59,7 @@
   card.append(E('p','wtc57-muted','El precio por crédito varía según el paquete. Conservamos tus cinco paquetes y valores actuales; puedes ajustar cada tarifa sin cambiar los créditos existentes.'));
   const bar=E('div','wtc57-row');const sw=checkbox('Habilitar venta de créditos Studio IA',studio.admin_enabled);bar.append(sw.label);
   const b=button('Guardar estado',()=>saveStudioSetting(sw.input.checked,b));bar.append(b);card.append(bar);
-  if(!studio.topups_enabled){const missing=[];if(!studio.studio_generation_enabled)missing.push('presupuesto Studio');if(!studio.image_provider_configured)missing.push('OpenAI');if(!studio.video_provider_configured)missing.push('proveedor de video');if(!Object.values(studio.addresses||{}).some(Boolean))missing.push('dirección USDT');
+  if(!studio.topups_enabled){const missing=[];if(!studio.studio_generation_enabled)missing.push('presupuesto Studio');if(!studio.image_provider_configured)missing.push('motor de imágenes IA');if(!studio.video_provider_configured)missing.push('proveedor de video');if(!Object.values(studio.addresses||{}).some(Boolean))missing.push('dirección USDT');
    card.append(E('p','wtc57-notice',studio.admin_enabled?'Ventas solicitadas, pero bloqueadas: falta '+(missing.join(', ')||'una condición técnica')+'.':'Ventas Studio desactivadas por administración.'));}
   else card.append(E('p','wtc57-success','Venta de créditos Studio habilitada y disponible.'));
   const table=E('div','wtc57-pack-list');const packages=studio.packages||[];
@@ -89,7 +89,7 @@
   const link=E('input');link.type='url';link.placeholder='https:// (opcional)';link.maxLength=300;link.value=voice.payment_url||'';
   card.append(field('Instrucciones de pago (USDT, red y confirmación)',instructions),field('Enlace de pago HTTPS (opcional)',link));
   const warn=E('p',voice.sales_enabled?'wtc57-success':'wtc57-notice');
-  const warnings=[];if(!voice.provider_ready)warnings.push('habilitar WORKTIC_VOICE_ENABLED y OPENAI_API_KEY');if(!voice.sales_enabled_setting)warnings.push('activar ventas');if(!voice.payment_address_ready)warnings.push('dirección USDT');if(!(voice.payment_instructions||'').trim())warnings.push('guardar instrucciones');
+  const warnings=[];if(!voice.provider_ready)warnings.push('revisar la configuración interna del motor de voz IA');if(!voice.sales_enabled_setting)warnings.push('activar ventas');if(!voice.payment_address_ready)warnings.push('dirección USDT');if(!(voice.payment_instructions||'').trim())warnings.push('guardar instrucciones');
   warn.textContent=voice.sales_enabled?'Ventas de voz habilitadas. Las llamadas salientes mantienen su control independiente.':'Ventas actualmente bloqueadas. '+(warnings.length?'Revisar: '+warnings.join('; '):'Revisar dirección USDT y plan del cliente.');card.append(warn);
   const save=button('Guardar tarifas y configuración de voz',()=>saveVoice({unit,minute,enterprise,sales:sales.input,instructions,link},save));card.append(save);
   if(Array.isArray(voice.pending)&&voice.pending.length){const note=E('p','wtc57-muted',`${voice.pending.length} solicitud(es) de voz pendientes de revisión. El panel de aprobaciones conserva las validaciones originales del servidor.`);card.append(note)}

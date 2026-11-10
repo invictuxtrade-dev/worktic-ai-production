@@ -162,7 +162,7 @@ func (a *App) attractionP1BConfigHandler(w http.ResponseWriter, r *http.Request)
 		"ok": true, "enabled": attractionP1BAIEnabled(),
 		"key_configured":    strings.TrimSpace(a.openAIKey()) != "",
 		"worker_configured": attractionP1BAIEnabled(),
-		"model":             attractionP1BModel(), "daily_run_limit": attractionP1BPerTenantDailyLimit(),
+		"daily_run_limit": attractionP1BPerTenantDailyLimit(),
 	})
 }
 
