@@ -177,6 +177,7 @@ func (a *App) attractionP1CandidatesHandler(w http.ResponseWriter, r *http.Reque
 		}
 		writeJSON(w, map[string]any{"ok": true, "items": out})
 	case http.MethodPost:
+		if attractionP1BAIEnabled() {writeError(w,errors.New("La carga manual está desactivada en Autopilot IA"),403);return}
 		r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
 		var x AttractionCandidateP1
 		dec := json.NewDecoder(r.Body)

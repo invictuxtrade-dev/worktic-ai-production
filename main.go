@@ -517,6 +517,10 @@ func main() {
 		go app.runMessengerTokenMonitor()
 		go app.runWhatsAppMarketingV27()
 	}
+	// P1B es independiente del interruptor global de workers: no activar otros módulos.
+	if attractionP1BAIEnabled() {
+		go app.runAttractionP1BWorker()
+	}
 	app.channelManager = NewChannelManager(app)
 	if cfg.ChannelRuntimesEnabled {
 		go app.channelManager.restoreActive()
@@ -790,6 +794,9 @@ func main() {
 	mux.HandleFunc("/api/marketing/landings/channels", app.landingChannelsHandler)
 	mux.HandleFunc("/api/marketing/landings/upload", app.landingImageUploadHandler)
 	mux.HandleFunc("/uploads/landings/", app.landingUploadFileHandler)
+	mux.HandleFunc("/api/attraction/p1b/config", app.attractionP1BConfigHandler)
+	mux.HandleFunc("/api/attraction/p1b/campaigns", app.attractionP1BCampaignsHandler)
+	mux.HandleFunc("/api/attraction/p1b/control", app.attractionP1BControlHandler)
 	mux.HandleFunc("/api/attraction/p1/candidates", app.attractionP1CandidatesHandler)
 	mux.HandleFunc("/api/attraction/p1/promote", app.attractionP1PromoteHandler)
 	mux.HandleFunc("/api/groups/limits", app.groupLimitsHandler)

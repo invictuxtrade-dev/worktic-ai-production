@@ -33,3 +33,9 @@
 #attraction-p1 .wtap1-footer{margin-top:16px;color:#4d5271;font-size:13px;min-height:22px}
 @media(max-width:900px){#attraction-p1 .wtap1-hero{display:block;padding:21px}#attraction-p1 .wtap1-hero-badge{display:inline-block;margin-top:16px}#attraction-p1 .wtap1-two{grid-template-columns:1fr}}
 @media(max-width:580px){#attraction-p1 .wtap1-metrics{gap:7px}#attraction-p1 .wtap1-metrics>div{padding:12px}#attraction-p1 .wtap1-metrics strong{font-size:21px}#attraction-p1 .wtap1-tabs{overflow:auto}#attraction-p1 .wtap1-tabs button{white-space:nowrap}#attraction-p1 .wtap1-grid{grid-template-columns:1fr}#attraction-p1 .wtap1-item{display:block}#attraction-p1 .wtap1-item-actions{margin-top:11px}}
+/* P1B autopilot, capas nuevas que conservan el lenguaje visual de Worktic AI */
+#attraction-p1 .wtap1-card select{width:100%;box-sizing:border-box;border:1px solid #dce1ef;background:#fcfdff;border-radius:11px;padding:11px 12px;font:inherit;color:#222b4a}
+#attraction-p1 .wtap1-state{border:1px solid #dce6f2;border-radius:14px;padding:7px 9px;font-size:11px;color:#38536a;font-weight:700;white-space:nowrap}
+#attraction-p1 .wtap1-item a{display:inline-block;color:#465ac3;text-decoration:underline;font-size:12px;margin-top:5px}
+#attraction-p1 .wtap1-item-actions button{white-space:nowrap}
+#attraction-p1 .wtap1-hero-badge{background:#fff2;border-color:#adf4ed77}
