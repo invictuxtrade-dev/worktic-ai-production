@@ -63,11 +63,9 @@ async function createWeb(c){
  try{if(c)window.workticWebChat.edit(c.id);else window.workticWebChat.create();return true}
  catch(e){notice('Error abriendo configuración Chat Web: '+(e.message||e));return false}
 }
-function openEmailChannel(){
- const nav=$('aside nav button[data-view="email-ai"]');
- if(!nav){notice('Email IA aún no está disponible en esta versión.');return}
- nav.click();
- $('aside nav button[data-view="channels"]')?.classList.add('active');
+function openEmailChannel(c,tab){
+ if(!window.WorkticEmailChannel?.open){notice('La gestión modal de Email IA no cargó. Actualiza la página.');return}
+ window.WorkticEmailChannel.open(c,tab);
 }
 async function createConnection(){
  window.modal(`<h2>Nueva conexión</h2><p class="muted">Todos los canales se administran desde aquí. Selecciona el tipo de conexión.</p>
@@ -87,7 +85,7 @@ async function createConnection(){
    return;
   }
   if(type==='voice_ai'){await voiceForm();return}
-  if(type==='email_ai'){closeModal();openEmailChannel();return}
+  if(type==='email_ai'){closeModal();openEmailChannel(null,'accounts');return}
   if(type==='instagram'){closeModal();const nav=$('aside nav button[data-view="socialhub"]');if(!nav){notice('No se encontro Redes Sociales');return}nav.click();setTimeout(()=>{if(typeof window.switchSocialTab==='function')window.switchSocialTab('connections');else $('button[data-social-tab="connections"]')?.click();notice('Conecta Instagram desde Cuentas. Cuando se autorice, vuelve a Mis Canales para asignar el agente.')},200);return}
   const p={type,name:$('#ucName').value.trim(),assigned_agent_id:Number($('#ucAgent').value||0)};
   if(!p.name){notice('Escribe el nombre del canal');return}
@@ -187,7 +185,7 @@ function wtEmailChannelCard(c,key){
  <div class="actions"><button type="button" data-uc-action="configure" data-uc-key="${esc(key)}">Gestionar canal</button><button type="button" class="secondary" data-uc-action="inbox" data-uc-key="${esc(key)}">Bandeja Email IA</button></div>
  </article>`;
 }
-function card(c,key,agentLookup){if(c.type==='email_ai')return wtEmailChannelCard(c,key);if(c.type==='whatsapp_cloud')return wtPremiumWhatsAppCard(c,key,agentLookup);if(c.type==='messenger')return wtPremiumMessengerCard(c,key,agentLookup);const label=nativeTypes[c.type]||c.type,active=['connected','active','Activo'].includes(status(c));
+function card(c,key,agentLookup){if(c.type==='email_ai')return window.WorkticEmailChannel?.card(c,key)||wtEmailChannelCard(c,key);if(c.type==='whatsapp_cloud')return wtPremiumWhatsAppCard(c,key,agentLookup);if(c.type==='messenger')return wtPremiumMessengerCard(c,key,agentLookup);const label=nativeTypes[c.type]||c.type,active=['connected','active','Activo'].includes(status(c));
  return `<article class="card wt-unified-card" data-key="${esc(key)}"><div class="top"><span class="badge ${esc(category[c.type]||'')}">${esc(label)}</span><span class="pill ${active?'wt-channel-on':''}">${esc(status(c))}</span></div><h3>${esc(c.name)}</h3><p class="wt-channel-detail">${esc(details(c))}</p><small>Agente asignado: ${esc(c.assigned_agent_id||c.agent_id||'Sin asignar')}</small>${c.type==='whatsapp_qr'?`<div id="qrbox-${esc(c.id)}"></div>`:''}<div class="actions">
  <button type="button" data-uc-action="configure" data-uc-key="${esc(key)}">Configurar</button>
  ${c.type==='webchat'?`<button type="button" class="secondary" data-uc-action="install" data-uc-key="${esc(key)}">Instalar widget</button><button type="button" class="secondary" data-uc-action="inbox" data-uc-key="${esc(key)}">Conversaciones</button>`:''}
@@ -208,6 +206,7 @@ async function refresh(){
  webItems.forEach(c=>allChannels.set('web:'+c.id,mapped(c,'webchat')));
  voiceItems.forEach(c=>allChannels.set('voice:'+c.id,mapped(c,'voice_ai')));
  emailItems.forEach(c=>allChannels.set('email:'+c.id,mapped({...c,name:c.email},'email_ai')));
+ if(!emailItems.length){const disabled=emailResponse.status==='rejected' && /no está habilitado/i.test(String(emailResponse.reason?.message||''));allChannels.set('email:setup',mapped({id:0,name:'Email IA',email:'',setup:true,status:disabled?'disabled':'pending'},'email_ai'));}
  const recordedWeb=Math.max(Number(d.web_count||0),webItems.length);
  const count=(d.connections||[]).length+recordedWeb+voiceItems.length+emailItems.length;
  $('#channelLimit').textContent=`${count} conexiones registradas · límite estándar del plan: ${Number(d.max_total||0)}`;
@@ -219,7 +218,7 @@ async function refresh(){
 }
 async function action(evt){const b=evt.target.closest('[data-uc-action]');if(!b)return;const c=allChannels.get(b.dataset.ucKey);if(!c)return;
  const name=b.dataset.ucAction;
- if(c.type==='email_ai'){if(name==='configure'||name==='inbox')openEmailChannel();return}
+ if(c.type==='email_ai'){if(name==='configure'||name==='inbox')openEmailChannel(c,name==='inbox'?'inbox':'accounts');return}
  if(c.type==='webchat'){
   if(name==='inbox'){$('aside nav button[data-view="inbox"]')?.click();const f=$('#channelConvFilter');if(f){f.value='web';f.dispatchEvent(new Event('change'))}return}
   await window.workticWebChat?.prepare();
