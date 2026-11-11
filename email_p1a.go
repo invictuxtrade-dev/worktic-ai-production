@@ -428,7 +428,7 @@ func (a *App) emailP1Accounts(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	writeJSON(w, map[string]any{"ok": true, "items": out, "google_ready": os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_SECRET") != "", "microsoft_ready": os.Getenv("WORKTIC_EMAIL_MS_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_MS_CLIENT_SECRET") != "", "sync_enabled": emailP1Flag("WORKTIC_EMAIL_P1_SYNC_ENABLED"), "p1b_fast_sync": emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "manual_send_enabled": emailP1Flag("WORKTIC_EMAIL_P1_MANUAL_SEND_ENABLED")})
+	writeJSON(w, map[string]any{"ok": true, "items": out, "google_ready": os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_SECRET") != "", "microsoft_ready": os.Getenv("WORKTIC_EMAIL_MS_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_MS_CLIENT_SECRET") != "", "sync_enabled": emailP1Flag("WORKTIC_EMAIL_P1_SYNC_ENABLED"), "p1b_fast_sync": emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "p1c1_classification": emailP1Flag("WORKTIC_EMAIL_P1C1_ENABLED") && emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "manual_send_enabled": emailP1Flag("WORKTIC_EMAIL_P1_MANUAL_SEND_ENABLED")})
 }
 
 type emailP1Mail struct {
@@ -439,6 +439,7 @@ type emailP1Mail struct {
 	Subject  string
 	Body     string
 	When     string
+	Headers  emailP1C1Headers
 }
 
 func emailP1GmailPlain(payload json.RawMessage) string {
@@ -551,7 +552,7 @@ func emailP1ProviderMessages(ctx context.Context, provider, token string, should
 			if body == "" {
 				body = msg.Snippet
 			}
-			result = append(result, emailP1Mail{msg.ID, msg.ThreadID, h["message-id"], sender, emailP1Clean(h["subject"], 300), emailP1Clean(body, 8000), when})
+			result = append(result, emailP1Mail{msg.ID, msg.ThreadID, h["message-id"], sender, emailP1Clean(h["subject"], 300), emailP1Clean(body, 8000), when, emailP1C1Headers{h["list-unsubscribe"], h["auto-submitted"], h["precedence"]}})
 		}
 		return result, nil
 	}
@@ -610,7 +611,7 @@ func emailP1ProviderMessages(ctx context.Context, provider, token string, should
 			if body == "" {
 				body = v.Preview
 			}
-			result = append(result, emailP1Mail{v.ID, v.Thread, v.Internet, sender, emailP1Clean(v.Subject, 300), emailP1Clean(body, 8000), v.Received})
+			result = append(result, emailP1Mail{v.ID, v.Thread, v.Internet, sender, emailP1Clean(v.Subject, 300), emailP1Clean(body, 8000), v.Received, emailP1C1Headers{}})
 		}
 		return result, nil
 	}
@@ -730,7 +731,13 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 		}
 		// WORKTIC_EMAIL_P1B2_CHRONO_INBOX: self-sent messages appear in the inbox, never consume AI credits.
 		cat, pri, sum := emailP1Heuristic(m.Subject, m.Body)
-		if emailP1B2ShouldCreateContact(m.Sender, account) {
+		createCRM := emailP1B2ShouldCreateContact(m.Sender, account)
+		if emailP1C1Enabled(id, account) {
+			// P1C.1: no IA generativa, no CRM para boletines ni casos ambiguos.
+			decision := emailP1C1Classify(m.Sender, account, m.Subject, m.Body, m.Headers)
+			cat, pri, sum, createCRM = decision.Category, decision.Priority, decision.Summary, decision.CreateCRM
+		} else if createCRM {
+			// Preserve P1B.2 unchanged outside the explicitly allowed pilot.
 			cat, pri, sum = a.emailP1Triage(ctx, tenant, m.Subject, m.Body)
 		}
 		insertResult, e := a.db.Exec(`INSERT INTO email_p1_messages(tenant_id,account_id,provider_id,thread_id,internet_id,sender,subject,body,received_at,category,priority,summary,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id,account_id,provider_id) DO NOTHING`, tenant, id, m.ID, m.Thread, m.Internet, m.Sender, m.Subject, m.Body, m.When, cat, pri, sum, emailP1Now())
@@ -744,7 +751,7 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 		}
 		total++
 		// Sincronizar CRM sólo después de recibir un email real. Un correo no implica consentimiento de marketing.
-		if emailP1B2ShouldCreateContact(m.Sender, account) {
+		if createCRM {
 			if e = a.syncCRMContact(tenant, "", "", m.Sender, "email", "email_inbound", "email:"+m.Sender); e != nil {
 				log.Printf("[EMAIL-P1] CRM sync no completada para tenant %d", tenant)
 			}
