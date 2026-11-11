@@ -428,7 +428,7 @@ func (a *App) emailP1Accounts(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	writeJSON(w, map[string]any{"ok": true, "items": out, "google_ready": os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_SECRET") != "", "microsoft_ready": os.Getenv("WORKTIC_EMAIL_MS_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_MS_CLIENT_SECRET") != "", "sync_enabled": emailP1Flag("WORKTIC_EMAIL_P1_SYNC_ENABLED"), "p1b_fast_sync": emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "p1c1_classification": emailP1Flag("WORKTIC_EMAIL_P1C1_ENABLED") && emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "manual_send_enabled": emailP1Flag("WORKTIC_EMAIL_P1_MANUAL_SEND_ENABLED")})
+	writeJSON(w, map[string]any{"ok": true, "items": out, "google_ready": os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_SECRET") != "", "microsoft_ready": os.Getenv("WORKTIC_EMAIL_MS_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_MS_CLIENT_SECRET") != "", "sync_enabled": emailP1Flag("WORKTIC_EMAIL_P1_SYNC_ENABLED"), "p1b_fast_sync": emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "p1c1_classification": emailP1Flag("WORKTIC_EMAIL_P1C1_ENABLED") && emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "p1c2_conversations": emailP1Flag("WORKTIC_EMAIL_P1C2_ENABLED") && emailP1Flag("WORKTIC_EMAIL_P1C1_ENABLED") && emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "manual_send_enabled": emailP1Flag("WORKTIC_EMAIL_P1_MANUAL_SEND_ENABLED")})
 }
 
 type emailP1Mail struct {
@@ -706,6 +706,11 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 	if emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && (provider != "google" || !emailP1BAllowedAccount(id, account)) {
 		return 0, errors.New("buzón no autorizado para el piloto rápido")
 	}
+	if emailP1C2Enabled(id, account) {
+		if e := a.emailP1C2StartPilot(tenant, id); e != nil {
+			return 0, errors.New("el piloto P1C2 no pudo inicializarse")
+		}
+	}
 	var isNeeded func(string) (bool, error)
 	if provider == "google" && emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") {
 		isNeeded = func(messageID string) (bool, error) {
@@ -756,6 +761,9 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 				log.Printf("[EMAIL-P1] CRM sync no completada para tenant %d", tenant)
 			}
 		}
+	}
+	if emailP1C2Enabled(id, account) {
+		a.emailP1C2Pump(tenant, id, account)
 	}
 	_, _ = a.db.Exec(`UPDATE email_p1_accounts SET sync_at=?,last_error='',updated_at=? WHERE tenant_id=? AND id=?`, emailP1Now(), emailP1Now(), tenant, id)
 	return total, nil

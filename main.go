@@ -1319,9 +1319,9 @@ func (a *App) conversationsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rows, err := a.db.Query(`SELECT c.chat_jid,c.channel,c.phone,c.name,c.unread,
-      COALESCE((SELECT text FROM worktic_messages m WHERE m.tenant_id=c.tenant_id AND m.chat_jid=c.chat_jid ORDER BY m.id DESC LIMIT 1),''),
-      COALESCE((SELECT direction FROM worktic_messages m WHERE m.tenant_id=c.tenant_id AND m.chat_jid=c.chat_jid ORDER BY m.id DESC LIMIT 1),''),
-      COALESCE((SELECT timestamp FROM worktic_messages m WHERE m.tenant_id=c.tenant_id AND m.chat_jid=c.chat_jid ORDER BY m.id DESC LIMIT 1),c.updated_at),
+      COALESCE((SELECT text FROM worktic_messages m WHERE m.tenant_id=c.tenant_id AND m.chat_jid=c.chat_jid ORDER BY CASE WHEN m.channel='email' THEN m.timestamp ELSE '' END DESC,m.id DESC LIMIT 1),''),
+      COALESCE((SELECT direction FROM worktic_messages m WHERE m.tenant_id=c.tenant_id AND m.chat_jid=c.chat_jid ORDER BY CASE WHEN m.channel='email' THEN m.timestamp ELSE '' END DESC,m.id DESC LIMIT 1),''),
+      COALESCE((SELECT timestamp FROM worktic_messages m WHERE m.tenant_id=c.tenant_id AND m.chat_jid=c.chat_jid ORDER BY CASE WHEN m.channel='email' THEN m.timestamp ELSE '' END DESC,m.id DESC LIMIT 1),c.updated_at),
       (SELECT COUNT(*) FROM worktic_messages m WHERE m.tenant_id=c.tenant_id AND m.chat_jid=c.chat_jid),
       COALESCE(ic.status,'open'),COALESCE(ic.mode,'ai'),COALESCE(ic.priority,'normal'),COALESCE(ic.assigned_user_id,0),COALESCE(u.name,''),COALESCE(ic.department,''),COALESCE(ic.tags,''),COALESCE(ic.sla_due_at,'')
       FROM worktic_contacts c LEFT JOIN inbox_conversations ic ON ic.tenant_id=c.tenant_id AND ic.chat_jid=c.chat_jid LEFT JOIN app_users u ON u.id=ic.assigned_user_id AND u.tenant_id=c.tenant_id WHERE c.tenant_id=? AND NOT EXISTS (SELECT 1 FROM inbox_removed_v273511 d WHERE d.tenant_id=c.tenant_id AND d.chat_jid=c.chat_jid) ORDER BY 8 DESC`, tid)
@@ -1354,7 +1354,11 @@ func (a *App) messagesHandler(w http.ResponseWriter, r *http.Request) {
 		q += ` AND m.chat_jid=?`
 		args = append(args, chat)
 	}
-	q += ` ORDER BY m.id DESC LIMIT 500`
+	if strings.HasPrefix(chat, "email:") {
+		q += ` ORDER BY m.timestamp DESC,m.id DESC LIMIT 500`
+	} else {
+		q += ` ORDER BY m.id DESC LIMIT 500`
+	}
 	rows, err := a.db.Query(q, args...)
 	if err != nil {
 		writeError(w, err, 500)
@@ -1477,6 +1481,11 @@ func (a *App) sendHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if target == "" || strings.TrimSpace(req.Text) == "" {
 		writeError(w, errors.New("destinatario y mensaje son obligatorios"), 400)
+		return
+	}
+	// P1C2: este chat es de solo lectura. Nunca reenviar vía WhatsApp/QR.
+	if strings.HasPrefix(target, "email:") {
+		writeError(w, errors.New("respuestas de Email IA desactivadas; usa la bandeja cuando estén autorizadas"), http.StatusForbidden)
 		return
 	}
 	if tenantID, _, tenantErr := a.tenantForRequest(r); tenantErr == nil {

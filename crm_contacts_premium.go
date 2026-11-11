@@ -268,6 +268,11 @@ func syncExistingCRMContactsForTenantDB(db *DB, tenant int64) error {
 		rows.Close()
 	}
 	for _, seed := range conversationSeeds {
+		// P1C2: Email IA ya resuelve identidad real por remitente. Un hilo
+		// NO equivale a un nuevo contacto CRM; no sembrar identidades vacías.
+		if seed.channel == "email" {
+			continue
+		}
 		crmPhone := seed.phone
 		if seed.channel != "whatsapp" && seed.channel != "whatsapp_qr" {
 			crmPhone = ""
@@ -311,10 +316,15 @@ func (a *App) crmContactsPremiumHandler(w http.ResponseWriter, r *http.Request) 
 		rows, err := a.db.Query(`SELECT
 			c.id,c.tenant_id,c.name,c.phone,c.email,c.channel,c.source,c.external_id,c.stage,c.tags,c.notes,
 			c.first_seen_at,c.last_activity_at,c.created_at,c.updated_at,
-			CASE WHEN c.external_id<>'' THEN (SELECT COUNT(*) FROM worktic_messages m WHERE m.chat_jid=c.external_id AND (m.tenant_id=c.tenant_id OR m.tenant_id=0)) ELSE 0 END,
+			(SELECT COUNT(*) FROM worktic_messages m WHERE m.tenant_id=c.tenant_id
+			 AND ((c.external_id<>'' AND m.chat_jid=c.external_id)
+			 OR (m.channel='email' AND c.email<>'' AND lower(m.sender_jid)=lower(c.email)))),
 			(SELECT COUNT(*) FROM marketing_leads l WHERE l.tenant_id=c.tenant_id AND ((c.phone<>'' AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(l.phone,'+',''),' ',''),'-',''),'(',''),')',''),'.','')=c.phone) OR (c.email<>'' AND lower(l.email)=lower(c.email)))),
 			(SELECT COUNT(*) FROM crm_opportunities o WHERE o.contact_id=c.id AND (o.tenant_id=c.tenant_id OR o.tenant_id=0) AND COALESCE(o.deleted_at,'')=''),
-			CASE WHEN c.external_id<>'' THEN COALESCE((SELECT text FROM worktic_messages m WHERE m.chat_jid=c.external_id AND (m.tenant_id=c.tenant_id OR m.tenant_id=0) ORDER BY m.id DESC LIMIT 1),'') ELSE '' END
+			COALESCE((SELECT text FROM worktic_messages m WHERE m.tenant_id=c.tenant_id
+			 AND ((c.external_id<>'' AND m.chat_jid=c.external_id)
+			 OR (m.channel='email' AND c.email<>'' AND lower(m.sender_jid)=lower(c.email)))
+			 ORDER BY m.id DESC LIMIT 1),'')
 		FROM crm_contacts c WHERE c.tenant_id=? AND COALESCE(c.deleted_at,'')=''
 		ORDER BY COALESCE(NULLIF(c.last_activity_at,''),c.updated_at) DESC,c.id DESC`, tenant)
 		if err != nil {

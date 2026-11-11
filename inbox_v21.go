@@ -168,6 +168,11 @@ func (a *App) inboxConversationHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("modo inválido"), 400)
 		return
 	}
+	// No mostrar modo IA como disponible antes de implementar respuestas seguras.
+	if strings.HasPrefix(chat, "email:") && req.Mode == "ai" {
+		writeError(w, errors.New("Email IA es solo lectura en P1C2; la atención automática no está habilitada"), http.StatusConflict)
+		return
+	}
 	if req.AssignedUserID > 0 {
 		var n int
 		_ = a.db.QueryRow(`SELECT COUNT(*) FROM app_users WHERE id=? AND tenant_id=? AND active=1`, req.AssignedUserID, tid).Scan(&n)
