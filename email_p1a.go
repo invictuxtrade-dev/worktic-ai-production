@@ -764,6 +764,9 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 	}
 	if emailP1C2Enabled(id, account) {
 		a.emailP1C2Pump(tenant, id, account)
+		if emailP1D2Enabled(id, account) {
+			a.emailP1D2Pump(tenant, id, account)
+		}
 	}
 	_, _ = a.db.Exec(`UPDATE email_p1_accounts SET sync_at=?,last_error='',updated_at=? WHERE tenant_id=? AND id=?`, emailP1Now(), emailP1Now(), tenant, id)
 	return total, nil

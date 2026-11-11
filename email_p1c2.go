@@ -101,6 +101,14 @@ func (a *App) emailP1C2Pump(tenant, account int64, accountEmail string) {
 func (a *App) emailP1C2MirrorOne(tenant, account int64, m emailP1C2Pending) error {
 	chat := emailP1C2ChatJID(tenant, account, m.ThreadID, m.ProviderID, m.Sender)
 	now := emailP1Now()
+	mode := "human"
+	// Consultar configuración antes de abrir la transacción evita bloquear SQLite.
+	if a.emailP1D2AccountReady(tenant, account) && m.Category == "Ventas" && emailP1D2AllowedRecipient(m.Sender) {
+		settings, err := a.emailP1D2GetSettings(tenant, account)
+		if err == nil && m.When > settings.EnabledAt {
+			mode = "ai"
+		}
+	}
 	tx, e := a.db.Begin()
 	if e != nil {
 		return e
@@ -147,8 +155,8 @@ func (a *App) emailP1C2MirrorOne(tenant, account int64, m emailP1C2Pending) erro
 		priority = "high"
 	}
 	_, e = tx.Exec(`INSERT INTO inbox_conversations(tenant_id,chat_jid,status,mode,priority,department,updated_at)
-        VALUES(?,?,'open','human',?,?,?) ON CONFLICT(tenant_id,chat_jid) DO NOTHING`, tenant, chat,
-		priority, m.Category, now)
+        VALUES(?,?,'open',?,?,?,?) ON CONFLICT(tenant_id,chat_jid) DO NOTHING`, tenant, chat,
+		mode, priority, m.Category, now)
 	if e != nil {
 		return e
 	}

@@ -488,7 +488,7 @@ async function loadAdmin(){
 window.reviewPayment=async(id,action)=>{}; // redefinido en V13.1
 
 function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
-async function bootstrapApp(){try{await loadMe();await loadDashboard();setInterval(()=>{loadDashboard().catch(()=>{});if($('#inbox').classList.contains('active')){loadConvs().catch(()=>{});if(activeChat)openChat(activeChat).catch(()=>{})}},8000)}catch(e){console.error('No se pudo iniciar Worktic:',e)}}
+async function bootstrapApp(){try{await loadMe();await loadDashboard();setInterval(()=>{loadDashboard().catch(()=>{});if($('#inbox').classList.contains('active')){loadConvs().catch(()=>{});if(activeChat&&window.refreshSelectedChatMessages)window.refreshSelectedChatMessages().catch(()=>{})}},8000)}catch(e){console.error('No se pudo iniciar Worktic:',e)}}
 bootstrapApp();
 const requestedAppView=new URLSearchParams(location.search).get('view');if(requestedAppView)setTimeout(()=>{const b=document.querySelector(`nav button[data-view="${requestedAppView}"]`);if(b)b.click()},450);
 

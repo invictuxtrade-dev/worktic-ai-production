@@ -628,6 +628,7 @@ func main() {
 	mux.HandleFunc("/api/inbox/conversation", app.inboxConversationHandler)
 	mux.HandleFunc("/api/inbox/notes", app.inboxNotesHandler)
 	mux.HandleFunc("/api/email/p1/draft", app.emailP1D1Handler)
+	mux.HandleFunc("/api/email/p1/auto", app.emailP1D2Handler)
 	mux.HandleFunc("/api/inbox/team", app.inboxTeamHandler)
 	mux.HandleFunc("/api/inbox/remove", app.inboxRemoveHandler)
 	mux.HandleFunc("/api/inbox/restore", app.inboxRestoreHandler)
