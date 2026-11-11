@@ -209,6 +209,29 @@ func emailP1Exchange(ctx context.Context, provider, code, redirect string) (emai
 	}
 	values := url.Values{"client_id": {id}, "client_secret": {secret}, "code": {code}, "redirect_uri": {redirect}, "grant_type": {"authorization_code"}}
 	raw, status, e := emailP1HTTP(ctx, "POST", endpoint, "", strings.NewReader(values.Encode()), "application/x-www-form-urlencoded")
+	if (e != nil) {
+	    log.Printf("[EMAIL_P1_OAUTH_DIAG] provider=%s phase=exchange category=transport_error", provider)
+	} else if status < 200 || status > 299 {
+	    var parsed struct { Error string `json:"error"` }
+	    _ = json.Unmarshal(raw, &parsed)
+	    errorCode := parsed.Error
+	    switch errorCode {
+	    case "invalid_client", "invalid_grant", "invalid_request", "unauthorized_client", "invalid_scope", "redirect_uri_mismatch", "access_denied", "server_error", "temporarily_unavailable":
+	    default:
+	        errorCode = "other"
+	    }
+	    log.Printf("[EMAIL_P1_OAUTH_DIAG] provider=%s phase=exchange http_status=%d code=%s", provider, status, errorCode)
+	} else {
+	    var parsed struct {
+	        AccessToken string `json:"access_token"`
+	        RefreshToken string `json:"refresh_token"`
+	    }
+	    if json.Unmarshal(raw, &parsed) != nil {
+	        log.Printf("[EMAIL_P1_OAUTH_DIAG] provider=%s phase=exchange category=invalid_json", provider)
+	    } else if parsed.AccessToken == "" || parsed.RefreshToken == "" {
+	        log.Printf("[EMAIL_P1_OAUTH_DIAG] provider=%s phase=exchange http_status=%d missing_access=%t missing_refresh=%t", provider, status, parsed.AccessToken == "", parsed.RefreshToken == "")
+	    }
+	}
 	if e != nil {
 		return emailP1Tokens{}, e
 	}
