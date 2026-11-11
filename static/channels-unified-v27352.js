@@ -5,7 +5,7 @@
 (()=>{'use strict';
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const nativeTypes={whatsapp_cloud:'WhatsApp Business Cloud (Oficial)',whatsapp_qr:'WhatsApp QR',telegram:'Telegram Bot',messenger:'Facebook Messenger',webchat:'Chat Web',voice_ai:'Llamadas IA',instagram:'Instagram (oficial de Meta)'};
+const nativeTypes={whatsapp_cloud:'WhatsApp Business Cloud (Oficial)',whatsapp_qr:'WhatsApp QR',telegram:'Telegram Bot',messenger:'Facebook Messenger',webchat:'Chat Web',voice_ai:'Llamadas IA',instagram:'Instagram (oficial de Meta)',email_ai:'Email IA (Gmail / Microsoft 365)'};
 const category={whatsapp_cloud:'whatsapp_cloud',whatsapp_qr:'whatsapp_qr',telegram:'telegram',messenger:'messenger',webchat:'web',voice_ai:'voice'};
 let allChannels=new Map(),webAvailable=false,voiceAvailable=false,webCountFallback=0;
 const notice=e=>{if(window.toast)window.toast(e);else alert(e)};
@@ -63,6 +63,12 @@ async function createWeb(c){
  try{if(c)window.workticWebChat.edit(c.id);else window.workticWebChat.create();return true}
  catch(e){notice('Error abriendo configuración Chat Web: '+(e.message||e));return false}
 }
+function openEmailChannel(){
+ const nav=$('aside nav button[data-view="email-ai"]');
+ if(!nav){notice('Email IA aún no está disponible en esta versión.');return}
+ nav.click();
+ $('aside nav button[data-view="channels"]')?.classList.add('active');
+}
 async function createConnection(){
  window.modal(`<h2>Nueva conexión</h2><p class="muted">Todos los canales se administran desde aquí. Selecciona el tipo de conexión.</p>
  <div class="form wt-channel-form"><label>Tipo de canal<select id="ucType">${Object.entries(nativeTypes).map(([id,label])=>`<option value="${id}">${esc(label)}</option>`).join('')}</select></label>
@@ -71,7 +77,7 @@ async function createConnection(){
  <div class="actions"><button type="button" id="ucContinue">Crear conexión</button><button value="cancel" class="secondary">Cancelar</button></div></div>`);
  api('/api/agents').then(d=>{const s=$('#ucAgent');if(s)s.replaceChildren(new Option('Selecciona un agente activo','0'),...(d.agents||[]).filter(a=>a.status==='active').map(a=>new Option(a.name,a.id)))}).catch(()=>{});
  const input=$('#ucType'), fields=$('#ucNativeFields'), btn=$('#ucContinue'),desc=$('#ucDescription');
- const update=()=>{desc.removeAttribute('role');desc.removeAttribute('style');const web=input.value==='webchat',voice=input.value==='voice_ai',wa=input.value==='whatsapp_cloud',ms=input.value==='messenger',ig=input.value==='instagram';fields.hidden=web||voice||ig;btn.textContent=wa?'Crear y conectar con Meta':ms?'Crear y conectar con Facebook':ig?'Ir a conectar Instagram':web||voice?'Continuar a configuración':'Crear conexión';desc.textContent=ig?'Instagram se autoriza una sola vez desde Redes Sociales > Cuentas. Una vez conectada, aparecerá aquí para asignar un agente IA. La conexión de clientes externos mediante Unified Login sigue en pruebas; no se garantiza aún mensajería.':web?'Configura el dominio HTTPS, el agente y el código de instalación.':voice?'Selecciona la voz, el agente y los permisos de telefonía.':wa?'Conexión oficial paso a paso: 1. Elige un agente activo. 2. Autoriza tu negocio y número directamente en Meta. 3. Verifica tu conexión. No necesitas copiar tokens ni configurar webhooks. La disponibilidad depende de tu plan y de la autorización de Meta.':'El backend validará tu plan y la asignación del agente.'};
+ const update=()=>{desc.removeAttribute('role');desc.removeAttribute('style');const web=input.value==='webchat',voice=input.value==='voice_ai',wa=input.value==='whatsapp_cloud',ms=input.value==='messenger',ig=input.value==='instagram',email=input.value==='email_ai';fields.hidden=web||voice||ig||email;btn.textContent=wa?'Crear y conectar con Meta':ms?'Crear y conectar con Facebook':ig?'Ir a conectar Instagram':email?'Conectar correo empresarial':web||voice?'Continuar a configuración':'Crear conexión';desc.textContent=email?'Conecta un buzón Gmail o Microsoft 365 autorizado. Cada buzón aparece como canal de tu empresa y se administra desde Mis Canales. La sincronización y los envíos solo se activan al configurarlos en el servidor.':ig?'Instagram se autoriza una sola vez desde Redes Sociales > Cuentas. Una vez conectada, aparecerá aquí para asignar un agente IA. La conexión de clientes externos mediante Unified Login sigue en pruebas; no se garantiza aún mensajería.':web?'Configura el dominio HTTPS, el agente y el código de instalación.':voice?'Selecciona la voz, el agente y los permisos de telefonía.':wa?'Conexión oficial paso a paso: 1. Elige un agente activo. 2. Autoriza tu negocio y número directamente en Meta. 3. Verifica tu conexión. No necesitas copiar tokens ni configurar webhooks. La disponibilidad depende de tu plan y de la autorización de Meta.':'El backend validará tu plan y la asignación del agente.'};
  input.onchange=update;update();
  btn.onclick=async()=>{
   const type=input.value;
@@ -81,6 +87,7 @@ async function createConnection(){
    return;
   }
   if(type==='voice_ai'){await voiceForm();return}
+  if(type==='email_ai'){closeModal();openEmailChannel();return}
   if(type==='instagram'){closeModal();const nav=$('aside nav button[data-view="socialhub"]');if(!nav){notice('No se encontro Redes Sociales');return}nav.click();setTimeout(()=>{if(typeof window.switchSocialTab==='function')window.switchSocialTab('connections');else $('button[data-social-tab="connections"]')?.click();notice('Conecta Instagram desde Cuentas. Cuando se autorice, vuelve a Mis Canales para asignar el agente.')},200);return}
   const p={type,name:$('#ucName').value.trim(),assigned_agent_id:Number($('#ucAgent').value||0)};
   if(!p.name){notice('Escribe el nombre del canal');return}
@@ -169,7 +176,18 @@ function wtPremiumMessengerCard(c,key,agentLookup){
   </div></article>`;
 }
 
-function card(c,key,agentLookup){if(c.type==='whatsapp_cloud')return wtPremiumWhatsAppCard(c,key,agentLookup);if(c.type==='messenger')return wtPremiumMessengerCard(c,key,agentLookup);const label=nativeTypes[c.type]||c.type,active=['connected','active','Activo'].includes(status(c));
+function wtEmailChannelCard(c,key){
+ const linked=c.status==='connected';
+ const provider=c.provider==='google'?'Gmail':c.provider==='microsoft'?'Microsoft 365':'Correo empresarial';
+ return `<article class="card wt-unified-card wt-email-channel-card" data-key="${esc(key)}">
+ <div class="top"><span class="badge">EMAIL IA · ${esc(provider)}</span><span class="pill ${linked?'wt-channel-on':''}">${linked?'Conectado':'Requiere reconexión'}</span></div>
+ <h3>${esc(c.email||'Buzón empresarial')}</h3>
+ <p class="wt-channel-detail">Canal de atención oficial · ${esc(provider)}. Correos asociados a tu empresa y CRM.</p>
+ <small>Sincronización: ${esc(c.sync_at||'Pendiente')} · Respuestas automáticas apagadas</small>
+ <div class="actions"><button type="button" data-uc-action="configure" data-uc-key="${esc(key)}">Gestionar canal</button><button type="button" class="secondary" data-uc-action="inbox" data-uc-key="${esc(key)}">Bandeja Email IA</button></div>
+ </article>`;
+}
+function card(c,key,agentLookup){if(c.type==='email_ai')return wtEmailChannelCard(c,key);if(c.type==='whatsapp_cloud')return wtPremiumWhatsAppCard(c,key,agentLookup);if(c.type==='messenger')return wtPremiumMessengerCard(c,key,agentLookup);const label=nativeTypes[c.type]||c.type,active=['connected','active','Activo'].includes(status(c));
  return `<article class="card wt-unified-card" data-key="${esc(key)}"><div class="top"><span class="badge ${esc(category[c.type]||'')}">${esc(label)}</span><span class="pill ${active?'wt-channel-on':''}">${esc(status(c))}</span></div><h3>${esc(c.name)}</h3><p class="wt-channel-detail">${esc(details(c))}</p><small>Agente asignado: ${esc(c.assigned_agent_id||c.agent_id||'Sin asignar')}</small>${c.type==='whatsapp_qr'?`<div id="qrbox-${esc(c.id)}"></div>`:''}<div class="actions">
  <button type="button" data-uc-action="configure" data-uc-key="${esc(key)}">Configurar</button>
  ${c.type==='webchat'?`<button type="button" class="secondary" data-uc-action="install" data-uc-key="${esc(key)}">Instalar widget</button><button type="button" class="secondary" data-uc-action="inbox" data-uc-key="${esc(key)}">Conversaciones</button>`:''}
@@ -178,20 +196,22 @@ function card(c,key,agentLookup){if(c.type==='whatsapp_cloud')return wtPremiumWh
  ${!['webchat','voice_ai'].includes(c.type)?`<button type="button" class="secondary" data-uc-action="test" data-uc-key="${esc(key)}">Probar conexión</button><button type="button" class="secondary" data-uc-action="pause" data-uc-key="${esc(key)}">Pausar</button><button type="button" class="danger" data-uc-action="delete" data-uc-key="${esc(key)}">Eliminar</button>`:''}</div></article>`}
 async function refresh(){
  const grid=$('#channelConnections');if(!grid)return;
- const [base,health,web,voice,agentResponse]=await Promise.allSettled([api('/api/channels/connections'),api('/api/channels/health'),api('/api/webchat/channels'),api('/api/voice/v2735/overview'),api('/api/agents')]);
+ const [base,health,web,voice,agentResponse,emailResponse]=await Promise.allSettled([api('/api/channels/connections'),api('/api/channels/health'),api('/api/webchat/channels'),api('/api/voice/v2735/overview'),api('/api/agents'),api('/api/email/p1/accounts')]);
  if(base.status!=='fulfilled'){notice('Error consultando los canales: '+base.reason.message);return}
  const d=base.value,h=health.status==='fulfilled'?health.value:{states:{},messages:0};h.states=h.states||{};
  webAvailable=web.status==='fulfilled'&&web.value.feature_enabled!==false;voiceAvailable=voice.status==='fulfilled';
  const webItems=webAvailable?(web.value.channels||[]):[],voiceItems=voiceAvailable?(voice.value.channels||[]):[];
+ const emailItems=emailResponse.status==='fulfilled'?(emailResponse.value.items||[]):[];
  allChannels=new Map();
  const agentLookup=new Map();if(agentResponse.status==='fulfilled'){for(const a of (agentResponse.value.agents||[])){if(Number.isSafeInteger(Number(a.id))&&Number(a.id)>0)agentLookup.set(Number(a.id),{name:a.name,status:a.status});}}
  (d.connections||[]).forEach(c=>allChannels.set('native:'+c.id,mapped(c,c.type)));
  webItems.forEach(c=>allChannels.set('web:'+c.id,mapped(c,'webchat')));
  voiceItems.forEach(c=>allChannels.set('voice:'+c.id,mapped(c,'voice_ai')));
+ emailItems.forEach(c=>allChannels.set('email:'+c.id,mapped({...c,name:c.email},'email_ai')));
  const recordedWeb=Math.max(Number(d.web_count||0),webItems.length);
- const count=(d.connections||[]).length+recordedWeb+voiceItems.length;
+ const count=(d.connections||[]).length+recordedWeb+voiceItems.length+emailItems.length;
  $('#channelLimit').textContent=`${count} conexiones registradas · límite estándar del plan: ${Number(d.max_total||0)}`;
- const active=(h.states.connected||0)+webItems.filter(c=>c.enabled).length+voiceItems.filter(c=>c.enabled).length;
+ const active=(h.states.connected||0)+webItems.filter(c=>c.enabled).length+voiceItems.filter(c=>c.enabled).length+emailItems.filter(c=>c.status==='connected').length;
  $('#channelHealth').innerHTML=[['Activos',active],['Esperando QR',h.states.waiting_qr||0],['Con error',h.states.error||0],['Mensajes aislados',h.messages||0]].map(([label,v])=>`<div class="stat"><b>${Number(v)||0}</b><small>${label}</small></div>`).join('');
  grid.innerHTML=allChannels.size?[...allChannels.entries()].map(([key,c])=>card(c,key,agentLookup)).join(''):'<p>No hay conexiones. Usa «Nueva conexión» para conectar tu primer canal.</p>';
  if(!webAvailable||!voiceAvailable){const p=document.createElement('p');p.className='wt-unified-note';p.textContent=[!webAvailable?'Chat Web no habilitado o no disponible.':'',!voiceAvailable?'Servicio de voz no disponible.':''].filter(Boolean).join(' ');grid.after(p);grid.parentElement.querySelectorAll('.wt-unified-note').forEach((el,i)=>{if(i>0)el.remove()})}
@@ -199,6 +219,7 @@ async function refresh(){
 }
 async function action(evt){const b=evt.target.closest('[data-uc-action]');if(!b)return;const c=allChannels.get(b.dataset.ucKey);if(!c)return;
  const name=b.dataset.ucAction;
+ if(c.type==='email_ai'){if(name==='configure'||name==='inbox')openEmailChannel();return}
  if(c.type==='webchat'){
   if(name==='inbox'){$('aside nav button[data-view="inbox"]')?.click();const f=$('#channelConvFilter');if(f){f.value='web';f.dispatchEvent(new Event('change'))}return}
   await window.workticWebChat?.prepare();
