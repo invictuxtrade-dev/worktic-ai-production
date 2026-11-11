@@ -185,7 +185,7 @@ function wtEmailChannelCard(c,key){
  <div class="actions"><button type="button" data-uc-action="configure" data-uc-key="${esc(key)}">Gestionar canal</button><button type="button" class="secondary" data-uc-action="inbox" data-uc-key="${esc(key)}">Bandeja Email IA</button></div>
  </article>`;
 }
-function card(c,key,agentLookup){if(c.type==='email_ai')return window.WorkticEmailChannel?.card(c,key)||wtEmailChannelCard(c,key);if(c.type==='whatsapp_cloud')return wtPremiumWhatsAppCard(c,key,agentLookup);if(c.type==='messenger')return wtPremiumMessengerCard(c,key,agentLookup);const label=nativeTypes[c.type]||c.type,active=['connected','active','Activo'].includes(status(c));
+function card(c,key,agentLookup){if(c.type==='instagram')return window.workticInstagramB102?.card(c,agentLookup)||`<article class="card wt-unified-card"><h3>Instagram · ${esc(c.name||'Cuenta conectada')}</h3><p>Actualiza la página para gestionar la cuenta de Instagram.</p></article>`;if(c.type==='email_ai')return window.WorkticEmailChannel?.card(c,key)||wtEmailChannelCard(c,key);if(c.type==='whatsapp_cloud')return wtPremiumWhatsAppCard(c,key,agentLookup);if(c.type==='messenger')return wtPremiumMessengerCard(c,key,agentLookup);const label=nativeTypes[c.type]||c.type,active=['connected','active','Activo'].includes(status(c));
  return `<article class="card wt-unified-card" data-key="${esc(key)}"><div class="top"><span class="badge ${esc(category[c.type]||'')}">${esc(label)}</span><span class="pill ${active?'wt-channel-on':''}">${esc(status(c))}</span></div><h3>${esc(c.name)}</h3><p class="wt-channel-detail">${esc(details(c))}</p><small>Agente asignado: ${esc(c.assigned_agent_id||c.agent_id||'Sin asignar')}</small>${c.type==='whatsapp_qr'?`<div id="qrbox-${esc(c.id)}"></div>`:''}<div class="actions">
  <button type="button" data-uc-action="configure" data-uc-key="${esc(key)}">Configurar</button>
  ${c.type==='webchat'?`<button type="button" class="secondary" data-uc-action="install" data-uc-key="${esc(key)}">Instalar widget</button><button type="button" class="secondary" data-uc-action="inbox" data-uc-key="${esc(key)}">Conversaciones</button>`:''}
@@ -194,23 +194,26 @@ function card(c,key,agentLookup){if(c.type==='email_ai')return window.WorkticEma
  ${!['webchat','voice_ai'].includes(c.type)?`<button type="button" class="secondary" data-uc-action="test" data-uc-key="${esc(key)}">Probar conexión</button><button type="button" class="secondary" data-uc-action="pause" data-uc-key="${esc(key)}">Pausar</button><button type="button" class="danger" data-uc-action="delete" data-uc-key="${esc(key)}">Eliminar</button>`:''}</div></article>`}
 async function refresh(){
  const grid=$('#channelConnections');if(!grid)return;
- const [base,health,web,voice,agentResponse,emailResponse]=await Promise.allSettled([api('/api/channels/connections'),api('/api/channels/health'),api('/api/webchat/channels'),api('/api/voice/v2735/overview'),api('/api/agents'),api('/api/email/p1/accounts')]);
+ // P1A4_INSTAGRAM_IN_GRID: Instagram participa en la misma fuente y paginacion.
+ const [base,health,web,voice,agentResponse,emailResponse,instagramResponse]=await Promise.allSettled([api('/api/channels/connections'),api('/api/channels/health'),api('/api/webchat/channels'),api('/api/voice/v2735/overview'),api('/api/agents'),api('/api/email/p1/accounts'),api('/api/social/b10/instagram-channel')]);
  if(base.status!=='fulfilled'){notice('Error consultando los canales: '+base.reason.message);return}
  const d=base.value,h=health.status==='fulfilled'?health.value:{states:{},messages:0};h.states=h.states||{};
  webAvailable=web.status==='fulfilled'&&web.value.feature_enabled!==false;voiceAvailable=voice.status==='fulfilled';
  const webItems=webAvailable?(web.value.channels||[]):[],voiceItems=voiceAvailable?(voice.value.channels||[]):[];
  const emailItems=emailResponse.status==='fulfilled'?(emailResponse.value.items||[]):[];
+ const instagramItems=instagramResponse.status==='fulfilled'&&Array.isArray(instagramResponse.value.connections)?instagramResponse.value.connections:[];
  allChannels=new Map();
  const agentLookup=new Map();if(agentResponse.status==='fulfilled'){for(const a of (agentResponse.value.agents||[])){if(Number.isSafeInteger(Number(a.id))&&Number(a.id)>0)agentLookup.set(Number(a.id),{name:a.name,status:a.status});}}
  (d.connections||[]).forEach(c=>allChannels.set('native:'+c.id,mapped(c,c.type)));
  webItems.forEach(c=>allChannels.set('web:'+c.id,mapped(c,'webchat')));
  voiceItems.forEach(c=>allChannels.set('voice:'+c.id,mapped(c,'voice_ai')));
+ instagramItems.forEach(c=>allChannels.set('instagram:'+c.id,mapped({...c,name:c.account_name,status:c.status||'connected'},'instagram')));
  emailItems.forEach(c=>allChannels.set('email:'+c.id,mapped({...c,name:c.email},'email_ai')));
  if(!emailItems.length){const disabled=emailResponse.status==='rejected' && /no está habilitado/i.test(String(emailResponse.reason?.message||''));allChannels.set('email:setup',mapped({id:0,name:'Email IA',email:'',setup:true,status:disabled?'disabled':'pending'},'email_ai'));}
  const recordedWeb=Math.max(Number(d.web_count||0),webItems.length);
- const count=(d.connections||[]).length+recordedWeb+voiceItems.length+emailItems.length;
+ const count=(d.connections||[]).length+recordedWeb+voiceItems.length+emailItems.length+instagramItems.length;
  $('#channelLimit').textContent=`${count} conexiones registradas · límite estándar del plan: ${Number(d.max_total||0)}`;
- const active=(h.states.connected||0)+webItems.filter(c=>c.enabled).length+voiceItems.filter(c=>c.enabled).length+emailItems.filter(c=>c.status==='connected').length;
+ const active=(h.states.connected||0)+webItems.filter(c=>c.enabled).length+voiceItems.filter(c=>c.enabled).length+emailItems.filter(c=>c.status==='connected').length+instagramItems.filter(c=>c.status==='connected'||!c.status).length;
  $('#channelHealth').innerHTML=[['Activos',active],['Esperando QR',h.states.waiting_qr||0],['Con error',h.states.error||0],['Mensajes aislados',h.messages||0]].map(([label,v])=>`<div class="stat"><b>${Number(v)||0}</b><small>${label}</small></div>`).join('');
  grid.innerHTML=allChannels.size?[...allChannels.entries()].map(([key,c])=>card(c,key,agentLookup)).join(''):'<p>No hay conexiones. Usa «Nueva conexión» para conectar tu primer canal.</p>';
  if(!webAvailable||!voiceAvailable){const p=document.createElement('p');p.className='wt-unified-note';p.textContent=[!webAvailable?'Chat Web no habilitado o no disponible.':'',!voiceAvailable?'Servicio de voz no disponible.':''].filter(Boolean).join(' ');grid.after(p);grid.parentElement.querySelectorAll('.wt-unified-note').forEach((el,i)=>{if(i>0)el.remove()})}
