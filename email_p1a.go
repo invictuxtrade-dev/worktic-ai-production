@@ -209,28 +209,30 @@ func emailP1Exchange(ctx context.Context, provider, code, redirect string) (emai
 	}
 	values := url.Values{"client_id": {id}, "client_secret": {secret}, "code": {code}, "redirect_uri": {redirect}, "grant_type": {"authorization_code"}}
 	raw, status, e := emailP1HTTP(ctx, "POST", endpoint, "", strings.NewReader(values.Encode()), "application/x-www-form-urlencoded")
-	if (e != nil) {
-	    log.Printf("[EMAIL_P1_OAUTH_DIAG] provider=%s phase=exchange category=transport_error", provider)
+	if e != nil {
+		log.Printf("[EMAIL_P1_OAUTH_DIAG] provider=%s phase=exchange category=transport_error", provider)
 	} else if status < 200 || status > 299 {
-	    var parsed struct { Error string `json:"error"` }
-	    _ = json.Unmarshal(raw, &parsed)
-	    errorCode := parsed.Error
-	    switch errorCode {
-	    case "invalid_client", "invalid_grant", "invalid_request", "unauthorized_client", "invalid_scope", "redirect_uri_mismatch", "access_denied", "server_error", "temporarily_unavailable":
-	    default:
-	        errorCode = "other"
-	    }
-	    log.Printf("[EMAIL_P1_OAUTH_DIAG] provider=%s phase=exchange http_status=%d code=%s", provider, status, errorCode)
+		var parsed struct {
+			Error string `json:"error"`
+		}
+		_ = json.Unmarshal(raw, &parsed)
+		errorCode := parsed.Error
+		switch errorCode {
+		case "invalid_client", "invalid_grant", "invalid_request", "unauthorized_client", "invalid_scope", "redirect_uri_mismatch", "access_denied", "server_error", "temporarily_unavailable":
+		default:
+			errorCode = "other"
+		}
+		log.Printf("[EMAIL_P1_OAUTH_DIAG] provider=%s phase=exchange http_status=%d code=%s", provider, status, errorCode)
 	} else {
-	    var parsed struct {
-	        AccessToken string `json:"access_token"`
-	        RefreshToken string `json:"refresh_token"`
-	    }
-	    if json.Unmarshal(raw, &parsed) != nil {
-	        log.Printf("[EMAIL_P1_OAUTH_DIAG] provider=%s phase=exchange category=invalid_json", provider)
-	    } else if parsed.AccessToken == "" || parsed.RefreshToken == "" {
-	        log.Printf("[EMAIL_P1_OAUTH_DIAG] provider=%s phase=exchange http_status=%d missing_access=%t missing_refresh=%t", provider, status, parsed.AccessToken == "", parsed.RefreshToken == "")
-	    }
+		var parsed struct {
+			AccessToken  string `json:"access_token"`
+			RefreshToken string `json:"refresh_token"`
+		}
+		if json.Unmarshal(raw, &parsed) != nil {
+			log.Printf("[EMAIL_P1_OAUTH_DIAG] provider=%s phase=exchange category=invalid_json", provider)
+		} else if parsed.AccessToken == "" || parsed.RefreshToken == "" {
+			log.Printf("[EMAIL_P1_OAUTH_DIAG] provider=%s phase=exchange http_status=%d missing_access=%t missing_refresh=%t", provider, status, parsed.AccessToken == "", parsed.RefreshToken == "")
+		}
 	}
 	if e != nil {
 		return emailP1Tokens{}, e
@@ -419,7 +421,14 @@ func (a *App) emailP1Accounts(w http.ResponseWriter, r *http.Request) {
 			out = append(out, x)
 		}
 	}
-	writeJSON(w, map[string]any{"ok": true, "items": out, "google_ready": os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_SECRET") != "", "microsoft_ready": os.Getenv("WORKTIC_EMAIL_MS_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_MS_CLIENT_SECRET") != "", "sync_enabled": emailP1Flag("WORKTIC_EMAIL_P1_SYNC_ENABLED"), "manual_send_enabled": emailP1Flag("WORKTIC_EMAIL_P1_MANUAL_SEND_ENABLED")})
+	pilotAllowed := false
+	for _, acc := range out {
+		if acc.Provider == "google" && acc.Status == "connected" && emailP1BAllowedAccount(acc.ID, acc.Email) {
+			pilotAllowed = true
+			break
+		}
+	}
+	writeJSON(w, map[string]any{"ok": true, "items": out, "google_ready": os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_SECRET") != "", "microsoft_ready": os.Getenv("WORKTIC_EMAIL_MS_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_MS_CLIENT_SECRET") != "", "sync_enabled": emailP1Flag("WORKTIC_EMAIL_P1_SYNC_ENABLED"), "p1b_fast_sync": emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "manual_send_enabled": emailP1Flag("WORKTIC_EMAIL_P1_MANUAL_SEND_ENABLED")})
 }
 
 type emailP1Mail struct {
@@ -462,9 +471,13 @@ func emailP1StripHTML(s string) string {
 	s = regexp.MustCompile(`(?s)<[^>]*>`).ReplaceAllString(s, " ")
 	return emailP1Clean(html.UnescapeString(strings.Join(strings.Fields(s), " ")), 8000)
 }
-func emailP1ProviderMessages(ctx context.Context, provider, token string) ([]emailP1Mail, error) {
+func emailP1ProviderMessages(ctx context.Context, provider, token string, shouldFetch ...func(string) (bool, error)) ([]emailP1Mail, error) {
 	if provider == "google" {
-		q := url.Values{"maxResults": {"25"}, "q": {"in:inbox newer_than:7d"}}
+		maxList := "25"
+		if len(shouldFetch) > 0 && shouldFetch[0] != nil {
+			maxList = "100"
+		}
+		q := url.Values{"maxResults": {maxList}, "q": {"in:inbox newer_than:7d"}}
 		raw, status, e := emailP1HTTP(ctx, "GET", "https://gmail.googleapis.com/gmail/v1/users/me/messages?"+q.Encode(), token, nil, "")
 		if e != nil {
 			return nil, e
@@ -484,6 +497,19 @@ func emailP1ProviderMessages(ctx context.Context, provider, token string) ([]ema
 		for _, v := range listing.Messages {
 			if v.ID == "" {
 				continue
+			}
+			if len(shouldFetch) > 0 && len(result) >= 25 {
+				break
+			} // Limit full downloads per pass.
+			// WORKTIC_EMAIL_P1B1_INCREMENTAL: do not download full content of messages already stored.
+			if len(shouldFetch) > 0 && shouldFetch[0] != nil {
+				needed, checkErr := shouldFetch[0](v.ID)
+				if checkErr != nil {
+					return nil, checkErr
+				}
+				if !needed {
+					continue
+				}
 			}
 			raw, status, e = emailP1HTTP(ctx, "GET", "https://gmail.googleapis.com/gmail/v1/users/me/messages/"+url.PathEscape(v.ID)+"?format=full", token, nil, "")
 			if e != nil {
@@ -675,7 +701,19 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 	if e != nil {
 		return 0, e
 	}
-	mails, e := emailP1ProviderMessages(ctx, provider, token)
+	// WORKTIC_EMAIL_P1B1_INCREMENTAL: opt-in scope for a single verified pilot mailbox.
+	if emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && (provider != "google" || !emailP1BAllowedAccount(id, account)) {
+		return 0, errors.New("buzón no autorizado para el piloto rápido")
+	}
+	var isNeeded func(string) (bool, error)
+	if provider == "google" && emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") {
+		isNeeded = func(messageID string) (bool, error) {
+			var count int
+			err := a.db.QueryRow(`SELECT COUNT(*) FROM email_p1_messages WHERE tenant_id=? AND account_id=? AND provider_id=?`, tenant, id, messageID).Scan(&count)
+			return count == 0, err
+		}
+	}
+	mails, e := emailP1ProviderMessages(ctx, provider, token, isNeeded)
 	if e != nil {
 		return 0, e
 	}
@@ -691,9 +729,13 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 			continue
 		}
 		cat, pri, sum := a.emailP1Triage(ctx, tenant, m.Subject, m.Body)
-		_, e = a.db.Exec(`INSERT INTO email_p1_messages(tenant_id,account_id,provider_id,thread_id,internet_id,sender,subject,body,received_at,category,priority,summary,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id,account_id,provider_id) DO NOTHING`, tenant, id, m.ID, m.Thread, m.Internet, m.Sender, m.Subject, m.Body, m.When, cat, pri, sum, emailP1Now())
+		insertResult, e := a.db.Exec(`INSERT INTO email_p1_messages(tenant_id,account_id,provider_id,thread_id,internet_id,sender,subject,body,received_at,category,priority,summary,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id,account_id,provider_id) DO NOTHING`, tenant, id, m.ID, m.Thread, m.Internet, m.Sender, m.Subject, m.Body, m.When, cat, pri, sum, emailP1Now())
 		if e != nil {
 			log.Printf("[EMAIL-P1] no se pudo persistir un email")
+			continue
+		}
+		inserted, _ := insertResult.RowsAffected()
+		if inserted == 0 { // Concurrent worker or retry; never duplicate CRM effects.
 			continue
 		}
 		total++
@@ -707,7 +749,11 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 }
 func (a *App) runEmailP1Worker() {
 	log.Printf("[EMAIL-P1] worker iniciado, envío automático desactivado")
-	ticker := time.NewTicker(3 * time.Minute)
+	interval := 3 * time.Minute
+	if emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") {
+		interval = 45 * time.Second
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		if !emailP1Enabled() || !emailP1Flag("WORKTIC_EMAIL_P1_SYNC_ENABLED") {
@@ -734,6 +780,9 @@ func (a *App) runEmailP1Worker() {
 			}
 			rows.Close()
 			for _, x := range batch {
+				if emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && (x.p != "google" || !emailP1BAllowedAccount(x.id, x.email)) {
+					continue
+				}
 				ctx, cancel := context.WithTimeout(context.Background(), 55*time.Second)
 				_, e = a.emailP1SyncOne(ctx, x.tid, x.id, x.p, x.email, x.enc)
 				cancel()
@@ -1019,4 +1068,32 @@ func (a *App) emailP1Assign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true, "state": "human"})
+}
+
+// WORKTIC_EMAIL_P1B1_INCREMENTAL — opt-in email allowlist, never enabled by default.
+func emailP1BAllowedAccount(accountID int64, address string) bool {
+	raw := strings.TrimSpace(os.Getenv("WORKTIC_EMAIL_P1B_ALLOWED_EMAILS"))
+	if raw == "" {
+		return false
+	} // Fail closed: no unrestricted pilot.
+	ids := strings.TrimSpace(os.Getenv("WORKTIC_EMAIL_P1B_ALLOWED_ACCOUNT_IDS"))
+	if ids == "" {
+		return false
+	}
+	matchedID := false
+	for _, item := range strings.Split(ids, ",") {
+		if strings.TrimSpace(item) == strconv.FormatInt(accountID, 10) {
+			matchedID = true
+			break
+		}
+	}
+	if !matchedID {
+		return false
+	}
+	for _, item := range strings.Split(raw, ",") {
+		if strings.EqualFold(strings.TrimSpace(item), strings.TrimSpace(address)) {
+			return true
+		}
+	}
+	return false
 }

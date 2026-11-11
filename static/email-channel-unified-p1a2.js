@@ -4,7 +4,9 @@
 (()=>{'use strict';
 const E = v => String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $ = s => document.querySelector(s);
-const state = {accounts:[],messages:[],team:[],accountId:null,tab:'accounts',enabled:false,googleReady:false,syncEnabled:false,sendEnabled:false,loading:false,error:'',info:'',replyId:null,busy:false};
+const state = {accounts:[],messages:[],team:[],accountId:null,tab:'accounts',enabled:false,googleReady:false,syncEnabled:false,sendEnabled:false,p1bFastSync:false,loading:false,error:'',info:'',replyId:null,busy:false};
+// WORKTIC_EMAIL_P1B1_INCREMENTAL: read-only polling of the stored inbox, no autonomous sends.
+let p1bPollTimer=null,p1bRequestActive=false;
 const admin = () => ['superadmin','admin','owner'].includes(String(window.currentUser?.role||'').toLowerCase());
 const provider = p => p==='google'?'Gmail':p==='microsoft'?'Microsoft 365':'Correo empresarial';
 const dateText = x => {if(!x)return 'Sin sincronizar';const d=new Date(x);return Number.isNaN(d.getTime())?'Sin sincronizar':d.toLocaleString('es-CO')};
@@ -42,17 +44,33 @@ function messagesHtml(){if(!state.enabled)return '<div class="wt-email-empty">La
  const rows=m.map(x=>`<article class="wt-email-message"><div><b>${E(x.subject||'Sin asunto')}</b><span>${E(dateText(x.received))}</span></div><small>De: ${E(x.sender)} · Para: ${E(x.account)}</small><div class="wt-email-msglabels"><span>${E(x.category||'Sin clasificar')}</span><span>${E(x.priority||'Normal')}</span>${x.state==='human'?'<span>Atención humana</span>':''}</div><p>${E(x.summary||'')}</p><details><summary>Leer mensaje</summary><p class="wt-email-body-text">${E(String(x.body||'Sin contenido').slice(0,12000))}</p></details>
  <div class="wt-email-message-actions"><select data-email-select-for="${Number(x.id)}" aria-label="Integrante del equipo">${options}</select><button type="button" data-email-action="assign" data-email-id="${Number(x.id)}" ${state.busy?'disabled':''}>Asignar</button><button type="button" class="secondary" data-email-action="reply-open" data-email-id="${Number(x.id)}" ${!state.sendEnabled||state.busy?'disabled':''}>Responder</button></div>
  ${state.replyId===x.id?`<div class="wt-email-reply"><label>Respuesta a ${E(x.sender)}<textarea data-email-reply-for="${Number(x.id)}" rows="4" maxlength="8000" placeholder="Redacta una respuesta profesional"></textarea></label><button type="button" data-email-action="reply-send" data-email-id="${Number(x.id)}" ${state.busy?'disabled':''}>Enviar respuesta</button></div>`:''}</article>`).join('');
- return `<div class="wt-email-list-title"><div><h3>Bandeja Email IA</h3><small>${selected?'Buzón: '+E(selected.email):'Todos los buzones'}</small></div><button type="button" class="secondary" data-email-action="refresh-messages">Actualizar</button></div>${!state.syncEnabled?'<p class="wt-email-hint">La sincronización está apagada en el servidor; no se recibirán mensajes nuevos hasta activarla.</p>':''}${rows||'<div class="wt-email-empty">Aún no hay correos sincronizados en este buzón.</div>'}<p class="wt-email-hint">Esta es la bandeja Email IA del canal. La incorporación al historial central de Conversaciones y la asignación de un agente IA requieren la siguiente fase de integración.</p>`;
+ return `<div class="wt-email-list-title"><div><h3>Bandeja Email IA</h3><small>${selected?'Buzón: '+E(selected.email):'Todos los buzones'}</small>${state.p1bFastSync&&state.syncEnabled?'<small>Actualización automática de esta bandeja cada 15 segundos</small>':''}</div><button type="button" class="secondary" data-email-action="refresh-messages">Actualizar</button></div>${!state.syncEnabled?'<p class="wt-email-hint">La sincronización está apagada en el servidor; no se recibirán mensajes nuevos hasta activarla.</p>':''}${rows||'<div class="wt-email-empty">Aún no hay correos sincronizados en este buzón.</div>'}<p class="wt-email-hint">Esta es la bandeja Email IA del canal. La incorporación al historial central de Conversaciones y la asignación de un agente IA requieren la siguiente fase de integración.</p>`;
 }
 function render(){const root=$('#modal .wt-email-modal');if(!root)return;
  const x=root.querySelector('#wtEmailModalBody'),s=root.querySelector('#wtEmailModalStatus');
  s.innerHTML=statusHtml();x.innerHTML=state.tab==='inbox'?messagesHtml():accountsHtml();
  root.querySelector('[data-email-action="tab-accounts"]').classList.toggle('active',state.tab==='accounts');root.querySelector('[data-email-action="tab-inbox"]').classList.toggle('active',state.tab==='inbox');
 }
-async function loadAccounts(){state.loading=true;state.error='';render();try{const d=await request('/api/email/p1/accounts');state.enabled=true;state.accounts=Array.isArray(d.items)?d.items:[];state.googleReady=!!d.google_ready;state.syncEnabled=!!d.sync_enabled;state.sendEnabled=!!d.manual_send_enabled}catch(e){state.enabled=false;state.accounts=[];state.googleReady=false;state.syncEnabled=false;state.sendEnabled=false;state.error=e.status===503?'Email IA no está habilitado o todavía no está disponible en el servidor.':e.message}finally{state.loading=false;render()}}
+async function loadAccounts(){state.loading=true;state.error='';render();try{const d=await request('/api/email/p1/accounts');state.enabled=true;state.accounts=Array.isArray(d.items)?d.items:[];state.googleReady=!!d.google_ready;state.syncEnabled=!!d.sync_enabled;state.p1bFastSync=!!d.p1b_fast_sync;state.sendEnabled=!!d.manual_send_enabled}catch(e){state.enabled=false;state.accounts=[];state.googleReady=false;state.syncEnabled=false;state.p1bFastSync=false;state.sendEnabled=false;state.error=e.status===503?'Email IA no está habilitado o todavía no está disponible en el servidor.':e.message}finally{state.loading=false;render()}}
 async function loadMessages(){if(!state.enabled){render();return}state.loading=true;render();try{const [m,u]=await Promise.all([request('/api/email/p1/messages'),request('/api/email/p1/team')]);state.messages=Array.isArray(m.items)?m.items:[];state.team=Array.isArray(u.items)?u.items:[];state.error=''}catch(e){state.messages=[];state.error=e.message}finally{state.loading=false;render()}}
+async function p1bRefreshInboxQuietly(){
+ const dialog=$('#modal'),root=$('#modal .wt-email-modal');
+ if(!root||!dialog||!dialog.open){if(p1bPollTimer){clearInterval(p1bPollTimer);p1bPollTimer=null}return}
+ if(document.hidden||!state.p1bFastSync||!state.syncEnabled||!state.enabled||state.tab!=='inbox'||state.loading||state.busy||state.replyId!==null||p1bRequestActive)return;
+ if(root.contains(document.activeElement)&&document.activeElement?.matches('input,textarea,select'))return;
+ p1bRequestActive=true;
+ try{const d=await request('/api/email/p1/messages');const received=Array.isArray(d.items)?d.items:[];
+ const fingerprint=items=>items.map(m=>[m.id,m.account_id,m.state,m.assigned_user_id].join(':')).join('|');
+ if(fingerprint(received)!==fingerprint(state.messages)){
+   const added=received.filter(m=>!state.messages.some(old=>Number(old.id)===Number(m.id))).length;
+   state.messages=received;state.error='';if(added>0)state.info=added+' correo(s) nuevo(s) recibidos';
+   render();
+ }
+ }catch(_){/* Keep last usable inbox on transient network failures. */}
+ finally{p1bRequestActive=false}
+}
 async function execute(evt){const b=evt.target.closest('button[data-email-action]');if(!b||state.busy)return;const action=b.dataset.emailAction,id=Number(b.dataset.emailId||0);
- if(action==='close'){document.querySelector('#modal')?.close();return}
+ if(action==='close'){if(p1bPollTimer){clearInterval(p1bPollTimer);p1bPollTimer=null}document.querySelector('#modal')?.close();return}
  if(action==='tab-accounts'){state.tab='accounts';state.replyId=null;render();return}
  if(action==='tab-inbox'){state.tab='inbox';await loadMessages();return}
  if(action==='refresh'){await loadAccounts();return}
@@ -69,14 +87,14 @@ async function execute(evt){const b=evt.target.closest('button[data-email-action
  else if(action==='disconnect'){if(!admin()||!confirm('¿Desconectar el buzón? Se conserva el historial de correos ya recibido.'))return;url='/api/email/p1/accounts/disconnect';payload={id}}
  else if(action==='assign'){const sel=$(`#modal [data-email-select-for="${id}"]`);const userId=Number(sel?.value||0);if(!userId){state.error='Selecciona un integrante del equipo.';render();return}url='/api/email/p1/assign';payload={message_id:id,user_id:userId}}
  else if(action==='reply-send'){if(!state.sendEnabled)return;const txt=$(`#modal [data-email-reply-for="${id}"]`)?.value.trim();if(!txt){state.error='Escribe la respuesta.';render();return}if(!confirm('¿Enviar esta respuesta al remitente?'))return;url='/api/email/p1/reply';payload={message_id:id,text:txt,request_id:crypto.randomUUID()}}
- state.busy=true;state.error='';state.info='Procesando solicitud…';render();try{const out=await request(url,'POST',payload);state.info=action==='sync'?`Sincronización completada: ${Number(out.new||0)} mensajes nuevos`:action==='reply-send'?'Respuesta enviada al proveedor':action==='disconnect'?'Buzón desconectado':'Asignación guardada';if(action==='disconnect'){state.accountId=null;state.tab='accounts'}if(action==='reply-send')state.replyId=null;await loadAccounts();if(state.tab==='inbox')await loadMessages();window.workticUnified?.refresh?.();}
- catch(e){state.error=e.message}finally{state.busy=false;render()}
+ state.busy=true;state.error='';state.info=action==='sync'?'Sincronizando nuevos mensajes de Gmail…':'Procesando solicitud…';render();try{const out=await request(url,'POST',payload);state.info=action==='sync'?`Sincronización completada: ${Number(out.new||0)} mensajes nuevos`:action==='reply-send'?'Respuesta enviada al proveedor':action==='disconnect'?'Buzón desconectado':'Asignación guardada';if(action==='disconnect'){state.accountId=null;state.tab='accounts'}if(action==='reply-send')state.replyId=null;await loadAccounts();if(state.tab==='inbox')await loadMessages();window.workticUnified?.refresh?.();}
+ catch(e){state.info='';state.error=e.message}finally{state.busy=false;render()}
 }
 function open(c,tab='accounts'){
  if(typeof window.modal!=='function'){alert('La ventana de configuración no está disponible. Actualiza la página.');return}
  state.accountId=c&&!c.setup?Number(c.id)||null:null;state.tab=tab==='inbox'?'inbox':'accounts';state.info='';state.error='';state.replyId=null;state.messages=[];state.team=[];
  const existing=document.querySelector('#modal');if(existing?.open)existing.close();
- window.modal(modalContents());const root=$('#modal .wt-email-modal');root.addEventListener('click',e=>{execute(e).catch(err=>{state.error=err.message;render()})});
+ window.modal(modalContents());if(p1bPollTimer)clearInterval(p1bPollTimer);p1bPollTimer=setInterval(p1bRefreshInboxQuietly,15000);const root=$('#modal .wt-email-modal');root.addEventListener('click',e=>{execute(e).catch(err=>{state.error=err.message;render()})});
  loadAccounts().then(()=>{if(state.tab==='inbox')return loadMessages()});
 }
 window.WorkticEmailChannel={card,open};
