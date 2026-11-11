@@ -1,17 +1,18 @@
+/* WORKTIC_EMAIL_ONLY_GMAIL_P1A5 */
 /* Worktic AI · Email IA · Gestión modal en Mis Canales P1A.2.
    Sin almacenamiento de secretos en el cliente ni envío autónomo. */
 (()=>{'use strict';
 const E = v => String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $ = s => document.querySelector(s);
-const state = {accounts:[],messages:[],team:[],accountId:null,tab:'accounts',enabled:false,googleReady:false,microsoftReady:false,syncEnabled:false,sendEnabled:false,loading:false,error:'',info:'',replyId:null,busy:false};
+const state = {accounts:[],messages:[],team:[],accountId:null,tab:'accounts',enabled:false,googleReady:false,syncEnabled:false,sendEnabled:false,loading:false,error:'',info:'',replyId:null,busy:false};
 const admin = () => ['superadmin','admin','owner'].includes(String(window.currentUser?.role||'').toLowerCase());
 const provider = p => p==='google'?'Gmail':p==='microsoft'?'Microsoft 365':'Correo empresarial';
 const dateText = x => {if(!x)return 'Sin sincronizar';const d=new Date(x);return Number.isNaN(d.getTime())?'Sin sincronizar':d.toLocaleString('es-CO')};
 async function request(url,method='GET',payload){const opts={credentials:'same-origin',method,headers:{Accept:'application/json'}};if(payload!==undefined){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(payload)}
  const r=await fetch(url,opts);let data={};try{data=await r.json()}catch{}if(!r.ok){const err=new Error(data.error||data.message||`Error HTTP ${r.status}`);err.status=r.status;throw err}return data}
-function card(c,key){const connected=c.status==='connected',empty=c.setup===true,disabled=c.status==='disabled';const name=empty?'Email IA · Correo empresarial':c.email||'Buzón empresarial';const p=empty?'Gmail y Microsoft 365':provider(c.provider);
+function card(c,key){const connected=c.status==='connected',empty=c.setup===true,disabled=c.status==='disabled';const name=empty?'Email IA · Correo empresarial':c.email||'Buzón empresarial';const p=empty?'Gmail':provider(c.provider);
  const s=connected?'Conectado':disabled?'Deshabilitado':empty?'Configuración pendiente':'Requiere reconexión';
- const hint=empty?'Conecta Gmail o Microsoft 365 para empezar a recibir y atender correos en Worktic AI.':'Sincronización: '+dateText(c.sync_at)+' · Respuestas automáticas desactivadas';
+ const hint=empty?'Conecta Gmail para empezar a recibir y atender correos en Worktic AI.':'Sincronización: '+dateText(c.sync_at)+' · Respuestas automáticas desactivadas';
  return `<article class="card wt-unified-card wt-email-p1a2-card" data-key="${E(key)}" aria-label="Email IA ${E(s)}">
  <div class="wt-email-card-head"><div class="wt-email-card-icon" aria-hidden="true">✉</div><div class="wt-email-brand"><strong>EMAIL IA</strong><small>${E(p)} · Canal de correo</small></div><span class="wt-email-status ${connected?'connected':disabled?'disabled':'pending'}">${E(s)}</span></div>
  <h3>${E(name)}</h3><div class="wt-email-info">${empty?'BUZÓN PENDIENTE':'BUZÓN VINCULADO'}<strong>${E(empty?'Sin cuenta autorizada':name)}</strong><small>${E(hint)}</small></div>
@@ -30,8 +31,7 @@ function statusHtml(){if(state.loading)return '<span>Consultando conexiones…</
  return `<span>${E(parts.join(' · '))}</span>${state.info?`<p>${E(state.info)}</p>`:''}${state.error?`<p class="wt-email-error">${E(state.error)}</p>`:''}`;
 }
 function accountsHtml(){if(!state.enabled)return '<div class="wt-email-empty">Todavía no se pueden conectar buzones. Activa primero el módulo desde la configuración interna del servidor.</div>';
- const primary=`<div class="wt-email-provider-grid"><section><h3>Gmail</h3><p>Conecta un correo de Google Workspace o Gmail autorizado.</p><button type="button" data-email-action="oauth-google" ${!state.googleReady||!admin()?'disabled':''}>${state.googleReady?'Conectar Gmail':'Pendiente de configurar OAuth'}</button><small>${state.googleReady?'Proveedor preparado para autorización':'Configurar credenciales OAuth de Google en el servidor'}</small></section>
- <section><h3>Microsoft 365</h3><p>Conecta un buzón de Exchange Online autorizado.</p><button type="button" data-email-action="oauth-microsoft" ${!state.microsoftReady||!admin()?'disabled':''}>${state.microsoftReady?'Conectar Microsoft 365':'Pendiente de configurar OAuth'}</button><small>${state.microsoftReady?'Proveedor preparado para autorización':'Configurar credenciales OAuth de Microsoft en el servidor'}</small></section></div>`;
+ const primary=`<div class="wt-email-provider-grid wt-email-provider-grid--single"><section class="wt-email-provider-featured"><h3>Gmail</h3><p>Conecta tu cuenta Gmail o Google Workspace para atender el correo empresarial desde Worktic AI.</p><button type="button" data-email-action="oauth-google" ${!state.googleReady||!admin()?'disabled':''}>${state.googleReady?'Conectar Gmail':'Pendiente de configurar OAuth'}</button><small>${state.googleReady?'Autorización oficial de Google disponible':'Configura las credenciales OAuth de Google en Render'}</small></section></div>`;
  const rows=state.accounts.map(c=>{const linked=c.status==='connected',selected=Number(c.id)===Number(state.accountId);return `<article class="wt-email-account ${selected?'selected':''}"><div><b>${E(c.email)}</b><small>${E(provider(c.provider))} · ${linked?'Conectado':'Desconectado'} · Última sincronización: ${E(dateText(c.sync_at))}</small>${c.last_error?`<small class="wt-email-error">${E(c.last_error)}</small>`:''}</div><div class="wt-email-account-buttons"><button type="button" data-email-action="account-inbox" data-email-id="${Number(c.id)}">Bandeja</button><button type="button" class="secondary" data-email-action="sync" data-email-id="${Number(c.id)}" ${!linked||!state.syncEnabled||state.busy?'disabled':''}>Sincronizar</button><button type="button" class="secondary" data-email-action="disconnect" data-email-id="${Number(c.id)}" ${!linked||!admin()||state.busy?'disabled':''}>Desconectar</button></div></article>`}).join('');
  return `<h3 class="wt-email-section-title">Conectar buzón empresarial</h3>${primary}<div class="wt-email-account-list"><div class="wt-email-list-title"><h3>Mis buzones</h3><button type="button" class="secondary" data-email-action="refresh">Actualizar</button></div>${rows||'<div class="wt-email-empty">No hay buzones conectados. Usa uno de los proveedores anteriores.</div>'}</div><p class="wt-email-hint">Los buzones se vinculan a tu empresa mediante OAuth. La autorización del proveedor abrirá temporalmente su sitio web oficial y regresará a Worktic AI.</p>`;
 }
@@ -49,7 +49,7 @@ function render(){const root=$('#modal .wt-email-modal');if(!root)return;
  s.innerHTML=statusHtml();x.innerHTML=state.tab==='inbox'?messagesHtml():accountsHtml();
  root.querySelector('[data-email-action="tab-accounts"]').classList.toggle('active',state.tab==='accounts');root.querySelector('[data-email-action="tab-inbox"]').classList.toggle('active',state.tab==='inbox');
 }
-async function loadAccounts(){state.loading=true;state.error='';render();try{const d=await request('/api/email/p1/accounts');state.enabled=true;state.accounts=Array.isArray(d.items)?d.items:[];state.googleReady=!!d.google_ready;state.microsoftReady=!!d.microsoft_ready;state.syncEnabled=!!d.sync_enabled;state.sendEnabled=!!d.manual_send_enabled}catch(e){state.enabled=false;state.accounts=[];state.googleReady=false;state.microsoftReady=false;state.syncEnabled=false;state.sendEnabled=false;state.error=e.status===503?'Email IA no está habilitado o todavía no está disponible en el servidor.':e.message}finally{state.loading=false;render()}}
+async function loadAccounts(){state.loading=true;state.error='';render();try{const d=await request('/api/email/p1/accounts');state.enabled=true;state.accounts=Array.isArray(d.items)?d.items:[];state.googleReady=!!d.google_ready;state.syncEnabled=!!d.sync_enabled;state.sendEnabled=!!d.manual_send_enabled}catch(e){state.enabled=false;state.accounts=[];state.googleReady=false;state.syncEnabled=false;state.sendEnabled=false;state.error=e.status===503?'Email IA no está habilitado o todavía no está disponible en el servidor.':e.message}finally{state.loading=false;render()}}
 async function loadMessages(){if(!state.enabled){render();return}state.loading=true;render();try{const [m,u]=await Promise.all([request('/api/email/p1/messages'),request('/api/email/p1/team')]);state.messages=Array.isArray(m.items)?m.items:[];state.team=Array.isArray(u.items)?u.items:[];state.error=''}catch(e){state.messages=[];state.error=e.message}finally{state.loading=false;render()}}
 async function execute(evt){const b=evt.target.closest('button[data-email-action]');if(!b||state.busy)return;const action=b.dataset.emailAction,id=Number(b.dataset.emailId||0);
  if(action==='close'){document.querySelector('#modal')?.close();return}
@@ -58,9 +58,9 @@ async function execute(evt){const b=evt.target.closest('button[data-email-action
  if(action==='refresh'){await loadAccounts();return}
  if(action==='refresh-messages'){await loadMessages();return}
  if(action==='account-inbox'){state.accountId=id;state.tab='inbox';await loadMessages();return}
- if(action==='oauth-google'||action==='oauth-microsoft'){
-  if(!state.enabled||!admin())return;const p=action==='oauth-google'?'google':'microsoft';if(!(p==='google'?state.googleReady:state.microsoftReady))return;
-  location.assign('/api/email/p1/oauth/start?provider='+p);return;
+ if(action==='oauth-google'){
+  if(!state.enabled||!admin()||!state.googleReady)return;
+  location.assign('/api/email/p1/oauth/start?provider=google');return;
  }
  if(!['sync','disconnect','assign','reply-open','reply-send'].includes(action))return;
  if(action==='reply-open'){state.replyId=id;render();return}
