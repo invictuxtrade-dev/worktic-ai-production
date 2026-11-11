@@ -719,7 +719,7 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 	}
 	total := 0
 	for _, m := range mails {
-		if m.ID == "" || m.Sender == "" || strings.EqualFold(m.Sender, account) {
+		if m.ID == "" || m.Sender == "" {
 			continue
 		}
 		// Escanear duplicados ANTES del análisis IA para no gastar créditos innecesarios.
@@ -728,7 +728,11 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 		if e != nil || exists > 0 {
 			continue
 		}
-		cat, pri, sum := a.emailP1Triage(ctx, tenant, m.Subject, m.Body)
+		// WORKTIC_EMAIL_P1B2_CHRONO_INBOX: self-sent messages appear in the inbox, never consume AI credits.
+		cat, pri, sum := emailP1Heuristic(m.Subject, m.Body)
+		if emailP1B2ShouldCreateContact(m.Sender, account) {
+			cat, pri, sum = a.emailP1Triage(ctx, tenant, m.Subject, m.Body)
+		}
 		insertResult, e := a.db.Exec(`INSERT INTO email_p1_messages(tenant_id,account_id,provider_id,thread_id,internet_id,sender,subject,body,received_at,category,priority,summary,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id,account_id,provider_id) DO NOTHING`, tenant, id, m.ID, m.Thread, m.Internet, m.Sender, m.Subject, m.Body, m.When, cat, pri, sum, emailP1Now())
 		if e != nil {
 			log.Printf("[EMAIL-P1] no se pudo persistir un email")
@@ -740,8 +744,10 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 		}
 		total++
 		// Sincronizar CRM sólo después de recibir un email real. Un correo no implica consentimiento de marketing.
-		if e = a.syncCRMContact(tenant, "", "", m.Sender, "email", "email_inbound", "email:"+m.Sender); e != nil {
-			log.Printf("[EMAIL-P1] CRM sync no completada para tenant %d", tenant)
+		if emailP1B2ShouldCreateContact(m.Sender, account) {
+			if e = a.syncCRMContact(tenant, "", "", m.Sender, "email", "email_inbound", "email:"+m.Sender); e != nil {
+				log.Printf("[EMAIL-P1] CRM sync no completada para tenant %d", tenant)
+			}
 		}
 	}
 	_, _ = a.db.Exec(`UPDATE email_p1_accounts SET sync_at=?,last_error='',updated_at=? WHERE tenant_id=? AND id=?`, emailP1Now(), emailP1Now(), tenant, id)
@@ -803,7 +809,7 @@ func (a *App) emailP1Messages(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Método no permitido", 405)
 		return
 	}
-	rows, e := a.db.Query(`SELECT m.id,m.account_id,a.email,m.sender,m.subject,m.body,m.received_at,m.category,m.priority,m.summary,m.direction,m.state,m.assigned_user_id FROM email_p1_messages m JOIN email_p1_accounts a ON a.id=m.account_id AND a.tenant_id=m.tenant_id WHERE m.tenant_id=? ORDER BY m.id DESC LIMIT 100`, tid)
+	rows, e := a.db.Query(`SELECT m.id,m.account_id,a.email,m.sender,m.subject,m.body,m.received_at,m.category,m.priority,m.summary,m.direction,m.state,m.assigned_user_id FROM email_p1_messages m JOIN email_p1_accounts a ON a.id=m.account_id AND a.tenant_id=m.tenant_id WHERE m.tenant_id=? ORDER BY m.received_at DESC,m.id DESC LIMIT 100`, tid)
 	if e != nil {
 		http.Error(w, "Bandeja no disponible", 503)
 		return
@@ -1096,4 +1102,11 @@ func emailP1BAllowedAccount(accountID int64, address string) bool {
 		}
 	}
 	return false
+}
+
+// WORKTIC_EMAIL_P1B2_CHRONO_INBOX: allow displaying an email-to-self without creating a CRM prospect.
+func emailP1B2ShouldCreateContact(sender, account string) bool {
+	s := strings.TrimSpace(sender)
+	a := strings.TrimSpace(account)
+	return s != "" && a != "" && !strings.EqualFold(s, a)
 }
