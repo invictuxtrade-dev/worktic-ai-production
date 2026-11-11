@@ -521,6 +521,14 @@ func main() {
 	if attractionP1BAIEnabled() {
 		go app.runAttractionP1BWorker()
 	}
+	// Email IA y Email Marketing: procesos independientes, apagados por defecto.
+	if emailP1Enabled() && emailP1Flag("WORKTIC_EMAIL_P1_SYNC_ENABLED") {
+		go app.runEmailP1Worker()
+	}
+	if emailMktSendingReady() {
+		go app.runEmailMarketingP1Worker()
+	}
+
 	app.channelManager = NewChannelManager(app)
 	if cfg.ChannelRuntimesEnabled {
 		go app.channelManager.restoreActive()
@@ -799,6 +807,25 @@ func main() {
 	mux.HandleFunc("/api/attraction/p1b/control", app.attractionP1BControlHandler)
 	mux.HandleFunc("/api/attraction/p1/candidates", app.attractionP1CandidatesHandler)
 	mux.HandleFunc("/api/attraction/p1/promote", app.attractionP1PromoteHandler)
+	// Email IA (OAuth, buzones, bandeja, respuesta manual con idempotencia).
+	mux.HandleFunc("/api/email/p1/accounts", app.emailP1Accounts)
+	mux.HandleFunc("/api/email/p1/oauth/start", app.emailP1OAuthStart)
+	mux.HandleFunc("/api/email/p1/oauth/callback", app.emailP1OAuthCallback)
+	mux.HandleFunc("/api/email/p1/messages", app.emailP1Messages)
+	mux.HandleFunc("/api/email/p1/sync", app.emailP1SyncNow)
+	mux.HandleFunc("/api/email/p1/reply", app.emailP1Reply)
+	// Email Marketing: campañas, consentimiento verificable y baja.
+	mux.HandleFunc("/api/email-marketing/p1/profile", app.emailMktProfile)
+	mux.HandleFunc("/api/email-marketing/p1/campaigns", app.emailMktCampaigns)
+	mux.HandleFunc("/api/email-marketing/p1/control", app.emailMktControl)
+	mux.HandleFunc("/api/email-marketing/p1/generate", app.emailMktGenerate)
+	mux.HandleFunc("/email/subscribe/", app.emailMktSubscriberHandler)
+	mux.HandleFunc("/email/confirm/", app.emailMktConfirm)
+	mux.HandleFunc("/email/unsubscribe/", app.emailMktUnsubscribe)
+
+	mux.HandleFunc("/api/email/p1/accounts/disconnect", app.emailP1Disconnect)
+	mux.HandleFunc("/api/email/p1/team", app.emailP1Team)
+	mux.HandleFunc("/api/email/p1/assign", app.emailP1Assign)
 	mux.HandleFunc("/api/groups/limits", app.groupLimitsHandler)
 	mux.HandleFunc("/api/groups", app.groupsHandler)
 	mux.HandleFunc("/api/groups/send", app.groupSendHandler)
