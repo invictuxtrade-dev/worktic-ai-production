@@ -5,7 +5,7 @@
 (()=>{'use strict';
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const nativeTypes={whatsapp_cloud:'WhatsApp Business Cloud (Oficial)',whatsapp_qr:'WhatsApp QR',telegram:'Telegram Bot',messenger:'Facebook Messenger',webchat:'Chat Web',voice_ai:'Llamadas IA',instagram:'Instagram (oficial de Meta)',tiktok:'TikTok (perfil oficial)',email_ai:'Email IA (Gmail / Microsoft 365)'};
+const nativeTypes={whatsapp_cloud:'WhatsApp Business Cloud (Oficial)',whatsapp_qr:'WhatsApp QR',telegram:'Telegram Bot',messenger:'Facebook Messenger',webchat:'Chat Web',voice_ai:'Llamadas IA',instagram:'Instagram (oficial de Meta)',tiktok:'TikTok (perfil oficial)',email_ai:'Email IA (Gmail)'};
 const category={whatsapp_cloud:'whatsapp_cloud',whatsapp_qr:'whatsapp_qr',telegram:'telegram',messenger:'messenger',webchat:'web',voice_ai:'voice'};
 let allChannels=new Map(),webAvailable=false,voiceAvailable=false,webCountFallback=0;
 const notice=e=>{if(window.toast)window.toast(e);else alert(e)};
@@ -75,7 +75,7 @@ async function createConnection(){
  <div class="actions"><button type="button" id="ucContinue">Crear conexión</button><button value="cancel" class="secondary">Cancelar</button></div></div>`);
  api('/api/agents').then(d=>{const s=$('#ucAgent');if(s)s.replaceChildren(new Option('Selecciona un agente activo','0'),...(d.agents||[]).filter(a=>a.status==='active').map(a=>new Option(a.name,a.id)))}).catch(()=>{});
  const input=$('#ucType'), fields=$('#ucNativeFields'), btn=$('#ucContinue'),desc=$('#ucDescription');
- const update=()=>{desc.removeAttribute('role');desc.removeAttribute('style');const web=input.value==='webchat',voice=input.value==='voice_ai',wa=input.value==='whatsapp_cloud',ms=input.value==='messenger',ig=input.value==='instagram',tt=input.value==='tiktok',email=input.value==='email_ai';fields.hidden=web||voice||ig||email||tt;btn.textContent=tt?'Conectar TikTok':wa?'Crear y conectar con Meta':ms?'Crear y conectar con Facebook':ig?'Ir a conectar Instagram':email?'Conectar correo empresarial':web||voice?'Continuar a configuración':'Crear conexión';desc.textContent=tt?'TikTok Login Kit: conecta el perfil oficial de tu empresa. Los mensajes directos, el agente IA y la publicación se habilitarán cuando TikTok autorice los permisos adicionales.':email?'Conecta un buzón Gmail o Microsoft 365 autorizado. Cada buzón aparece como canal de tu empresa y se administra desde Mis Canales. La sincronización y los envíos solo se activan al configurarlos en el servidor.':ig?'Instagram se autoriza una sola vez desde Redes Sociales > Cuentas. Una vez conectada, aparecerá aquí para asignar un agente IA. La conexión de clientes externos mediante Unified Login sigue en pruebas; no se garantiza aún mensajería.':web?'Configura el dominio HTTPS, el agente y el código de instalación.':voice?'Selecciona la voz, el agente y los permisos de telefonía.':wa?'Conexión oficial paso a paso: 1. Elige un agente activo. 2. Autoriza tu negocio y número directamente en Meta. 3. Verifica tu conexión. No necesitas copiar tokens ni configurar webhooks. La disponibilidad depende de tu plan y de la autorización de Meta.':'El backend validará tu plan y la asignación del agente.'};
+ const update=()=>{desc.removeAttribute('role');desc.removeAttribute('style');const web=input.value==='webchat',voice=input.value==='voice_ai',wa=input.value==='whatsapp_cloud',ms=input.value==='messenger',ig=input.value==='instagram',tt=input.value==='tiktok',email=input.value==='email_ai';fields.hidden=web||voice||ig||email||tt;btn.textContent=tt?'Conectar TikTok':wa?'Crear y conectar con Meta':ms?'Crear y conectar con Facebook':ig?'Ir a conectar Instagram':email?'Conectar correo empresarial':web||voice?'Continuar a configuración':'Crear conexión';desc.textContent=tt?'TikTok Login Kit: conecta el perfil oficial de tu empresa. Los mensajes directos, el agente IA y la publicación se habilitarán cuando TikTok autorice los permisos adicionales.':email?'Conecta un buzón Gmail autorizado. Cada buzón aparece como canal de tu empresa y se administra desde Mis Canales. La sincronización y los envíos solo se activan al configurarlos en el servidor.':ig?'Instagram se autoriza una sola vez desde Redes Sociales > Cuentas. Una vez conectada, aparecerá aquí para asignar un agente IA. La conexión de clientes externos mediante Unified Login sigue en pruebas; no se garantiza aún mensajería.':web?'Configura el dominio HTTPS, el agente y el código de instalación.':voice?'Selecciona la voz, el agente y los permisos de telefonía.':wa?'Conexión oficial paso a paso: 1. Elige un agente activo. 2. Autoriza tu negocio y número directamente en Meta. 3. Verifica tu conexión. No necesitas copiar tokens ni configurar webhooks. La disponibilidad depende de tu plan y de la autorización de Meta.':'El backend validará tu plan y la asignación del agente.'};
  input.onchange=update;update();
  btn.onclick=async()=>{
   const type=input.value;
@@ -86,7 +86,7 @@ async function createConnection(){
   }
   if(type==='voice_ai'){await voiceForm();return}
   if(type==='email_ai'){closeModal();openEmailChannel(null,'accounts');return}
-  if(type==='tiktok'){closeModal();if(!window.workticTikTokT1?.connect)return notice('TikTok T1 no cargo; actualiza la pagina.');await window.workticTikTokT1.connect();return}
+  if(type==='tiktok'){closeModal();if(!window.workticTikTokT1?.connect)return notice('TikTok T1 no cargó; actualiza la página.');await window.workticTikTokT1.connect();return}
   if(type==='instagram'){closeModal();const nav=$('aside nav button[data-view="socialhub"]');if(!nav){notice('No se encontro Redes Sociales');return}nav.click();setTimeout(()=>{if(typeof window.switchSocialTab==='function')window.switchSocialTab('connections');else $('button[data-social-tab="connections"]')?.click();notice('Conecta Instagram desde Cuentas. Cuando se autorice, vuelve a Mis Canales para asignar el agente.')},200);return}
   const p={type,name:$('#ucName').value.trim(),assigned_agent_id:Number($('#ucAgent').value||0)};
   if(!p.name){notice('Escribe el nombre del canal');return}
@@ -136,7 +136,7 @@ function wtPremiumWhatsAppCard(c,key,agentLookup){
   </div>
   <div class="wt-wa-footer"><div class="wt-wa-primaryactions">${action('configure','Configurar','wt-wa-btn-primary')}${action('templates','Plantillas','wt-wa-btn-secondary')}</div>
    <div class="wt-wa-secondaryactions">${action('inbox','Conversaciones','wt-wa-textbtn')}${action('test','Probar conexión','wt-wa-textbtn')}${online?action('pause','Pausar','wt-wa-textbtn'):''}
-   <details class="wt-wa-more"><summary aria-label="Más acciones" title="Más acciones">•••</summary><div class="wt-wa-moremenu">${action('delete','Eliminar conexión','wt-wa-btn-danger')}</div></details></div>
+   <details class="wt-wa-more"><summary aria-label="Más acciones" title="Más acciones">•••</summary><div class="wt-wa-moremenu">${action('configure','Reconectar','wt-wa-textbtn')}${action('delete','Eliminar conexión','wt-wa-btn-danger')}</div></details></div>
   </div></article>`;
 }
 
@@ -171,7 +171,7 @@ function wtPremiumMessengerCard(c,key,agentLookup){
   </div>
   <div class="wt-wa-footer"><div class="wt-wa-primaryactions">${action('configure','Configurar','wt-wa-btn-primary')}${action('test','Probar conexión','wt-wa-btn-secondary')}</div>
    <div class="wt-wa-secondaryactions">${action('inbox','Conversaciones','wt-wa-textbtn')}${online?action('pause','Pausar','wt-wa-textbtn'):''}
-   <details class="wt-wa-more"><summary aria-label="Más acciones" title="Más acciones">•••</summary><div class="wt-wa-moremenu">${action('delete','Eliminar conexión','wt-wa-btn-danger')}</div></details></div>
+   <details class="wt-wa-more"><summary aria-label="Más acciones" title="Más acciones">•••</summary><div class="wt-wa-moremenu">${action('configure','Reconectar','wt-wa-textbtn')}${action('delete','Eliminar conexión','wt-wa-btn-danger')}</div></details></div>
   </div></article>`;
 }
 
@@ -188,16 +188,20 @@ function wtEmailChannelCard(c,key){
 }
 function wtTikTokT1Card(c,key){
  const linked=c.provider_mode==='official'&&c.status==='connected', setup=!!c.setup;
- const label=linked?'Conectado':c.provider_mode==='sandbox'?'Sandbox':setup?'Por conectar':'Revisar conexión';
- const account=c.account_name||'TikTok Business';
- return `<article class="card wt-unified-card wt-tiktok-t1-card" data-key="${esc(key)}" aria-label="TikTok Business">
-  <div class="top"><span class="badge">♪ TIKTOK · PERFIL OFICIAL</span><span class="pill ${linked?'wt-channel-on':''}">${esc(label)}</span></div>
-  <h3>${esc(account)}</h3>
-  <p class="wt-channel-detail">${linked?'Cuenta vinculada a tu empresa por TikTok Login Kit.':'Conecta una cuenta TikTok autorizada desde esta empresa.'}</p>
-  <small>Permisos: ${esc(c.scopes||'Por autorizar')} · Mensajes IA: pendiente de aprobación Business Messaging · Publicación: permiso adicional</small>
-  <div class="actions">${setup?`<button type="button" data-uc-action="connect" data-uc-key="${esc(key)}">Conectar TikTok</button>`:
-  `<button type="button" data-uc-action="social" data-uc-key="${esc(key)}">Ir a Redes Sociales</button><button type="button" data-uc-action="connect" data-uc-key="${esc(key)}">Conectar otra cuenta</button><button type="button" class="secondary" data-uc-action="test" data-uc-key="${esc(key)}">Probar conexión</button><button type="button" class="danger" data-uc-action="delete" data-uc-key="${esc(key)}">Eliminar conexión</button>`}</div>
- </article>`;
+ const label=linked?'Perfil conectado':setup?'Sin conectar':'Revisar conexión';
+ const account=c.account_name||'Cuenta TikTok';
+ const action=(id,text,cls='')=>`<button type="button" class="${cls}" data-uc-action="${id}" data-uc-key="${esc(key)}">${text}</button>`;
+ const symbol='<svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M14 3v11.8a4.6 4.6 0 1 1-4.6-4.6c.5 0 1.1.1 1.5.3"/><path d="M14 4c.8 2.5 2.6 4.4 6 4.8"/></svg>';
+ return `<article class="card wt-unified-card wt-wa-premium-card wt-tiktok-t2-card" data-key="${esc(key)}" aria-label="TikTok: ${esc(account)}">
+  <div class="wt-wa-head"><span class="wt-wa-brandicon wt-tiktok-t2-icon">${symbol}</span><div class="wt-wa-headtext"><div class="wt-wa-eyebrow">TIKTOK BUSINESS</div><div class="wt-wa-subbrand">Perfil social · acceso futuro a mensajes</div></div><span class="wt-wa-status ${linked?'is-connected':'is-pending'}"><i aria-hidden="true"></i>${label}</span></div>
+  <div class="wt-wa-body"><h3 class="wt-wa-title">${esc(account)}</h3>
+   <div class="wt-wa-numberpanel ${linked?'is-verified':'is-pending'}"><div><div class="wt-wa-label">CUENTA DE TIKTOK</div><div class="wt-wa-number wt-tiktok-t2-account">${esc(account)}</div><div class="wt-wa-verified">${linked?'Conexión autorizada por Login Kit':'Pendiente de autorizar perfil'}</div></div><span class="wt-wa-numbericon ${linked?'is-verified':'is-pending'}" aria-hidden="true">${linked?'✓':'○'}</span></div>
+   <div class="wt-tiktok-t2-status"><span class="wt-tiktok-t2-dot"></span><div><b>Mensajes directos y agente IA</b><small>Pendientes de autorización oficial de TikTok Business Messaging. El perfil puede estar conectado sin activar la bandeja.</small></div></div>
+   <div class="wt-tiktok-t2-scopes">Permisos: ${esc(c.scopes||'user.info.basic (solicitud pendiente)')} · Publicación: autorización independiente</div>
+  </div>
+  <div class="wt-wa-footer"><div class="wt-wa-primaryactions">${action('social','Ir a Redes Sociales','wt-wa-btn-primary')}${action('connect',linked?'Conectar otra cuenta':'Conectar TikTok','wt-wa-btn-secondary')}</div>
+   ${setup?'':`<div class="wt-wa-secondaryactions">${action('test','Probar conexión','wt-wa-textbtn')}<details class="wt-wa-more"><summary aria-label="Más acciones" title="Más acciones">•••</summary><div class="wt-wa-moremenu">${action('delete','Desconectar cuenta','wt-wa-btn-danger')}</div></details></div>`}
+  </div></article>`;
 }
 function card(c,key,agentLookup){if(c.type==='tiktok')return wtTikTokT1Card(c,key);if(c.type==='instagram')return window.workticInstagramB102?.card(c,agentLookup)||`<article class="card wt-unified-card"><h3>Instagram · ${esc(c.name||'Cuenta conectada')}</h3><p>Actualiza la página para gestionar la cuenta de Instagram.</p></article>`;if(c.type==='email_ai')return window.WorkticEmailChannel?.card(c,key)||wtEmailChannelCard(c,key);if(c.type==='whatsapp_cloud')return wtPremiumWhatsAppCard(c,key,agentLookup);if(c.type==='messenger')return wtPremiumMessengerCard(c,key,agentLookup);const label=nativeTypes[c.type]||c.type,active=['connected','active','Activo'].includes(status(c));
  return `<article class="card wt-unified-card" data-key="${esc(key)}"><div class="top"><span class="badge ${esc(category[c.type]||'')}">${esc(label)}</span><span class="pill ${active?'wt-channel-on':''}">${esc(status(c))}</span></div><h3>${esc(c.name)}</h3><p class="wt-channel-detail">${esc(details(c))}</p><small>Agente asignado: ${esc(c.assigned_agent_id||c.agent_id||'Sin asignar')}</small>${c.type==='whatsapp_qr'?`<div id="qrbox-${esc(c.id)}"></div>`:''}<div class="actions">
@@ -205,7 +209,7 @@ function card(c,key,agentLookup){if(c.type==='tiktok')return wtTikTokT1Card(c,ke
  ${c.type==='webchat'?`<button type="button" class="secondary" data-uc-action="install" data-uc-key="${esc(key)}">Instalar widget</button><button type="button" class="secondary" data-uc-action="inbox" data-uc-key="${esc(key)}">Conversaciones</button>`:''}
  ${c.type==='voice_ai'?`<button type="button" class="secondary" data-uc-action="test" data-uc-key="${esc(key)}">Probar voz</button>`:''}
  ${c.type==='whatsapp_cloud'?`<button type="button" class="secondary" data-uc-action="templates" data-uc-key="${esc(key)}">Plantillas</button>`:''}
- ${!['webchat','voice_ai'].includes(c.type)?`<button type="button" class="secondary" data-uc-action="test" data-uc-key="${esc(key)}">Probar conexión</button><button type="button" class="secondary" data-uc-action="pause" data-uc-key="${esc(key)}">Pausar</button><button type="button" class="danger" data-uc-action="delete" data-uc-key="${esc(key)}">Eliminar</button>`:''}</div></article>`}
+ ${!['webchat','voice_ai'].includes(c.type)?`<button type="button" class="secondary" data-uc-action="test" data-uc-key="${esc(key)}">Probar conexión</button><button type="button" class="secondary" data-uc-action="pause" data-uc-key="${esc(key)}">Pausar</button>`:''}<details class="wt-wa-more"><summary aria-label="Más acciones">•••</summary><div class="wt-wa-moremenu"><button type="button" class="wt-wa-textbtn" data-uc-action="configure" data-uc-key="${esc(key)}">Reconectar / Configurar</button>${!['webchat','voice_ai'].includes(c.type)?`<button type="button" class="wt-wa-btn-danger" data-uc-action="delete" data-uc-key="${esc(key)}">Eliminar conexión</button>`:''}</div></details></div></article>`}
 async function refresh(){
  const grid=$('#channelConnections');if(!grid)return;
  // P1A4_INSTAGRAM_IN_GRID: Instagram participa en la misma fuente y paginacion.
@@ -233,18 +237,48 @@ async function refresh(){
  const active=(h.states.connected||0)+webItems.filter(c=>c.enabled).length+voiceItems.filter(c=>c.enabled).length+emailItems.filter(c=>c.status==='connected').length+instagramItems.filter(c=>c.status==='connected'||!c.status).length+tiktokItems.filter(c=>c.provider_mode==='official'&&c.status==='connected').length;
  $('#channelHealth').innerHTML=[['Activos',active],['Esperando QR',h.states.waiting_qr||0],['Con error',h.states.error||0],['Mensajes aislados',h.messages||0]].map(([label,v])=>`<div class="stat"><b>${Number(v)||0}</b><small>${label}</small></div>`).join('');
  grid.innerHTML=allChannels.size?[...allChannels.entries()].map(([key,c])=>card(c,key,agentLookup)).join(''):'<p>No hay conexiones. Usa «Nueva conexión» para conectar tu primer canal.</p>';
+ // Las cuentas compartidas (Instagram) no deben eliminarse desde Mensajería.
+ for(const [key,c] of allChannels){
+  const node=c.type==='instagram'?grid.querySelector('[data-ig-id=\"'+Number(c.id)+'\"]'):[...grid.querySelectorAll('[data-key]')].find(el=>el.dataset.key===key);
+  if(!node)continue;
+  if(c.type==='email_ai'&&!c.setup&&c.status==='connected'){
+   const controls=node.querySelector('.wt-email-card-actions, .wt-b102-actions, .actions')||node;
+   const btn=document.createElement('button');btn.type='button';btn.className='secondary wt-uc-t2-link';btn.textContent='Desconectar buzón';btn.dataset.ucAction='disconnect';btn.dataset.ucKey=key;controls.append(btn);
+  }
+  if(c.type==='instagram'&&Number(c.agent_id||0)>0){
+   const controls=node.querySelector('.wt-email-card-actions, .wt-b102-actions, .actions')||node;
+   const btn=document.createElement('button');btn.type='button';btn.className='secondary wt-uc-t2-link';btn.textContent='Quitar asignación IA';btn.dataset.ucAction='unassign';btn.dataset.ucKey=key;controls.append(btn);
+  }
+ }
  if(!webAvailable||!voiceAvailable){const p=document.createElement('p');p.className='wt-unified-note';p.textContent=[!webAvailable?'Chat Web no habilitado o no disponible.':'',!voiceAvailable?'Servicio de voz no disponible.':''].filter(Boolean).join(' ');grid.after(p);grid.parentElement.querySelectorAll('.wt-unified-note').forEach((el,i)=>{if(i>0)el.remove()})}
  else grid.parentElement.querySelectorAll('.wt-unified-note').forEach(el=>el.remove());
 }
 async function action(evt){const b=evt.target.closest('[data-uc-action]');if(!b)return;const c=allChannels.get(b.dataset.ucKey);if(!c)return;
  const name=b.dataset.ucAction;
- if(c.type==='email_ai'){if(name==='configure'||name==='inbox')openEmailChannel(c,name==='inbox'?'inbox':'accounts');return}
+ if(c.type==='email_ai'){
+  if(name==='disconnect' && c.id && !c.setup){
+   const ok=await window.workticConfirmUnlink({name:c.email||'Gmail',kind:'email'});if(!ok)return;
+   await api('/api/email/p1/accounts/disconnect',{method:'POST',body:JSON.stringify({id:c.id})});notice('Buzón desconectado. El historial permanece.');await refresh();return;
+  }
+  if(name==='configure'||name==='inbox')openEmailChannel(c,name==='inbox'?'inbox':'accounts');return;
+ }
+ if(c.type==='instagram'){
+  if(name==='unassign' && c.id){
+   const ok=await window.workticConfirmUnlink({name:c.account_name||'Instagram',kind:'instagram_agent'});if(!ok)return;
+   await api('/api/social/b10/instagram-channel',{method:'POST',body:JSON.stringify({social_connection_id:c.id,agent_id:0})});notice('Asignación IA desactivada; la cuenta social sigue conectada.');await refresh();return;
+  }
+ }
  if(c.type==='tiktok'){
-   if(name==='connect'){if(!window.workticTikTokT1?.connect)throw Error('No se cargo TikTok T1');await window.workticTikTokT1.connect();return;}
-   if(name==='social'){const nav=$('aside nav button[data-view="socialhub"]');nav?.click();setTimeout(()=>{window.switchSocialTab?.('connections');$('#socialNetworkSwitcher [data-social-network="tiktok"]')?.click()},100);return;}
-   if(name==='test'){const x=await api('/api/social/test',{method:'POST',body:JSON.stringify({id:c.id})});notice(x.message||'Conexión TikTok verificada');await refresh();return;}
-   if(name==='delete'){if(confirm('¿Eliminar esta conexión TikTok de esta empresa?')){await api('/api/social/connections?id='+encodeURIComponent(c.id),{method:'DELETE'});await refresh();}return;}
-   return;
+  if(name==='connect'){if(!window.workticTikTokT1?.connect)throw Error('TikTok T1 no cargó');await window.workticTikTokT1.connect();return;}
+  if(name==='social'){const nav=$('aside nav button[data-view="socialhub"]');nav?.click();setTimeout(()=>{window.switchSocialTab?.('connections');$('#socialNetworkSwitcher [data-social-network="tiktok"]')?.click()},100);return;}
+  if(name==='test'){const x=await api('/api/social/test',{method:'POST',body:JSON.stringify({id:c.id})});notice(x.message||'Conexión TikTok verificada');await refresh();return;}
+  if(name==='delete'){
+   const ok=await window.workticConfirmUnlink({name:'TikTok · '+(c.account_name||c.name||'Cuenta'),kind:'social_both'});if(!ok)return;
+   const result=await api('/api/social/connections?id='+encodeURIComponent(c.id),{method:'DELETE'});
+   if(!result?.ok)throw Error('TikTok no confirmó la desconexión');
+   notice('TikTok desconectado de esta empresa; el historial permanece.');await refresh();window.loadSocialHub?.();return;
+  }
+  return;
  }
  if(c.type==='webchat'){
   if(name==='inbox'){$('aside nav button[data-view="inbox"]')?.click();const f=$('#channelConvFilter');if(f){f.value='web';f.dispatchEvent(new Event('change'))}return}
@@ -263,7 +297,11 @@ async function action(evt){const b=evt.target.closest('[data-uc-action]');if(!b)
  if(name==='test')return window.testTenantChannel(c);
  if(name==='templates')return window.manageWhatsAppTemplates(c);
  if(name==='pause'){if(confirm('¿Pausar esta conexión?')){await window.pauseTenantChannel(c.id);await refresh()}return}
- if(name==='delete'){await window.deleteTenantChannel(c.id);await refresh()}
+ if(name==='delete'){
+  const ok=await window.workticConfirmUnlink({name:c.name||nativeTypes[c.type],kind:'channel'});if(!ok)return;
+  await api('/api/channels/connections?id='+encodeURIComponent(c.id),{method:'DELETE'});
+  notice('Conexión retirada; historial conservado.');await refresh();
+ }
 }
 function init(){
  const btn=$('#newChannel'),reload=$('#refreshChannels'),grid=$('#channelConnections');if(!btn||!grid)return;

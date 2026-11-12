@@ -20,26 +20,9 @@
    window.location.assign(url.href);
   }catch(e){say(e.message||'Error conectando TikTok')}finally{busy=false;}
  }
- function createPanel(){
-  const root=$('#social-connections');if(!root||$('#workticTikTokT1Panel'))return;
-  const el=document.createElement('article');el.id='workticTikTokT1Panel';el.className='wt-tt-t1-panel';
-  el.innerHTML=`<div class="wt-tt-t1-symbol" aria-hidden="true">♪</div><div class="wt-tt-t1-info"><span class="wt-tt-t1-eyebrow">TIKTOK · LOGIN KIT</span><h3>Conecta tu cuenta oficial TikTok</h3><p>Tu perfil se vinculará únicamente a esta empresa. Publicación, mensajes directos y agentes IA requieren permisos oficiales adicionales.</p><small id="workticTikTokT1Status" role="status">Consultando integración...</small></div><div class="wt-tt-t1-buttons"><button type="button" id="workticTikTokT1Connect">Conectar TikTok</button><button type="button" class="secondary" id="workticTikTokT1Refresh">Verificar configuración</button></div>`;
-  const grid=$('#socialConnectionsGrid');root.insertBefore(el,grid);
-  $('#workticTikTokT1Connect').addEventListener('click',connect);
-  $('#workticTikTokT1Refresh').addEventListener('click',refresh);
-  refresh();
- }
- async function refresh(){
-  const label=$('#workticTikTokT1Status');const btn=$('#workticTikTokT1Connect');if(!label||!btn)return;
-  try{
-   const [ready,accounts]=await Promise.all([readiness(),window.api('/api/social/connections')]);
-   const mine=Array.isArray(accounts)?accounts.filter(a=>a.platform==='tiktok'&&a.provider_mode==='official'):[];
-   label.textContent=mine.length?`Cuenta(s): ${mine.map(a=>a.account_name+' ('+a.status+')').join(', ')} · ${ready.message}`:ready.message;
-   btn.disabled=!ready.login_ready;
-   btn.textContent=mine.length?'Conectar otra cuenta TikTok':'Conectar TikTok';
-  }catch(e){label.textContent=e.message||'No se pudo verificar TikTok';btn.disabled=true;}
- }
+ // T2: TikTok es una cuenta editorial; su estado se muestra en la tarjeta social premium.
+ // Sin banner de conexión duplicado y sin componentes de mensajería en Mis Canales.
+ async function refresh(){return readiness();}
  window.workticTikTokT1={connect,readiness,refresh};
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',createPanel);else createPanel();
- document.querySelector('aside nav button[data-view="socialhub"]')?.addEventListener('click',()=>setTimeout(refresh,200));
+
 })();

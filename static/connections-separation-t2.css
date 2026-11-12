@@ -1,0 +1,39 @@
+/* Worktic AI T2 · Social account controls, compact module header and protected action dialog */
+#workticTikTokT1Panel{display:none!important}
+#social-connections .wt-t2-social-summary{display:flex;align-items:center;gap:12px;margin:5px 0 22px;padding:14px 17px;border-radius:14px;border:1px solid #e6e9f5;background:linear-gradient(112deg,#fafbff,#f6f6ff);color:#263052}
+.wt-t2-symbol{display:grid;place-items:center;width:37px;height:37px;flex:0 0 37px;border-radius:11px;background:linear-gradient(145deg,#576bfa,#b735dc);color:white;font-size:22px;font-weight:800}
+.wt-t2-social-summary>div{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.wt-t2-social-summary b{font-size:13px;color:#25305a}
+.wt-t2-social-summary small{font-size:11px;color:#69749a;line-height:1.5}
+.wt-t2-social-summary strong{white-space:nowrap;border-radius:100px;background:white;border:1px solid #e5eafa;padding:8px 11px;font-size:11px;color:#5a57ac}
+#socialConnectionsGrid .wt-social-t2-capability{margin:12px 0 0;font-size:11px;line-height:1.55;color:#52618b;background:#f6f7ff;border-radius:10px;padding:10px 12px;border:1px solid #e9eafe}
+#socialConnectionsGrid .wt-social-t2-manage{min-height:41px;padding:10px 13px;margin:0;border-radius:10px;background:#fff;border:1px solid #d6dff5;color:#364ba3;font-size:12px;font-weight:760;box-shadow:none}
+#socialConnectionsGrid .wt-social-b5-footer .wt-social-b5-test{flex:1}
+#socialConnectionsGrid .wt-social-t2-reconnect{display:block;width:100%;padding:10px 12px;background:#fff;color:#3b4c9d;font-size:11.5px;font-weight:700;text-align:left;border:none;box-shadow:none;border-radius:7px}
+#socialConnectionsGrid .wt-social-t2-reconnect:hover{background:#f1f3ff}
+#channelConnections .wt-uc-t2-link{margin-top:8px;font-size:12px}
+.wt-t2-dialog{width:min(92vw,520px);max-height:90vh;border:1px solid #e2e7f5;border-radius:19px;background:#fff;padding:0;box-shadow:0 22px 68px rgba(14,20,63,.22);color:#24314e}
+.wt-t2-dialog::backdrop{background:rgba(18,20,48,.5);backdrop-filter:blur(3px)}
+.wt-t2-dialog-inner{padding:26px}
+.wt-t2-dialog h2{font-size:20px;margin:0 0 17px;font-weight:790;color:#191e3c}
+.wt-t2-dialog-content p{font-size:13px;line-height:1.65;color:#586380;margin:11px 0}
+.wt-t2-dialog-content>strong{display:block;color:#272f6e;font-size:16px;overflow-wrap:anywhere}
+.wt-t2-dialog-content>small{font-size:11px;color:#737f9d}
+.wt-t2-dialog-actions{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end;margin-top:23px}
+.wt-t2-dialog-actions button{min-height:40px;border-radius:10px;padding:10px 17px;font-size:12px;font-weight:750;margin:0}
+.wt-t2-dialog-actions .wt-t2-cancel{background:#f5f6fb;color:#394461;border:1px solid #e1e5f2}
+.wt-t2-dialog-actions .wt-t2-danger{background:#e8355e;color:white;border:1px solid #d93057}
+.wt-t2-dialog-actions .wt-t2-primary{background:linear-gradient(120deg,#4566f5,#aa36e8);color:#fff;border:0}
+.wt-t2-fact{display:flex;gap:12px;align-items:start;justify-content:space-between;padding:9px 0;border-bottom:1px solid #ebeff8;font-size:12px}
+.wt-t2-fact span{color:#737f9b}.wt-t2-fact b{text-align:right;color:#26325a;overflow-wrap:anywhere;max-width:66%}
+@media(max-width:640px){#social-connections .wt-t2-social-summary{flex-wrap:wrap}.wt-t2-social-summary strong{margin-left:49px}.wt-t2-dialog-inner{padding:20px}.wt-t2-dialog-actions button{flex:1}}
+
+/* TikTok sigue visible en Mis Canales como perfil compartido, sin simular mensajería aprobada. */
+#channelConnections .wt-tiktok-t2-card .wt-tiktok-t2-icon{background:#1d2540;color:#fff;border-radius:13px}
+#channelConnections .wt-tiktok-t2-card .wt-tiktok-t2-account{font-size:clamp(15px,1.6vw,20px);overflow-wrap:anywhere}
+#channelConnections .wt-tiktok-t2-card .wt-tiktok-t2-status{display:flex;align-items:flex-start;gap:10px;margin:14px 0 8px;padding:11px 13px;border:1px solid #e1e7fa;border-radius:13px;background:#f7f8fe}
+#channelConnections .wt-tiktok-t2-card .wt-tiktok-t2-dot{width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#d99b23;margin-top:5px}
+#channelConnections .wt-tiktok-t2-card .wt-tiktok-t2-status b{display:block;font-size:12px;color:#243055;margin-bottom:4px}
+#channelConnections .wt-tiktok-t2-card .wt-tiktok-t2-status small{display:block;font-size:11px;line-height:1.5;color:#697390}
+#channelConnections .wt-tiktok-t2-card .wt-tiktok-t2-scopes{font-size:10px;color:#72809e;line-height:1.5}
+#channelConnections .wt-tiktok-t2-card .wt-wa-footer{margin-top:auto}

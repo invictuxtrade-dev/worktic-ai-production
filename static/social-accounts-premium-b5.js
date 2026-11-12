@@ -78,6 +78,8 @@
     const oldManagedMessage = card.querySelector('small.muted');
     const oldButtons = oldActions ? [...oldActions.querySelectorAll('button')] : [];
     const testButton = oldButtons.find(b => /probar/i.test(b.textContent || ''));
+    const idMatch = (testButton?.getAttribute('onclick') || '').match(/testSocialConnection\((\d+)\)/);
+    const connectionId = idMatch ? Number(idMatch[1]) : 0;
     const deleteButton = oldButtons.find(b => /eliminar/i.test(b.textContent || ''));
 
     const cardHead = element('div', 'wt-social-b5-head');
@@ -116,7 +118,7 @@
     perms.append(permSummary);
     const permList = element('div', 'wt-social-b5-permission-list');
     if (permissions.length) permissions.forEach(p => permList.append(badgeFor(p)));
-    else permList.append(element('span', 'wt-social-b5-permission-unknown', 'Meta aún no informó permisos para mostrar.'));
+    else permList.append(element('span', 'wt-social-b5-permission-unknown', 'El proveedor aún no informó permisos para mostrar.'));
     perms.append(permList);
     body.append(perms);
     if (oldNotice) {
@@ -125,7 +127,17 @@
     }
     if (oldManagedMessage) body.append(oldManagedMessage);
 
+    if (platform === 'tiktok') {
+      const hint = element('p', 'wt-social-t2-capability', 'Perfil conectado mediante Login Kit. La publicación y los mensajes requieren permisos adicionales de TikTok.');
+      body.append(hint);
+    }
     const footer = element('div', 'wt-social-b5-footer');
+    if (connectionId) {
+      const manage = element('button', 'wt-social-t2-manage', 'Administrar');
+      manage.type = 'button';
+      manage.addEventListener('click', () => window.workticOpenSocialAccountDetails?.(connectionId));
+      footer.append(manage);
+    }
     if (testButton) {
       testButton.className = 'wt-social-b5-test';
       testButton.textContent = 'Probar conexión';
@@ -137,6 +149,12 @@
       summary.setAttribute('aria-label', 'Más acciones de ' + name);
       summary.title = 'Más acciones';
       const menu = element('div', 'wt-social-b5-more-menu');
+      if (connectionId) {
+        const reconnect = element('button', 'wt-social-t2-reconnect', 'Reconectar');
+        reconnect.type = 'button';
+        reconnect.addEventListener('click', () => window.workticReauthorizeSocial?.(platform));
+        menu.append(reconnect);
+      }
       deleteButton.className = 'wt-social-b5-delete';
       deleteButton.textContent = 'Eliminar conexión';
       menu.append(deleteButton);

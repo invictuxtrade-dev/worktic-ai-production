@@ -510,7 +510,7 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	switch r.Method {
 	case http.MethodGet:
-		rows, e := a.db.Query(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,encrypted_credentials,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE tenant_id=? ORDER BY id DESC`, tid)
+		rows, e := a.db.Query(`SELECT id,tenant_id,public_id,type,name,status,external_account_id,assigned_agent_id,config_json,encrypted_credentials,last_connected_at,last_disconnected_at,last_message_at,last_error,created_at,updated_at FROM channel_connections WHERE tenant_id=? AND status<>'deleted' ORDER BY id DESC`, tid)
 		if e != nil {
 			writeError(w, e, 500)
 			return
@@ -599,9 +599,17 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 		_, _ = a.db.Exec(`INSERT INTO channel_audit(tenant_id,connection_id,user_id,action,detail,created_at) VALUES(?,?,?,?,?,?)`, tid, id, u.ID, "create", q.Type, now)
 		writeJSON(w, map[string]any{"ok": true, "id": id, "public_id": pub})
 	case http.MethodDelete:
+		if u.Role != "owner" && u.Role != "admin" && u.Role != "superadmin" {
+			writeError(w, errors.New("sin permiso para desconectar canales"), 403)
+			return
+		}
 		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+		if id <= 0 {
+			writeError(w, errors.New("id inválido"), 400)
+			return
+		}
 		var typ string
-		if a.db.QueryRow(`SELECT type FROM channel_connections WHERE id=? AND tenant_id=?`, id, tid).Scan(&typ) != nil {
+		if a.db.QueryRow(`SELECT type FROM channel_connections WHERE id=? AND tenant_id=? AND status<>'deleted'`, id, tid).Scan(&typ) != nil {
 			writeError(w, errors.New("conexión no encontrada"), 404)
 			return
 		}
@@ -611,8 +619,19 @@ func (a *App) channelConnectionsHandler(w http.ResponseWriter, r *http.Request) 
 		if rt := a.channelManager.runtime(id); rt != nil && rt.wa != nil {
 			rt.wa.Disconnect()
 		}
-		_, _ = a.db.Exec(`DELETE FROM channel_connections WHERE id=? AND tenant_id=?`, id, tid)
-		writeJSON(w, map[string]any{"ok": true})
+		now := time.Now().UTC().Format(time.RFC3339)
+		res, e := a.db.Exec(`UPDATE channel_connections SET status='deleted',external_account_id='',encrypted_credentials='',assigned_agent_id=0,last_disconnected_at=?,updated_at=? WHERE id=? AND tenant_id=? AND status<>'deleted'`, now, now, id, tid)
+		if e != nil {
+			writeError(w, errors.New("no se pudo retirar la conexión"), 500)
+			return
+		}
+		n, _ := res.RowsAffected()
+		if n != 1 {
+			writeError(w, errors.New("conexión no encontrada"), 404)
+			return
+		}
+		_, _ = a.db.Exec(`INSERT INTO channel_audit(tenant_id,connection_id,user_id,action,detail,created_at) VALUES(?,?,?,?,?,?)`, tid, id, u.ID, "disconnect_remove", typ, now)
+		writeJSON(w, map[string]any{"ok": true, "status": "deleted", "history_preserved": true})
 	default:
 		http.Error(w, "Método no permitido", 405)
 	}

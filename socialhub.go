@@ -106,7 +106,7 @@ func (a *App) socialConnectionsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case "GET":
-		rows, err := a.db.Query(`SELECT id,tenant_id,platform,account_name,external_account_id,status,provider_mode,scopes,last_sync_at,last_error,created_at,updated_at FROM social_connections WHERE tenant_id=? ORDER BY platform,account_name`, t)
+		rows, err := a.db.Query(`SELECT id,tenant_id,platform,account_name,external_account_id,status,provider_mode,scopes,last_sync_at,last_error,created_at,updated_at FROM social_connections WHERE tenant_id=? AND status<>'removed' ORDER BY platform,account_name`, t)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -160,12 +160,22 @@ func (a *App) socialConnectionsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		now := time.Now().UTC().Format(time.RFC3339)
 		ensureSocialProviderSchema(a.db)
-		res, err := a.db.Exec(`INSERT INTO social_connections(tenant_id,platform,account_name,external_account_id,status,provider_mode,scopes,last_sync_at,last_error,created_at,updated_at,encrypted_credentials,config_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, t, x.Platform, x.AccountName, x.ExternalAccountID, status, x.ProviderMode, x.Scopes, "", "", now, now, enc, cfgJSON)
+		res, err := a.db.Exec(`INSERT INTO social_connections(tenant_id,platform,account_name,external_account_id,status,provider_mode,scopes,last_sync_at,last_error,created_at,updated_at,encrypted_credentials,config_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+ON CONFLICT(tenant_id,platform,external_account_id) DO UPDATE SET account_name=excluded.account_name,status=excluded.status,provider_mode=excluded.provider_mode,scopes=excluded.scopes,last_sync_at='',last_error='',updated_at=excluded.updated_at,encrypted_credentials=excluded.encrypted_credentials,config_json=excluded.config_json WHERE social_connections.status='removed'`, t, x.Platform, x.AccountName, x.ExternalAccountID, status, x.ProviderMode, x.Scopes, "", "", now, now, enc, cfgJSON)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		id, _ := res.LastInsertId()
+		changed, _ := res.RowsAffected()
+		if changed == 0 {
+			http.Error(w, "Esta cuenta ya está vinculada; utiliza Probar conexión", http.StatusConflict)
+			return
+		}
+		var id int64
+		if err := a.db.QueryRow(`SELECT id FROM social_connections WHERE tenant_id=? AND platform=? AND external_account_id=?`, t, x.Platform, x.ExternalAccountID).Scan(&id); err != nil {
+			http.Error(w, "No se pudo recuperar la conexión", http.StatusInternalServerError)
+			return
+		}
 		writeJSON(w, map[string]any{"id": id, "status": status})
 	case "DELETE":
 		if !perms.ManageConnections {
@@ -173,13 +183,20 @@ func (a *App) socialConnectionsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		id, _ := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
-		res, err := a.db.Exec(`DELETE FROM social_connections WHERE id=? AND tenant_id=?`, id, t)
-		if err != nil {
-			http.Error(w, err.Error(), 500)
+		if id <= 0 {
+			http.Error(w, "Conexión inválida", 400)
 			return
 		}
-		n, _ := res.RowsAffected()
-		writeJSON(w, map[string]any{"ok": n > 0})
+		ok, disconnectErr := t2SoftRemoveSocialConnection(a.db, t, id)
+		if disconnectErr != nil {
+			http.Error(w, "No se pudo desvincular la cuenta ni pausar sus publicaciones", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "Cuenta no encontrada", http.StatusNotFound)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "status": "removed", "history_preserved": true})
 	default:
 		http.Error(w, "Método no permitido", 405)
 	}
