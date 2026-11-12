@@ -241,9 +241,9 @@ async function refresh(){
  for(const [key,c] of allChannels){
   const node=c.type==='instagram'?grid.querySelector('[data-ig-id=\"'+Number(c.id)+'\"]'):[...grid.querySelectorAll('[data-key]')].find(el=>el.dataset.key===key);
   if(!node)continue;
-  if(c.type==='email_ai'&&!c.setup&&c.status==='connected'){
+  if(c.type==='email_ai'&&!c.setup&&Number(c.id)>0){
    const controls=node.querySelector('.wt-email-card-actions, .wt-b102-actions, .actions')||node;
-   const btn=document.createElement('button');btn.type='button';btn.className='secondary wt-uc-t2-link';btn.textContent='Desconectar buzón';btn.dataset.ucAction='disconnect';btn.dataset.ucKey=key;controls.append(btn);
+   const btn=document.createElement('button');btn.type='button';btn.className='secondary wt-uc-t2-link';btn.textContent=c.status==='connected'?'Desconectar y quitar':'Quitar conexión';btn.dataset.ucAction='disconnect';btn.dataset.ucKey=key;controls.append(btn);
   }
   if(c.type==='instagram'&&Number(c.agent_id||0)>0){
    const controls=node.querySelector('.wt-email-card-actions, .wt-b102-actions, .actions')||node;
@@ -258,7 +258,7 @@ async function action(evt){const b=evt.target.closest('[data-uc-action]');if(!b)
  if(c.type==='email_ai'){
   if(name==='disconnect' && c.id && !c.setup){
    const ok=await window.workticConfirmUnlink({name:c.email||'Gmail',kind:'email'});if(!ok)return;
-   await api('/api/email/p1/accounts/disconnect',{method:'POST',body:JSON.stringify({id:c.id})});notice('Buzón desconectado. El historial permanece.');await refresh();return;
+   const out=await api('/api/email/p1/accounts/disconnect',{method:'POST',body:JSON.stringify({id:c.id})});if(!out?.ok)throw Error('El servidor no confirmó la desvinculación');notice('Buzón retirado de Mis Canales; el historial permanece.');await refresh();return;
   }
   if(name==='configure'||name==='inbox')openEmailChannel(c,name==='inbox'?'inbox':'accounts');return;
  }

@@ -22,7 +22,7 @@
    social:'Se retirará esta autorización del espacio de trabajo. La cuenta dejará de aparecer en Redes Sociales y, si también figura en Mis Canales, en esa vista. No se borrarán conversaciones ni contenidos históricos. Las publicaciones pendientes quedarán pausadas. La revocación externa se realiza en los ajustes del proveedor.',
    social_both:'Este mismo perfil TikTok se utiliza en Redes Sociales y Mis Canales. Desconectarlo retirará su autorización de AMBAS vistas, sin borrar contenido ni historial. No deshabilita Chat Web, Llamadas IA ni otros canales.',
    channel:'Se detendrá la atención de este canal y se retirará su autorización almacenada. Las conversaciones, contactos y oportunidades históricas se conservarán.',
-   email:'Se detendrá la recepción y el envío desde este buzón. Los correos y conversaciones ya incorporados permanecerán en el CRM.',
+   email:'Se retirará únicamente este buzón de Mis Canales, aunque ahora requiera reconexión. Se eliminarán sus credenciales locales y no recibirá ni enviará mensajes desde Worktic AI. El historial de correos, conversaciones y contactos permanecerá; podrás volver a autorizarlo cuando quieras.',
    webchat:'Se desactivará la recepción y la IA del chat web. El canal podrá volver a configurarse y se conservarán las conversaciones anteriores.',
    voice:'Se desactivarán las nuevas llamadas de este canal. No se eliminarán los registros históricos.',
    instagram_agent:'Se quitará el agente asignado para atención por Instagram. La cuenta seguirá conectada en Redes Sociales.'

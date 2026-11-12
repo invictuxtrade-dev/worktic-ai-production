@@ -400,7 +400,7 @@ func (a *App) emailP1Accounts(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Método no permitido", 405)
 		return
 	}
-	rows, e := a.db.Query(`SELECT id,provider,email,status,sync_at,last_error FROM email_p1_accounts WHERE tenant_id=? ORDER BY id DESC`, tid)
+	rows, e := a.db.Query(`SELECT id,provider,email,status,sync_at,last_error FROM email_p1_accounts WHERE tenant_id=? AND status<>'removed' ORDER BY id DESC`, tid)
 	if e != nil {
 		http.Error(w, "Error consultando cuentas", 503)
 		return
@@ -1051,17 +1051,16 @@ func (a *App) emailP1Disconnect(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("cuenta inválida"), 400)
 		return
 	}
-	res, e := a.db.Exec(`UPDATE email_p1_accounts SET encrypted_token='',token_expiry='',status='disconnected',updated_at=? WHERE tenant_id=? AND id=? AND status='connected'`, emailP1Now(), tid, q.ID)
+	removed, e := t3SoftRemoveEmailAccount(a.db, tid, q.ID)
 	if e != nil {
 		http.Error(w, "No se pudo desconectar", 503)
 		return
 	}
-	n, _ := res.RowsAffected()
-	if n != 1 {
+	if !removed {
 		http.Error(w, "Cuenta no encontrada", 404)
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "status": "disconnected"})
+	writeJSON(w, map[string]any{"ok": true, "status": "removed", "history_preserved": true})
 }
 
 // Derivación humana con comprobación explícita del tenant de destino.
