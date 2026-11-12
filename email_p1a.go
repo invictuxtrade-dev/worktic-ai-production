@@ -407,12 +407,14 @@ func (a *App) emailP1Accounts(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 	type item struct {
-		ID        int64  `json:"id"`
-		Provider  string `json:"provider"`
-		Email     string `json:"email"`
-		Status    string `json:"status"`
-		SyncAt    string `json:"sync_at"`
-		LastError string `json:"last_error"`
+		ID           int64  `json:"id"`
+		Provider     string `json:"provider"`
+		Email        string `json:"email"`
+		Status       string `json:"status"`
+		SyncAt       string `json:"sync_at"`
+		LastError    string `json:"last_error"`
+		SyncAllowed  bool   `json:"sync_allowed"`
+		PilotAccount bool   `json:"pilot_account"`
 	}
 	out := []item{}
 	for rows.Next() {
@@ -421,14 +423,22 @@ func (a *App) emailP1Accounts(w http.ResponseWriter, r *http.Request) {
 			out = append(out, x)
 		}
 	}
+	// Cerrar el cursor antes de consultar permisos del mismo pool (SQLite/PG).
+	if err := rows.Err(); err != nil {
+		http.Error(w, "Buzones no disponibles", 503)
+		return
+	}
+	rows.Close()
 	pilotAllowed := false
-	for _, acc := range out {
-		if acc.Provider == "google" && acc.Status == "connected" && emailP1BAllowedAccount(acc.ID, acc.Email) {
+	for i := range out {
+		acc := &out[i]
+		acc.PilotAccount = emailP1BAllowedAccount(acc.ID, acc.Email)
+		acc.SyncAllowed = acc.Status == "connected" && a.emailP1D3SyncAllowed(tid, acc.ID, acc.Provider, acc.Email)
+		if acc.SyncAllowed {
 			pilotAllowed = true
-			break
 		}
 	}
-	writeJSON(w, map[string]any{"ok": true, "items": out, "google_ready": os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_SECRET") != "", "microsoft_ready": os.Getenv("WORKTIC_EMAIL_MS_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_MS_CLIENT_SECRET") != "", "sync_enabled": emailP1Flag("WORKTIC_EMAIL_P1_SYNC_ENABLED"), "p1b_fast_sync": emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "p1c1_classification": emailP1Flag("WORKTIC_EMAIL_P1C1_ENABLED") && emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "p1c2_conversations": emailP1Flag("WORKTIC_EMAIL_P1C2_ENABLED") && emailP1Flag("WORKTIC_EMAIL_P1C1_ENABLED") && emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "manual_send_enabled": emailP1Flag("WORKTIC_EMAIL_P1_MANUAL_SEND_ENABLED")})
+	writeJSON(w, map[string]any{"ok": true, "items": out, "google_ready": os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_GOOGLE_CLIENT_SECRET") != "", "microsoft_ready": os.Getenv("WORKTIC_EMAIL_MS_CLIENT_ID") != "" && os.Getenv("WORKTIC_EMAIL_MS_CLIENT_SECRET") != "", "sync_enabled": emailP1Flag("WORKTIC_EMAIL_P1_SYNC_ENABLED"), "p1b_fast_sync": emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "p1c1_classification": emailP1Flag("WORKTIC_EMAIL_P1C1_ENABLED") && emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "p1c2_conversations": emailP1Flag("WORKTIC_EMAIL_P1C2_ENABLED") && emailP1Flag("WORKTIC_EMAIL_P1C1_ENABLED") && emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && pilotAllowed, "manual_send_enabled": emailP1Flag("WORKTIC_EMAIL_P1_MANUAL_SEND_ENABLED"), "self_service_enabled": emailP1D3Open() && emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED")})
 }
 
 type emailP1Mail struct {
@@ -698,15 +708,15 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 	if !emailP1Flag("WORKTIC_EMAIL_P1_SYNC_ENABLED") {
 		return 0, errors.New("sincronización desactivada")
 	}
+	// Autorizar ANTES de renovar credenciales o consultar contenido remoto.
+	if emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && !a.emailP1D3SyncAllowed(tenant, id, provider, account) {
+		return 0, errors.New("sincronización no autorizada para este buzón")
+	}
 	token, e := a.emailP1Refresh(ctx, id, tenant, provider, encrypted)
 	if e != nil {
 		return 0, e
 	}
-	// WORKTIC_EMAIL_P1B1_INCREMENTAL: opt-in scope for a single verified pilot mailbox.
-	if emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && (provider != "google" || !emailP1BAllowedAccount(id, account)) {
-		return 0, errors.New("buzón no autorizado para el piloto rápido")
-	}
-	if emailP1C2Enabled(id, account) {
+	if a.emailP1C2AccountEnabled(tenant, id, account) {
 		if e := a.emailP1C2StartPilot(tenant, id); e != nil {
 			return 0, errors.New("el piloto P1C2 no pudo inicializarse")
 		}
@@ -723,8 +733,23 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 	if e != nil {
 		return 0, e
 	}
+	// Una pausa mientras Gmail respondía debe detener el procesamiento local.
+	if emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && !a.emailP1D3SyncAllowed(tenant, id, provider, account) {
+		return 0, errors.New("sincronización pausada para este buzón")
+	}
+	activation := time.Time{}
+	if emailP1D3Open() && !emailP1BAllowedAccount(id, account) {
+		var permitted bool
+		activation, permitted = a.emailP1D3StartTime(tenant, id)
+		if !permitted {
+			return 0, errors.New("fecha de activación no disponible")
+		}
+	}
 	total := 0
 	for _, m := range mails {
+		if !activation.IsZero() && !emailP1D3NewMessage(m.When, activation) {
+			continue
+		}
 		if m.ID == "" || m.Sender == "" {
 			continue
 		}
@@ -737,7 +762,7 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 		// WORKTIC_EMAIL_P1B2_CHRONO_INBOX: self-sent messages appear in the inbox, never consume AI credits.
 		cat, pri, sum := emailP1Heuristic(m.Subject, m.Body)
 		createCRM := emailP1B2ShouldCreateContact(m.Sender, account)
-		if emailP1C1Enabled(id, account) {
+		if a.emailP1C1AccountEnabled(tenant, id, account) {
 			// P1C.1: no IA generativa, no CRM para boletines ni casos ambiguos.
 			decision := emailP1C1Classify(m.Sender, account, m.Subject, m.Body, m.Headers)
 			cat, pri, sum, createCRM = decision.Category, decision.Priority, decision.Summary, decision.CreateCRM
@@ -762,7 +787,7 @@ func (a *App) emailP1SyncOne(ctx context.Context, tenant, id int64, provider, ac
 			}
 		}
 	}
-	if emailP1C2Enabled(id, account) {
+	if a.emailP1C2AccountEnabled(tenant, id, account) {
 		a.emailP1C2Pump(tenant, id, account)
 		if emailP1D2Enabled(id, account) {
 			a.emailP1D2Pump(tenant, id, account)
@@ -779,6 +804,7 @@ func (a *App) runEmailP1Worker() {
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	var scanAfterID int64 // P1D3: turnos justos entre más de cien buzones.
 	for {
 		if !emailP1Enabled() || !emailP1Flag("WORKTIC_EMAIL_P1_SYNC_ENABLED") {
 			<-ticker.C
@@ -789,7 +815,7 @@ func (a *App) runEmailP1Worker() {
 			<-ticker.C
 			continue
 		}
-		rows, e := a.db.Query(`SELECT id,tenant_id,provider,email,encrypted_token FROM email_p1_accounts WHERE status='connected' ORDER BY id LIMIT 100`)
+		rows, e := a.db.Query(`SELECT id,tenant_id,provider,email,encrypted_token FROM email_p1_accounts WHERE status='connected' AND id>? ORDER BY id LIMIT 20`, scanAfterID)
 		if e == nil {
 			type item struct {
 				id, tid       int64
@@ -803,8 +829,17 @@ func (a *App) runEmailP1Worker() {
 				}
 			}
 			rows.Close()
+			if len(batch) == 0 {
+				scanAfterID = 0
+			} else {
+				if len(batch) == 20 {
+					scanAfterID = batch[len(batch)-1].id
+				} else {
+					scanAfterID = 0
+				}
+			}
 			for _, x := range batch {
-				if emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && (x.p != "google" || !emailP1BAllowedAccount(x.id, x.email)) {
+				if emailP1Flag("WORKTIC_EMAIL_P1B_FAST_SYNC_ENABLED") && !a.emailP1D3SyncAllowed(x.tid, x.id, x.p, x.email) {
 					continue
 				}
 				ctx, cancel := context.WithTimeout(context.Background(), 55*time.Second)

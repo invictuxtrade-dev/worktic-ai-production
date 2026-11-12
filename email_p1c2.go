@@ -54,7 +54,7 @@ type emailP1C2Pending struct {
 // Recupera también sincronizaciones cuya persistencia en Email IA tuvo éxito
 // pero cuya vinculación CRM/Conversaciones no se completó. Máximo 40 por vuelta.
 func (a *App) emailP1C2Pump(tenant, account int64, accountEmail string) {
-	if !emailP1C2Enabled(account, accountEmail) {
+	if !a.emailP1C2AccountEnabled(tenant, account, accountEmail) {
 		return
 	}
 	rows, e := a.db.Query(`SELECT m.id,m.provider_id,m.thread_id,m.sender,m.subject,m.body,m.received_at,m.category,m.priority

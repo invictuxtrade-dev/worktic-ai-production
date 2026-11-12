@@ -811,6 +811,7 @@ func main() {
 	mux.HandleFunc("/api/attraction/p1/promote", app.attractionP1PromoteHandler)
 	// Email IA (OAuth, buzones, bandeja, respuesta manual con idempotencia).
 	mux.HandleFunc("/api/email/p1/accounts", app.emailP1Accounts)
+	mux.HandleFunc("/api/email/p1/account-settings", app.emailP1D3SyncSettings)
 	mux.HandleFunc("/api/email/p1/oauth/start", app.emailP1OAuthStart)
 	mux.HandleFunc("/api/email/p1/oauth/callback", app.emailP1OAuthCallback)
 	mux.HandleFunc("/api/email/p1/messages", app.emailP1Messages)

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"strings"
@@ -247,7 +248,7 @@ func emailP1D2Mime(c emailP1D2Candidate, content string) ([]byte, error) {
 		return nil, errors.New("respuesta fuera de límite")
 	}
 	id := fmt.Sprintf("<worktic-p1d2-%d-%d-%d@workticai.com>", c.Tenant, c.Account, c.MessageID)
-	header := "From: " + emailP1Header(from) + "\r\nTo: " + emailP1Header(to) + "\r\nSubject: " + emailP1Header(subject) + "\r\nMessage-ID: " + id + "\r\nIn-Reply-To: " + c.InternetID + "\r\nReferences: " + c.InternetID + "\r\nAuto-Submitted: auto-replied\r\nX-Auto-Response-Suppress: All\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n"
+	header := "From: " + emailP1Header(from) + "\r\nTo: " + emailP1Header(to) + "\r\nSubject: " + mime.QEncoding.Encode("utf-8", emailP1Header(subject)) + "\r\nMessage-ID: " + id + "\r\nIn-Reply-To: " + c.InternetID + "\r\nReferences: " + c.InternetID + "\r\nAuto-Submitted: auto-replied\r\nX-Auto-Response-Suppress: All\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n"
 	return []byte(header + content), nil
 }
 

@@ -61,7 +61,7 @@ func (a *App) emailP1D1Source(tenant int64, chat string) (emailP1D1Source, error
 	if err != nil {
 		return s, errors.New("vinculación Email IA no disponible")
 	}
-	if !emailP1D1Enabled(s.AccountID, s.AccountEmail) || !emailP1D1EligibleCategory(s.Category) || strings.EqualFold(strings.TrimSpace(s.Sender), strings.TrimSpace(s.AccountEmail)) {
+	if !a.emailP1D1AccountEnabled(tenant, s.AccountID, s.AccountEmail) || !emailP1D1EligibleCategory(s.Category) || strings.EqualFold(strings.TrimSpace(s.Sender), strings.TrimSpace(s.AccountEmail)) {
 		return s, errors.New("borradores no habilitados para este correo")
 	}
 	return s, nil
