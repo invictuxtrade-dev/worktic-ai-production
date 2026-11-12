@@ -28,6 +28,7 @@ type socialToken struct {
 	TokenType    string `json:"token_type,omitempty"`
 	ExpiresIn    int64  `json:"expires_in,omitempty"`
 	OpenID       string `json:"open_id,omitempty"`
+	Scope        string `json:"scope,omitempty"`
 }
 
 type socialProviderConfig struct {
@@ -158,11 +159,14 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 			q := url.Values{"response_type": {"code"}, "client_id": {a.cfg.LinkedInClientID}, "redirect_uri": {redirect}, "state": {state}, "scope": {"openid profile w_member_social"}}
 			auth = "https://www.linkedin.com/oauth/v2/authorization?" + q.Encode()
 		case "tiktok":
-			if a.cfg.TikTokClientKey == "" {
-				http.Error(w, "TIKTOK_CLIENT_KEY no configurado", 409)
+			ready, reason := a.tiktokT1Ready()
+			if !ready {
+				http.Error(w, reason, http.StatusConflict)
 				return
 			}
-			q := url.Values{"client_key": {a.cfg.TikTokClientKey}, "response_type": {"code"}, "scope": {"user.info.basic,video.upload,video.publish"}, "redirect_uri": {redirect}, "state": {state}}
+			// T1: Login Kit / perfil basico; nunca solicitar permisos de publicacion
+			// sin aprobacion del proveedor ni consentimiento granular adicional.
+			q := url.Values{"client_key": {a.cfg.TikTokClientKey}, "response_type": {"code"}, "scope": {tiktokT1InitialScope}, "redirect_uri": {redirect}, "state": {state}}
 			auth = "https://www.tiktok.com/v2/auth/authorize/?" + q.Encode()
 		case "youtube":
 			if a.cfg.GoogleClientID == "" {
@@ -393,19 +397,14 @@ func (a *App) discoverAndSaveSocialConnection(ctx context.Context, tid int64, p 
 		}
 		return a.saveOfficialConnection(tid, p, me.Name, me.Sub, t, socialProviderConfig{AuthorURN: "urn:li:person:" + me.Sub}, "openid,profile,w_member_social")
 	case "tiktok":
-		var me struct {
-			Data struct {
-				User struct {
-					OpenID      string `json:"open_id"`
-					DisplayName string `json:"display_name"`
-				} `json:"user"`
-			} `json:"data"`
+		if !tiktokT1HasScope(t.Scope, tiktokT1InitialScope) {
+			return errors.New("TikTok no autorizo el permiso user.info.basic")
 		}
-		_ = apiJSON(ctx, "GET", "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name", t.AccessToken, nil, &me)
-		if me.Data.User.OpenID == "" {
-			me.Data.User.OpenID = t.OpenID
+		id, name, err := tiktokT1FetchProfile(ctx, t.AccessToken, t.OpenID)
+		if err != nil {
+			return err
 		}
-		return a.saveOfficialConnection(tid, p, me.Data.User.DisplayName, me.Data.User.OpenID, t, socialProviderConfig{OpenID: me.Data.User.OpenID}, "user.info.basic,video.upload,video.publish")
+		return a.saveOfficialConnection(tid, p, name, id, t, socialProviderConfig{OpenID: id}, t.Scope)
 	case "youtube":
 		var ch struct {
 			Items []struct {
@@ -804,9 +803,11 @@ func (a *App) socialConnectionTestHandler(w http.ResponseWriter, r *http.Request
 		err = apiJSON(r.Context(), "GET", "https://api.telegram.org/bot"+tok.AccessToken+"/getChat?chat_id="+url.QueryEscape(cfg.ChatID), "", nil, &out)
 		detail = cfg.ChatID
 	case "tiktok":
-		var out map[string]any
-		err = apiJSON(r.Context(), "GET", "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name", tok.AccessToken, nil, &out)
-		detail = cfg.OpenID
+		var profileID string
+		profileID, detail, err = tiktokT1FetchProfile(r.Context(), tok.AccessToken, cfg.OpenID)
+		if err == nil && profileID != cfg.OpenID {
+			err = errors.New("Cuenta TikTok no coincide con la autorizada")
+		}
 	case "youtube":
 		var out map[string]any
 		err = apiJSON(r.Context(), "GET", "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", tok.AccessToken, nil, &out)
@@ -835,6 +836,15 @@ func (a *App) markSocialConnectionTest(id, tid int64, ok bool, msg string) {
 func (a *App) refreshSocialTokenIfNeeded(ctx context.Context, connectionID, tid int64, p string, tok socialToken) (socialToken, error) {
 	if tok.RefreshToken == "" {
 		return tok, nil
+	}
+	if p == "tiktok" {
+		var expiry string
+		if err := a.db.QueryRow(`SELECT token_expires_at FROM social_connections WHERE id=? AND tenant_id=? AND platform='tiktok'`, connectionID, tid).Scan(&expiry); err != nil {
+			return tok, errors.New("No se pudo consultar vencimiento TikTok")
+		}
+		if !tiktokT1TokenNeedsRefresh(expiry, time.Now().UTC()) {
+			return tok, nil
+		}
 	}
 	var endpoint string
 	vals := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tok.RefreshToken}}
@@ -867,6 +877,9 @@ func (a *App) refreshSocialTokenIfNeeded(ctx context.Context, connectionID, tid 
 	}
 	if nt.RefreshToken == "" {
 		nt.RefreshToken = tok.RefreshToken
+	}
+	if nt.Scope == "" {
+		nt.Scope = tok.Scope
 	}
 	tb, _ := json.Marshal(nt)
 	exp := ""
@@ -1059,6 +1072,9 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 			result, err = a.publishTelegram(ctx, tok.AccessToken, cfg.ChatID, p.Caption, media, p.Format)
 		}
 	case "tiktok":
+		if !tiktokT1HasScope(tok.Scope, "video.publish") {
+			return nil, errors.New("TikTok: la cuenta solo tiene permiso de perfil; solicita autorizacion video.publish antes de publicar")
+		}
 		result, err = a.publishTikTok(ctx, tok.AccessToken, p.Caption, mediaURLs, p.Format)
 	case "youtube":
 		if len(mediaURLs) > 1 {

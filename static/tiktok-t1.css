@@ -1,0 +1,7 @@
+/* Worktic TikTok T1 — panel oficial en Redes Sociales */
+.wt-tt-t1-panel{display:flex;align-items:center;gap:18px;padding:20px;margin:0 0 18px;background:linear-gradient(140deg,rgba(22,27,47,.97),rgba(27,24,53,.95));border:1px solid rgba(134,112,246,.4);border-radius:18px;color:#fff;box-shadow:0 14px 30px rgba(17,15,45,.1)}
+.wt-tt-t1-symbol{display:grid;place-items:center;flex:0 0 56px;width:56px;height:56px;border-radius:16px;background:linear-gradient(145deg,#23cad3,#16171e 47%,#ef2f69);font-size:34px;font-weight:800}
+.wt-tt-t1-info{flex:1;min-width:180px}.wt-tt-t1-eyebrow{font-size:11px;letter-spacing:.15em;color:#b8a9ff;font-weight:750}.wt-tt-t1-info h3{font-size:18px;margin:4px 0 6px;color:white}.wt-tt-t1-info p{font-size:13px;margin:0 0 8px;color:#e6e5f4;line-height:1.5}.wt-tt-t1-info small{color:#bfc3dc;font-size:12px;word-break:break-word}
+.wt-tt-t1-buttons{display:flex;flex-flow:column;gap:8px;align-items:stretch;min-width:165px}.wt-tt-t1-buttons button{font-weight:650;white-space:normal}
+.wt-tiktok-t1-card .wt-channel-detail{line-height:1.55}
+@media(max-width:760px){.wt-tt-t1-panel{flex-direction:column;align-items:stretch;padding:16px}.wt-tt-t1-symbol{flex-basis:auto}.wt-tt-t1-buttons{flex-flow:row wrap}.wt-tt-t1-buttons button{flex:1 1 150px}}
