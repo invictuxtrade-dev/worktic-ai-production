@@ -1,4 +1,4 @@
-/* Worktic AI - Agent Builder A2. Normal chat + on-demand form extraction. No save/publish. */
+/* Worktic AI - Agent Builder A3. True streaming + opt-in voice + existing form. No save/publish. */
 (() => {
   'use strict';
   const byId = id => document.getElementById(id);
@@ -12,6 +12,14 @@
   ];
   const state = { messages: [], proposal: null, proposalAt: -1, busy: false, initialised: false };
   let dialog = null;
+  const voice = { active:false, recognition:null, listening:false, speaking:false, generation:0 };
+  const SpeechRecognizer = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const canListen = !!SpeechRecognizer;
+  const canSpeak = !!(window.speechSynthesis && window.SpeechSynthesisUtterance);
+  const icons = {
+    mic: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>',
+    send: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 14-8-4 16-3-7-7-1Z"/><path d="m12 13 7-9"/></svg>'
+  };
 
   function el(tag, content, className) {
     const node = document.createElement(tag);
@@ -40,6 +48,7 @@
     const send = byId('wtBuilderSend'); const use = byId('wtBuilderUse'); const prep = byId('wtBuilderPrepare');
     const input = byId('wtBuilderInput'); const bottom = byId('wtBuilderBottomUse');
     if (send) send.disabled = state.busy || !(input && input.value.trim());
+    const mic=byId('wtBuilderMic'); if (mic) mic.disabled = !canListen;
     if (use) use.disabled = state.busy || !state.messages.some(m => m.role === 'user');
     if (bottom) bottom.disabled = state.busy || !state.messages.some(m => m.role === 'user');
     if (prep) prep.disabled = state.busy || !state.messages.some(m => m.role === 'user');
@@ -94,37 +103,185 @@
     if (!response.ok) throw new Error(json.error || json.message || 'No se pudo conectar con el asistente.');
     return json;
   }
-  async function sendMessage(value) {
-    if (state.busy) return;
-    value = String(value || '').trim();
-    if (!value || value.length > 1200) {status('Escribe un mensaje de hasta 1.200 caracteres.');return;}
+  // Decode incremental NDJSON from the existing authenticated POST endpoint.
+  async function requestStream(onDelta) {
+    const response = await fetch('/api/agents/builder-a1', {
+      method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({mode:'stream',messages:historyForRequest()})
+    });
+    if (!response.ok) {
+      const json=await response.json().catch(()=>({}));
+      if (response.status===401) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
+      if (response.status===403) throw new Error('No tienes permiso para configurar agentes.');
+      throw new Error(json.error||json.message||'No se pudo iniciar la respuesta.');
+    }
+    if (!response.body || !response.body.getReader) throw new Error('Tu navegador no permite recibir respuestas progresivas.');
+    const reader=response.body.getReader(), decoder=new TextDecoder();
+    let buffer='', text='', completed=false;
+    const parseLine=line=>{
+      if (!line.trim()) return;
+      let item;
+      try { item=JSON.parse(line); } catch { throw new Error('La respuesta del servidor no tiene un formato válido.'); }
+      if (item.type==='delta') {
+        text += String(item.value||'');
+        if (text.length>12000) throw new Error('La respuesta superó el límite permitido.');
+        onDelta(text);
+      } else if (item.type==='done') completed=true;
+      else if (item.type==='error') throw new Error(String(item.value||'No se pudo completar la respuesta.'));
+    };
+    try {
+      while(true){
+        const {done,value}=await reader.read();
+        buffer+=done?decoder.decode():decoder.decode(value,{stream:true});
+        let lineEnd;
+        while((lineEnd=buffer.indexOf('\n'))!==-1){parseLine(buffer.slice(0,lineEnd));buffer=buffer.slice(lineEnd+1);}
+        if(done) break;
+      }
+      if (buffer.trim()) parseLine(buffer);
+      if (!completed || !text.trim()) throw new Error('La respuesta se interrumpió. Intenta nuevamente.');
+      return text.trim();
+    } finally {try {reader.releaseLock();} catch { /* closed stream */ }}
+  }
+
+  function updateVoiceUI() {
+    const mic=byId('wtBuilderMic'); if (!mic) return;
+    mic.classList.toggle('wt-builder-mic-active',voice.active);
+    mic.classList.toggle('wt-builder-mic-listening',voice.listening);
+    mic.setAttribute('aria-pressed',String(voice.active));
+    mic.setAttribute('aria-label',voice.active?'Detener conversación por voz':'Conversar por voz');
+    mic.title=canListen?(voice.active?'Detener conversación por voz':'Conversar por voz con micrófono'):'Tu navegador no admite reconocimiento de voz';
+    mic.disabled=!canListen;
+  }
+  function stopVoice(message) {
+    voice.generation++;
+    voice.active=false;
+    voice.listening=false;
+    voice.speaking=false;
+    const recognizer=voice.recognition;
+    voice.recognition=null;
+    if(recognizer){try{recognizer.abort();}catch{/* already stopped */}}
+    if(canSpeak){try{window.speechSynthesis.cancel();}catch{/* unavailable */}}
+    updateVoiceUI();
+    if(message) status(message);
+  }
+  function voiceParts(text){
+    const sentences=String(text).replace(/\s+/g,' ').match(/[^.!?]+[.!?]*|[^.!?]+$/g)||[];
+    const parts=[];
+    for(const sentence of sentences){
+      const words=sentence.trim().split(/\s+/);let part='';
+      for(const word of words){
+        if(part.length+word.length+1>180&&part){parts.push(part);part='';}
+        part+=(part?' ':'')+word;
+      }
+      if(part)parts.push(part);
+    }
+    return parts;
+  }
+  function speakReply(text) {
+    if(!voice.active)return;
+    if(!canSpeak){stopVoice('Tu navegador no permite respuesta hablada; puedes seguir escribiendo.');return;}
+    const parts=voiceParts(text), generation=voice.generation;
+    if(!parts.length){beginListening();return;}
+    voice.speaking=true;
+    status('El asistente está hablando…');
+    const synth=window.speechSynthesis;
+    const available=synth.getVoices?synth.getVoices():[];
+    const selected=available.find(v=>v.lang.toLowerCase()==='es-co')||available.find(v=>v.lang.toLowerCase().startsWith('es-'));
+    let i=0;
+    const sayNext=()=>{
+      if(!voice.active||generation!==voice.generation||!dialog?.open)return;
+      if(i>=parts.length){voice.speaking=false;beginListening();return;}
+      const utterance=new SpeechSynthesisUtterance(parts[i++]);
+      utterance.lang=selected?.lang||'es-CO';
+      if(selected)utterance.voice=selected;
+      utterance.rate=1.03;
+      utterance.onend=sayNext;
+      utterance.onerror=()=>{voice.speaking=false;stopVoice('No se pudo reproducir el audio. Puedes continuar por texto.');};
+      synth.speak(utterance);
+    };
+    try{synth.cancel();sayNext();}catch{stopVoice('El audio no está disponible. Puedes continuar por texto.');}
+  }
+  function beginListening() {
+    if(!voice.active||!canListen||state.busy||!dialog?.open||document.hidden)return;
+    const generation=voice.generation;
+    const recognizer=new SpeechRecognizer();
+    voice.recognition=recognizer;
+    recognizer.lang='es-CO';
+    recognizer.interimResults=true;
+    recognizer.continuous=false;
+    recognizer.maxAlternatives=1;
     const input=byId('wtBuilderInput');
-    // Leave the textarea unlocked so the user can compose while waiting.
+    const base=(input?.value||'').trim();
+    let final='', errorReceived=false;
+    recognizer.onstart=()=>{if(generation!==voice.generation)return;voice.listening=true;updateVoiceUI();status('Escuchando… Habla naturalmente.');};
+    recognizer.onresult=event=>{
+      if(generation!==voice.generation)return;
+      let interim='';
+      for(let i=event.resultIndex;i<event.results.length;i++){
+        const result=event.results[i];const words=String(result[0]?.transcript||'').trim();
+        if(result.isFinal) final+=(final?' ':'')+words;
+        else interim+=(interim?' ':'')+words;
+      }
+      if(input){input.value=[base,final,interim].filter(Boolean).join(' ').slice(0,1200);updateComposer();}
+    };
+    recognizer.onerror=event=>{
+      errorReceived=true;
+      const messages={'not-allowed':'Permiso de micrófono denegado. Actívalo en Chrome para usar la voz.','audio-capture':'No se encontró un micrófono disponible.','network':'El reconocimiento de voz no está disponible en este momento.','no-speech':'No se detectó voz. Pulsa el micrófono para intentarlo de nuevo.'};
+      if(event.error!=='aborted'&&generation===voice.generation)stopVoice(messages[event.error]||'No se pudo reconocer la voz. Puedes escribir tu mensaje.');
+    };
+    recognizer.onend=()=>{
+      if(generation!==voice.generation)return;
+      voice.listening=false;voice.recognition=null;updateVoiceUI();
+      if(!voice.active||errorReceived)return;
+      const content=(input?.value||'').trim();
+      if(final.trim()&&content){sendMessage(content,{voiceTurn:true});return;}
+      stopVoice('No detecté una frase completa. Pulsa el micrófono cuando quieras hablar.');
+    };
+    try{recognizer.start();}catch{stopVoice('No fue posible activar el micrófono.');}
+  }
+  function toggleVoice() {
+    if(voice.active){stopVoice('Voz desactivada. Puedes seguir por texto.');return;}
+    if(!canListen){status('Este navegador no permite reconocimiento de voz; utiliza Chrome compatible o escribe tu mensaje.');return;}
+    if(!canSpeak){status('Tu navegador no permite reproducir la respuesta por voz.');return;}
+    if(state.busy){status('Espera a que termine la respuesta actual para activar el micrófono.');return;}
+    voice.active=true;voice.generation++;updateVoiceUI();beginListening();
+  }
+
+  async function sendMessage(value) {
+    if(state.busy)return;
+    value=String(value||'').trim();
+    if(!value||value.length>1200){status('Escribe un mensaje de hasta 1.200 caracteres.');return;}
+    const input=byId('wtBuilderInput');
+    if(voice.recognition){try{voice.recognition.abort();}catch{/* stopped */}voice.recognition=null;voice.listening=false;}
     state.messages.push({role:'user',content:value});
     messageBubble('user',value);
-    if (input) {input.value='';input.style.height='auto';}
-    state.busy=true;updateComposer(); status('El asistente está respondiendo…');
-    const typing = typingBubble();
-    try {
-      const result = await requestAI('chat');
-      if (!result || typeof result.reply !== 'string' || !result.reply.trim()) throw new Error('El asistente no devolvió una respuesta.');
-      typing?.remove();
-      const reply=result.reply.trim();
+    if(input){input.value='';input.style.height='auto';}
+    state.busy=true;updateComposer();updateVoiceUI();status('El asistente está respondiendo…');
+    const typing=typingBubble();const bubble=typing?.querySelector('.wt-builder-bubble');
+    let received=false;
+    try{
+      const reply=await requestStream(text=>{
+        if(!received){received=true;typing?.classList.remove('wt-builder-typing');}
+        if(bubble)bubble.textContent=text;
+        scrollDown();
+      });
       state.messages.push({role:'assistant',content:reply});
-      messageBubble('assistant',reply);
       status('Puedes seguir conversando libremente.');
-    } catch (error) {
+      if(voice.active)speakReply(reply);
+    }catch(error){
       typing?.remove();
-      state.messages.pop(); // Failed turn was not accepted into the conversation history.
-      messageBubble('assistant',error.message || 'No se pudo responder. Inténtalo de nuevo.','wt-builder-error');
-      if (input && !input.value.trim()) input.value=value;
-      status('No se ha perdido tu mensaje. Puedes reintentar.');
-    } finally {
+      state.messages.pop();
+      messageBubble('assistant',error.message||'No pude responder. Intenta otra vez.','wt-builder-error');
+      if(input&&!input.value.trim())input.value=value;
+      if(voice.active)stopVoice('Ocurrió un error. Puedes reintentar por texto o voz.');
+      else status('No se ha perdido tu mensaje. Puedes reintentar.');
+    }finally{
       state.busy=false;updateComposer();renderProposal();
-      if (dialog?.open) input?.focus();
+      if(dialog?.open&&!voice.active)input?.focus();
     }
   }
   async function prepareProposal() {
+    if(voice.active)stopVoice('Preparando la configuración del formulario.');
     if (state.busy || !state.messages.some(m=>m.role==='user')) return false;
     if (state.proposal && state.proposalAt===state.messages.length) return true;
     state.busy=true;updateComposer();status('Preparando los campos del formulario…');
@@ -156,13 +313,15 @@
     }
   }
   async function useInForm() {
+    if(voice.active)stopVoice();
     if (state.busy || !state.messages.some(m=>m.role==='user')) return;
     if (!(await prepareProposal())) return;
     const p=state.proposal; if (!p) return;
     const btn=byId('newAIAgent');
     if (!btn || btn.hidden || btn.disabled || !btn.getClientRects().length) {status('El formulario no está disponible para este usuario.');return;}
     dialog.close();
-    btn.click(); // Reuse the existing new-agent form; do not create/save/activate.
+    // When opened from Nuevo agente, fill THAT form instead of reopening and resetting it.
+    if(!byId('maName') || !byId('saveAIAgent') || !byId('modal')?.open){btn.click();}
     if (!byId('maName') || !byId('saveAIAgent')) {
       dialog.showModal();status('No se encontró el editor original. No se guardó ningún agente.');return;
     }
@@ -184,10 +343,11 @@
   }
   function startNewChat() {
     if (state.busy) return;
+    stopVoice();
     state.messages=[];state.proposal=null;state.proposalAt=-1;
     byId('wtBuilderMessages')?.replaceChildren();
     messageBubble('assistant','¡Hola! 👋 Soy tu asistente para diseñar agentes IA. Puedes preguntarme lo que quieras y contarme tus ideas. Cuando te guste el resultado, lo pasamos al formulario sin crear nada automáticamente.');
-    renderProposal();updateComposer();status('Conversa con naturalidad. No tienes que llenar un cuestionario.');
+    renderProposal();updateComposer();updateVoiceUI();status('Conversa con naturalidad. No tienes que llenar un cuestionario.');
     togglePreview(false);
   }
   function openChat() {
@@ -195,13 +355,22 @@
     if (!state.initialised) {startNewChat();state.initialised=true;}
     dialog.showModal();byId('wtBuilderInput')?.focus();scrollDown();
   }
+  function injectIntoNewAgentForm() {
+    const origin=byId('modal'),form=origin?.querySelector('.wua58-agent');
+    const submit=form?.querySelector('#saveAIAgent');
+    if(!origin?.open||!form||!submit||submit.textContent.trim()!=='Crear agente'||byId('wtBuilderOpen'))return;
+    const heading=form.querySelector('.modal-heading');if(!heading)return;
+    const entry=el('div',null,'wt-builder-form-entry');entry.id='wtBuilderFormEntry';
+    entry.innerHTML=`<span class="wt-builder-form-sparkle" aria-hidden="true">✦</span><div class="wt-builder-form-copy"><strong>¿Prefieres diseñar tu agente conversando?</strong><span>La IA te guía y completa este formulario. Tú decides cuándo crear el agente.</span></div><button type="button" id="wtBuilderOpen" class="wt-builder-launch">Crear con IA <span aria-hidden="true">→</span></button>`;
+    heading.insertAdjacentElement('afterend',entry);
+    byId('wtBuilderOpen')?.addEventListener('click',openChat);
+  }
   function setup() {
-    const anchor=byId('newAIAgent');if(!anchor || byId('wtBuilderOpen'))return;
-    const button=el('button','✦ Crear con ayuda de IA','wt-builder-launch');
-    button.type='button';button.id='wtBuilderOpen';button.title='Conversar con IA y completar el formulario existente';
-    anchor.insertAdjacentElement('beforebegin',button);
-    const syncVisibility=()=>{button.hidden=!!anchor.hidden||anchor.disabled;};syncVisibility();
-    new MutationObserver(syncVisibility).observe(anchor,{attributes:true,attributeFilter:['hidden','disabled','style']});
+    const anchor=byId('newAIAgent');if(!anchor||byId('wtAgentBuilderA1'))return;
+    const legacy=byId('wtBuilderOpen');if(legacy)legacy.remove();
+    const modalContent=byId('modalContent');
+    if(modalContent){new MutationObserver(injectIntoNewAgentForm).observe(modalContent,{childList:true,subtree:true});}
+    anchor.addEventListener('click',()=>queueMicrotask(injectIntoNewAgentForm));
     dialog=document.createElement('dialog');dialog.id='wtAgentBuilderA1';dialog.className='wt-agent-builder';
     dialog.innerHTML=`
       <div class="wt-builder-shell">
@@ -214,8 +383,8 @@
             <div class="wt-builder-conversation-top"><span class="wt-builder-online"></span> Asistente de Worktic AI <span class="wt-builder-mode">· Conversación libre</span></div>
             <div id="wtBuilderMessages" class="wt-builder-messages" aria-live="polite" aria-label="Conversación"></div>
             <div class="wt-builder-starters" id="wtBuilderStarters"><button type="button" data-starter="Quiero crear un agente de ventas para mi negocio. ¿Cómo empezamos?">Agente de ventas</button><button type="button" data-starter="¿Qué puede hacer un agente de atención al cliente en Worktic AI?">Atención al cliente</button><button type="button" data-starter="Ayúdame a diseñar un agente para agendar citas.">Agenda de citas</button></div>
-            <div class="wt-builder-compose"><label class="wt-builder-sr-only" for="wtBuilderInput">Escribe un mensaje</label><textarea id="wtBuilderInput" rows="2" maxlength="1200" placeholder="Pregúntame lo que quieras sobre tu agente…"></textarea><div class="wt-builder-compose-bottom"><span id="wtBuilderStatus" role="status">Conversa libremente.</span><button type="button" id="wtBuilderSend" aria-label="Enviar mensaje" title="Enviar mensaje">➤</button></div></div>
-            <div class="wt-builder-chat-note">La IA te ayuda a diseñarlo. Nada se crea ni publica hasta que tú uses el formulario.</div>
+            <div class="wt-builder-compose"><label class="wt-builder-sr-only" for="wtBuilderInput">Escribe un mensaje</label><textarea id="wtBuilderInput" rows="2" maxlength="1200" placeholder="Pregúntame lo que quieras sobre tu agente…"></textarea><div class="wt-builder-compose-bottom"><span id="wtBuilderStatus" role="status">Conversa libremente.</span><div class="wt-builder-composer-actions"><button type="button" id="wtBuilderMic" aria-label="Conversar por voz" aria-pressed="false" title="Conversar por voz">${icons.mic}</button><button type="button" id="wtBuilderSend" aria-label="Enviar mensaje" title="Enviar mensaje">${icons.send}</button></div></div></div>
+            <div class="wt-builder-chat-note">La voz puede utilizar servicios de reconocimiento del navegador. Nada se crea ni publica desde este chat.</div>
           </section>
           <aside class="wt-builder-preview" aria-label="Configuración del agente">
             <div class="wt-builder-preview-head"><div><small>TU AGENTE</small><h3>Configuración sugerida</h3></div><button id="wtBuilderHidePreview" type="button" aria-label="Volver al chat">×</button></div>
@@ -226,8 +395,8 @@
         <footer class="wt-builder-footer"><span>✦ Tu conversación se utiliza para preparar el formulario; no se guarda ningún agente.</span><button type="button" id="wtBuilderBottomUse">Usar en el formulario →</button></footer>
       </div>`;
     document.body.append(dialog);
-    button.addEventListener('click',openChat);
     byId('wtBuilderClose').addEventListener('click',()=>dialog.close());
+    byId('wtBuilderMic').addEventListener('click',toggleVoice);
     byId('wtBuilderNew').addEventListener('click',()=>{if(state.messages.length>0 && !window.confirm('¿Comenzar una conversación nueva? Se perderá la conversación actual.'))return;startNewChat();});
     byId('wtBuilderPreviewToggle').addEventListener('click',async()=>{
       if (dialog.classList.contains('wt-builder-show-preview')) {togglePreview(false);return;}
@@ -245,8 +414,9 @@
     input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();sendMessage(input.value);}});
     byId('wtBuilderSend').addEventListener('click',()=>sendMessage(input.value));
     byId('wtBuilderStarters').addEventListener('click',event=>{const starter=event.target.closest('[data-starter]');if(starter)sendMessage(starter.dataset.starter);});
-    dialog.addEventListener('close',()=>{togglePreview(false);});
-    renderProposal();updateComposer();
+    dialog.addEventListener('close',()=>{stopVoice();togglePreview(false);});
+    document.addEventListener('visibilitychange',()=>{if(document.hidden&&voice.active)stopVoice('Voz detenida porque la ventana no está visible.');});
+    renderProposal();updateComposer();updateVoiceUI();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setup,{once:true}); else setup();
 })();

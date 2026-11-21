@@ -148,17 +148,17 @@ func (a *App) agentBuilderA1Handler(w http.ResponseWriter, r *http.Request) {
 	if request.Mode == "" {
 		request.Mode = "chat"
 	}
-	if request.Mode != "chat" && request.Mode != "proposal" {
+	if request.Mode != "chat" && request.Mode != "stream" && request.Mode != "proposal" {
 		writeError(w, errors.New("modo no permitido"), http.StatusBadRequest)
 		return
 	}
-	if request.Mode == "chat" && request.Messages[len(request.Messages)-1].Role != "user" {
+	if (request.Mode == "chat" || request.Mode == "stream") && request.Messages[len(request.Messages)-1].Role != "user" {
 		writeError(w, errors.New("escribe un mensaje para continuar"), http.StatusBadRequest)
 		return
 	}
 	total := 0
 	for _, message := range request.Messages {
-		if !agentBuilderA1Allowed(message.Role, []string{"user", "assistant"}) || strings.TrimSpace(message.Content) == "" || len([]rune(message.Content)) > 1500 {
+		if !agentBuilderA1Allowed(message.Role, []string{"user", "assistant"}) || strings.TrimSpace(message.Content) == "" || len([]rune(message.Content)) > 2700 {
 			writeError(w, errors.New("mensaje inválido o demasiado largo"), http.StatusBadRequest)
 			return
 		}
@@ -169,6 +169,10 @@ func (a *App) agentBuilderA1Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	history, _ := json.Marshal(request.Messages)
+	if request.Mode == "stream" {
+		a.agentBuilderA3Stream(w, r, tenant, string(history))
+		return
+	}
 	// A2: chat and form preparation are intentionally different operations.
 	// Ordinary messages must NEVER force a full agent specification.
 	if request.Mode == "chat" {

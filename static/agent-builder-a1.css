@@ -72,3 +72,26 @@
 @media(max-width:850px){#wtAgentBuilderA1.wt-agent-builder{width:98vw;height:96dvh;max-height:96dvh;border-radius:14px}#wtAgentBuilderA1 .wt-builder-header{padding:13px 14px}#wtAgentBuilderA1 .wt-builder-brand h2{font-size:15px}#wtAgentBuilderA1 .wt-builder-header-soft{font-size:11px;padding:8px}#wtAgentBuilderA1 .wt-builder-mark{width:36px;height:36px}#wtAgentBuilderA1 .wt-builder-preview{position:absolute;z-index:3;right:0;top:0;bottom:0;width:min(100%,385px);max-width:none;box-shadow:-10px 0 26px #1c285a1b}#wtAgentBuilderA1 .wt-builder-messages{padding:13px 20px 8px}#wtAgentBuilderA1 .wt-builder-compose{margin:0 12px}#wtAgentBuilderA1 .wt-builder-footer{padding:9px 13px}#wtAgentBuilderA1 .wt-builder-footer span{max-width:52%}}
 @media(max-width:480px){#wtAgentBuilderA1 .wt-builder-brand h2{font-size:13px}#wtAgentBuilderA1 .wt-builder-brand small{font-size:9px}#wtAgentBuilderA1 .wt-builder-header-actions{gap:5px}#wtAgentBuilderA1 .wt-builder-header-soft{padding:7px;font-size:10px}#wtAgentBuilderA1 .wt-builder-header-soft:first-child{display:none}#wtAgentBuilderA1 .wt-builder-conversation-top{padding:12px}#wtAgentBuilderA1 .wt-builder-starters button{font-size:11px;padding:7px 10px}#wtAgentBuilderA1 .wt-builder-footer span{display:none}#wtAgentBuilderA1 .wt-builder-footer{justify-content:center}#wtAgentBuilderA1 #wtBuilderBottomUse{width:100%}#wtAgentBuilderA1 .wt-builder-chat-note{font-size:10px}#wtAgentBuilderA1 .wt-builder-bubble{font-size:13px}}
 @media(prefers-reduced-motion:reduce){#wtAgentBuilderA1 .wt-builder-dots i{animation:none}}
+
+/* A3: aligned voice + send actions inside the message composer. */
+#wtAgentBuilderA1 .wt-builder-compose-bottom{min-height:43px;padding:3px 4px 2px 10px;gap:12px;align-items:center;justify-content:space-between}
+#wtAgentBuilderA1 .wt-builder-compose-bottom #wtBuilderStatus{flex:1;min-width:0;line-height:1.45}
+#wtAgentBuilderA1 .wt-builder-composer-actions{display:flex;gap:8px;align-items:center;flex:0 0 auto}
+#wtAgentBuilderA1 #wtBuilderMic,#wtAgentBuilderA1 #wtBuilderSend{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;padding:0;border-radius:12px;line-height:0}
+#wtAgentBuilderA1 #wtBuilderMic{background:#f5f4fc;border:1px solid #e8e5f7;color:#594ec3;transition:background .2s,border-color .2s,box-shadow .2s}
+#wtAgentBuilderA1 #wtBuilderMic:hover:not(:disabled){background:#ebe8fe;border-color:#c8bdfc}
+#wtAgentBuilderA1 #wtBuilderMic.wt-builder-mic-active{background:#ede9ff;border-color:#816ff0;color:#4e3bd1}
+#wtAgentBuilderA1 #wtBuilderMic.wt-builder-mic-listening{box-shadow:0 0 0 4px rgba(109,80,224,.13);animation:wt-builder-voice-ring 1.7s infinite}
+#wtAgentBuilderA1 #wtBuilderSend{background:linear-gradient(130deg,#5567ed,#9e36d8);border:0;color:#fff}
+#wtAgentBuilderA1 #wtBuilderSend:disabled{opacity:.45}
+#wtAgentBuilderA1 .wt-builder-compose textarea{min-height:46px;padding-bottom:8px}
+@keyframes wt-builder-voice-ring{50%{box-shadow:0 0 0 7px rgba(109,80,224,.06)}}
+/* A3: contextual entry point INSIDE the original 'Crear agente IA' editor. */
+dialog#modal .wua58-agent .wt-builder-form-entry{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:16px 18px;margin:16px 0 20px;background:linear-gradient(110deg,#f5f4ff,#faf4ff);border:1px solid #ddd8fe;border-radius:16px;box-shadow:0 6px 17px #443db40b}
+dialog#modal .wua58-agent .wt-builder-form-sparkle{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;background:linear-gradient(130deg,#5c65e8,#b837da);color:#fff;font-size:22px;border-radius:14px}
+dialog#modal .wua58-agent .wt-builder-form-copy{flex:1 1 190px;min-width:0;display:flex;flex-direction:column;gap:4px}
+dialog#modal .wua58-agent .wt-builder-form-copy strong{color:#233054;font-size:14px;line-height:1.35}
+dialog#modal .wua58-agent .wt-builder-form-copy span{font-size:12px;line-height:1.55;color:#6e789c}
+dialog#modal .wua58-agent #wtBuilderOpen.wt-builder-launch{margin:0;display:inline-flex;align-items:center;justify-content:center;gap:9px;white-space:nowrap;min-height:43px;flex:0 0 auto;padding:11px 16px;background:linear-gradient(115deg,#5661ed,#a932dc);border:0;border-radius:11px;font-size:12px;line-height:1.2;color:#fff;font-weight:800;box-shadow:0 5px 12px #5b56d625}
+@media(max-width:610px){dialog#modal .wua58-agent .wt-builder-form-entry{padding:13px 12px;gap:10px}dialog#modal .wua58-agent #wtBuilderOpen.wt-builder-launch{width:100%}#wtAgentBuilderA1 .wt-builder-compose-bottom{gap:5px}#wtAgentBuilderA1 .wt-builder-composer-actions{gap:5px}#wtAgentBuilderA1 #wtBuilderMic,#wtAgentBuilderA1 #wtBuilderSend{width:38px;height:38px}}
+@media(prefers-reduced-motion:reduce){#wtAgentBuilderA1 #wtBuilderMic.wt-builder-mic-listening{animation:none}}
