@@ -139,7 +139,7 @@ func (a *App) agentBuilderA1Handler(w http.ResponseWriter, r *http.Request) {
 		a.agentBuilderA5Transcribe(w, r, tenant)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
+	r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
 	var request struct {
 		Mode     string                  `json:"mode"`
 		Messages []agentBuilderA1Message `json:"messages"`
@@ -170,13 +170,13 @@ func (a *App) agentBuilderA1Handler(w http.ResponseWriter, r *http.Request) {
 	}
 	total := 0
 	for _, message := range request.Messages {
-		if !agentBuilderA1Allowed(message.Role, []string{"user", "assistant"}) || strings.TrimSpace(message.Content) == "" || len([]rune(message.Content)) > 2700 {
+		if !agentBuilderA1Allowed(message.Role, []string{"user", "assistant"}) || strings.TrimSpace(message.Content) == "" || len([]rune(message.Content)) > 20000 {
 			writeError(w, errors.New("mensaje inválido o demasiado largo"), http.StatusBadRequest)
 			return
 		}
 		total += len([]rune(message.Content))
 	}
-	if total > 9000 {
+	if total > 40000 {
 		writeError(w, errors.New("conversación demasiado extensa; inicia otra"), http.StatusBadRequest)
 		return
 	}

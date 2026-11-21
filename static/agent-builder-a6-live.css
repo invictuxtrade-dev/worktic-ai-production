@@ -2,7 +2,7 @@
 .wt-agent-builder .wt-builder-live-start{border:1px solid #c9c6ff;border-radius:12px;background:#f4f0ff;color:#4c36ac;padding:9px 13px;min-width:86px;min-height:40px;white-space:nowrap;font-weight:750;font:inherit;cursor:pointer;box-shadow:none}
 .wt-agent-builder .wt-builder-live-start.active{color:#fff;background:linear-gradient(105deg,#4e57ea,#ac31d4);border-color:transparent}
 .wt-agent-builder .wt-builder-live-start:focus-visible,.wt-agent-builder .wt-builder-live-panel button:focus-visible{outline:3px solid #7a6ef1;outline-offset:2px}
-.wt-agent-builder .wt-builder-live-panel{display:grid;grid-template-columns:14px minmax(120px,1fr) auto auto;align-items:center;gap:10px;margin:9px 10px 5px;padding:10px 13px;border:1px solid #d9d1ff;background:#f7f5ff;border-radius:14px;color:#37306a;font-size:12px}
+.wt-agent-builder .wt-builder-live-panel{display:grid;grid-template-columns:14px minmax(120px,1fr) auto auto auto;align-items:center;gap:10px;margin:9px 10px 5px;padding:10px 13px;border:1px solid #d9d1ff;background:#f7f5ff;border-radius:14px;color:#37306a;font-size:12px}
 .wt-agent-builder .wt-builder-live-panel[hidden]{display:none!important}
 .wt-agent-builder .wt-builder-live-pulse{width:10px;height:10px;background:#14c993;border-radius:50%;box-shadow:0 0 0 4px #d7f7eb;animation:wtLivePulse 1.4s infinite}
 .wt-agent-builder .wt-builder-live-panel button{border:1px solid #ccc4ef;background:#fff;border-radius:9px;min-height:33px;padding:5px 10px;color:#372b78;font-weight:650;cursor:pointer}
@@ -11,3 +11,12 @@
 .wt-agent-builder .wt-builder-live-caption:empty{display:none}
 @keyframes wtLivePulse{50%{box-shadow:0 0 0 7px #e1fbf4}}
 @media(max-width:600px){.wt-agent-builder .wt-builder-live-start{font-size:12px;min-width:70px;padding:8px}.wt-agent-builder .wt-builder-live-panel{grid-template-columns:12px 1fr auto;gap:8px}.wt-agent-builder .wt-builder-live-panel #wtBuilderLiveEnd{grid-column:3}.wt-agent-builder .wt-builder-live-panel #wtBuilderLiveMute{grid-column:2;justify-self:end}}
+
+#wtAgentBuilderA1 .wt-builder-count{white-space:nowrap;flex:0 0 auto;font-variant-numeric:tabular-nums;font-size:11px}
+.wt-agent-builder .wt-builder-live-panel #wtBuilderLiveAudio{background:#eef5ff;border-color:#94b8f5;color:#1a57a4}
+.wt-agent-builder .wt-builder-live-panel #wtBuilderLiveAudio[hidden]{display:none!important}
+@media(max-width:600px){.wt-agent-builder .wt-builder-live-panel #wtBuilderLiveAudio{grid-column:2;justify-self:end}.wt-agent-builder .wt-builder-live-panel #wtBuilderLiveMute{grid-column:2}.wt-agent-builder .wt-builder-live-panel #wtBuilderLiveEnd{grid-column:3}}
+
+.wt-agent-builder #wtBuilderMic.wt-builder-live-mic-active{background:linear-gradient(105deg,#4e57ea,#ac31d4)!important;color:white!important;border-color:transparent!important;box-shadow:0 0 0 3px rgba(93,77,232,.16)}
+.wt-agent-builder .wt-builder-dictate{padding:7px 9px;min-height:38px;border:1px solid #d9d4ed;background:#fff;color:#51457e;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer}
+.wt-agent-builder .wt-builder-dictate:disabled{opacity:.55;cursor:not-allowed}

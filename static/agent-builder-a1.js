@@ -10,6 +10,8 @@
     ['language','Idioma'],['instructions','Instrucciones'],['knowledge','Conocimiento'],
     ['greeting','Bienvenida'],['handoff_rules','Transferencia']
   ];
+  const MAX_MESSAGE_CHARS = 20000;
+  const MAX_HISTORY_CHARS = 36000;
   const state = { messages: [], proposal: null, proposalAt: -1, busy: false, initialised: false };
   let dialog = null;
   const voice = { active:false, recorder:null, stream:null, recording:false, speaking:false, requesting:false, timeout:null, generation:0 };
@@ -49,7 +51,9 @@
     const send = byId('wtBuilderSend'); const use = byId('wtBuilderUse'); const prep = byId('wtBuilderPrepare');
     const input = byId('wtBuilderInput'); const bottom = byId('wtBuilderBottomUse');
     if (send) send.disabled = state.busy || !(input && input.value.trim());
-    const mic=byId('wtBuilderMic'); if (mic) mic.disabled = !canListen || voice.requesting;
+    const counter=byId('wtBuilderCount'); if(counter&&input)counter.textContent=input.value.length.toLocaleString('es-CO')+' / '+MAX_MESSAGE_CHARS.toLocaleString('es-CO');
+    const mic=byId('wtBuilderMic'); if (mic) mic.disabled = typeof window.WorkticAgentBuilderLiveStart === 'function' ? false : (!canListen || voice.requesting);
+    const dictation=byId('wtBuilderDictate'); if(dictation)dictation.disabled=!canListen||voice.requesting;
     if (use) use.disabled = state.busy || !state.messages.some(m => m.role === 'user');
     if (bottom) bottom.disabled = state.busy || !state.messages.some(m => m.role === 'user');
     if (prep) prep.disabled = state.busy || !state.messages.some(m => m.role === 'user');
@@ -89,8 +93,17 @@
     if (toggle) {toggle.textContent = enabled ? 'Volver al chat' : 'Ver configuración'; toggle.setAttribute('aria-expanded',String(enabled));}
   }
   function historyForRequest() {
+    // Keep a long business brief as an anchor when the chat grows.
+    // Preserve the latest question and a bounded amount of recent dialogue.
     const selected = state.messages.slice(-16);
-    while (selected.length > 1 && JSON.stringify(selected).length > 8200) selected.shift();
+    const brief = state.messages.find(m => m.role==='user' && String(m.content||'').length>4000);
+    if (brief && !selected.includes(brief)) selected.unshift(brief);
+    while (selected.length>16) selected.splice(selected[0]===brief ? 1 : 0,1);
+    while (selected.length>1 && JSON.stringify(selected).length>MAX_HISTORY_CHARS) {
+      const dropIndex=selected[0]===brief ? 1 : 0;
+      if (dropIndex>=selected.length-1) break;
+      selected.splice(dropIndex,1);
+    }
     return selected;
   }
   async function requestAI(mode) {
@@ -164,6 +177,10 @@
   }
   function updateVoiceUI() {
     const mic=byId('wtBuilderMic'); if(!mic)return;
+    const dictation=byId('wtBuilderDictate');
+    if(dictation){dictation.textContent=voice.recording?'■ Enviar dictado':voice.requesting?'Procesando…':'Dictar';dictation.disabled=!canListen||voice.requesting;}
+    // The A6 live microphone owns its own visual state; A5 remains a separate dictation action.
+    if(typeof window.WorkticAgentBuilderLiveStart === 'function')return;
     mic.classList.toggle('wt-builder-mic-active',voice.active);
     mic.classList.toggle('wt-builder-mic-listening',voice.recording);
     mic.classList.toggle('wt-builder-mic-requesting',voice.requesting);
@@ -302,7 +319,7 @@
   async function sendMessage(value) {
     if(state.busy)return;
     value=String(value||'').trim();
-    if(!value||value.length>1200){status('Escribe un mensaje de hasta 1.200 caracteres.');return;}
+    if(!value||value.length>MAX_MESSAGE_CHARS){status('Escribe un mensaje de hasta 20.000 caracteres.');return;}
     const input=byId('wtBuilderInput');
     state.messages.push({role:'user',content:value});
     messageBubble('user',value);
@@ -398,16 +415,18 @@
     history() { return historyForRequest().map(m => ({role:m.role, content:m.content})); },
     addTurn(role, rawText) {
       if (!dialog?.open || (role!=='user' && role!=='assistant')) return;
-      const content=String(rawText||'').trim().slice(0,1200);
+      const content=String(rawText||'').trim().slice(0,MAX_MESSAGE_CHARS);
       if (!content) return;
       state.messages.push({role,content});
-      if (state.messages.length>16) state.messages.splice(0,state.messages.length-16);
+      if (state.messages.length>80) state.messages.splice(0,state.messages.length-80);
       state.proposalAt=-1;
       messageBubble(role,content);
       renderProposal();updateComposer();
     }
   });
 
+  // Compatibility action for A5's transcription, now exposed as a distinct Dictar control.
+  window.WorkticAgentBuilderDictation = () => {if(dialog?.open)toggleVoice();};
   function startNewChat() {
     if (state.busy) return;
     stopVoice();hideMicNotice();
@@ -459,9 +478,9 @@
               <button type="button" data-starter="Necesito un agente de soporte técnico que atienda consultas y sepa cuándo escalar a un humano.">Soporte técnico</button>
               <button type="button" data-starter="Quiero un agente personalizado con tareas particulares. Ayúdame a analizar lo que puede hacer.">Personalizado</button>
             </div></div>
-            <div class="wt-builder-compose"><label class="wt-builder-sr-only" for="wtBuilderInput">Escribe un mensaje</label><textarea id="wtBuilderInput" rows="2" maxlength="1200" placeholder="Pregúntame lo que quieras sobre tu agente…"></textarea><div class="wt-builder-compose-bottom"><span id="wtBuilderStatus" role="status">Conversa libremente.</span><div class="wt-builder-composer-actions"><button type="button" id="wtBuilderMic" aria-label="Conversar por voz" aria-pressed="false" title="Conversar por voz">${icons.mic}</button><button type="button" id="wtBuilderSend" aria-label="Enviar mensaje" title="Enviar mensaje">${icons.send}</button></div></div></div>
+            <div class="wt-builder-compose"><label class="wt-builder-sr-only" for="wtBuilderInput">Escribe un mensaje</label><textarea id="wtBuilderInput" rows="2" maxlength="20000" placeholder="Cuéntame sobre tu empresa, pega tu presentación o describe el agente que deseas crear…"></textarea><div class="wt-builder-compose-bottom"><span id="wtBuilderStatus" role="status">Conversa libremente.</span><span id="wtBuilderCount" class="wt-builder-count" aria-label="Caracteres utilizados">0 / 20.000</span><div class="wt-builder-composer-actions"><button type="button" id="wtBuilderMic" aria-label="Conversar por voz" aria-pressed="false" title="Conversar por voz">${icons.mic}</button><button type="button" id="wtBuilderSend" aria-label="Enviar mensaje" title="Enviar mensaje">${icons.send}</button></div></div></div>
             <div class="wt-builder-mic-notice" id="wtBuilderMicNotice" role="alert" hidden><span aria-hidden="true">🎙️</span><p id="wtBuilderMicNoticeText"></p><button type="button" id="wtBuilderMicNoticeClose" aria-label="Cerrar indicaciones del micrófono">×</button></div>
-            <div class="wt-builder-chat-note">Para convertir voz en texto, Worktic AI envía tu grabación a OpenAI cuando terminas de hablar. Es un servicio con consumo. Nada se crea ni publica desde el chat.</div>
+            <div class="wt-builder-chat-note">🎙️ El micrófono inicia una conversación de voz en vivo: la asistente te saluda primero. «Dictar» permite grabar y transcribir un mensaje por separado. Ambos modos utilizan OpenAI y generan consumo. Nada se crea ni publica automáticamente.</div>
           </section>
           <aside class="wt-builder-preview" aria-label="Configuración del agente">
             <div class="wt-builder-preview-head"><div><small>TU AGENTE</small><h3>Configuración sugerida</h3></div><button id="wtBuilderHidePreview" type="button" aria-label="Volver al chat">×</button></div>
@@ -473,7 +492,10 @@
       </div>`;
     document.body.append(dialog);
     byId('wtBuilderClose').addEventListener('click',()=>dialog.close());
-    byId('wtBuilderMic').addEventListener('click',toggleVoice);
+    byId('wtBuilderMic').addEventListener('click',()=>{
+      if(typeof window.WorkticAgentBuilderLiveStart === 'function')window.WorkticAgentBuilderLiveStart();
+      else toggleVoice();
+    });
     byId('wtBuilderMicNoticeClose').addEventListener('click',hideMicNotice);
     byId('wtBuilderNew').addEventListener('click',()=>{if(state.messages.length>0 && !window.confirm('¿Comenzar una conversación nueva? Se perderá la conversación actual.'))return;startNewChat();});
     byId('wtBuilderPreviewToggle').addEventListener('click',async()=>{
