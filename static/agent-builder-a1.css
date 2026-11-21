@@ -95,3 +95,16 @@ dialog#modal .wua58-agent .wt-builder-form-copy span{font-size:12px;line-height:
 dialog#modal .wua58-agent #wtBuilderOpen.wt-builder-launch{margin:0;display:inline-flex;align-items:center;justify-content:center;gap:9px;white-space:nowrap;min-height:43px;flex:0 0 auto;padding:11px 16px;background:linear-gradient(115deg,#5661ed,#a932dc);border:0;border-radius:11px;font-size:12px;line-height:1.2;color:#fff;font-weight:800;box-shadow:0 5px 12px #5b56d625}
 @media(max-width:610px){dialog#modal .wua58-agent .wt-builder-form-entry{padding:13px 12px;gap:10px}dialog#modal .wua58-agent #wtBuilderOpen.wt-builder-launch{width:100%}#wtAgentBuilderA1 .wt-builder-compose-bottom{gap:5px}#wtAgentBuilderA1 .wt-builder-composer-actions{gap:5px}#wtAgentBuilderA1 #wtBuilderMic,#wtAgentBuilderA1 #wtBuilderSend{width:38px;height:38px}}
 @media(prefers-reduced-motion:reduce){#wtAgentBuilderA1 #wtBuilderMic.wt-builder-mic-listening{animation:none}}
+
+/* A4: explicit microphone permission and clear recovery steps */
+#wtAgentBuilderA1 .wt-builder-mic-notice[hidden]{display:none!important}
+#wtAgentBuilderA1 .wt-builder-mic-notice{display:flex;align-items:flex-start;gap:10px;flex-shrink:0;margin:8px clamp(14px,6vw,84px) 0;padding:12px 13px;border:1px solid #f2ca9b;background:#fff8ed;border-radius:13px;color:#7a4c14;box-shadow:0 4px 15px #c3811912}
+#wtAgentBuilderA1 .wt-builder-mic-notice span{font-size:18px;line-height:1.3}
+#wtAgentBuilderA1 .wt-builder-mic-notice p{margin:0;flex:1;line-height:1.5;font-size:12px}
+#wtAgentBuilderA1 #wtBuilderMicNoticeClose{border:0;background:#fff0df;color:#7a4c14;width:24px;height:24px;border-radius:7px;font-size:19px;line-height:1}
+#wtAgentBuilderA1 #wtBuilderMic.wt-builder-mic-requesting{background:#e4e2ff;color:#514ac6;cursor:wait}
+#wtAgentBuilderA1 .wt-builder-starters-area{flex-shrink:0;margin:5px clamp(14px,6vw,84px) 10px;min-width:0}
+#wtAgentBuilderA1 .wt-builder-starters-area>span{display:block;font-weight:700;font-size:10px;letter-spacing:.02em;color:#8a91a9;margin:0 0 6px 4px}
+#wtAgentBuilderA1 .wt-builder-starters{justify-content:flex-start;flex-wrap:nowrap;gap:7px;margin:0;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#d0d0ef transparent;padding:4px 2px 8px;max-width:100%}
+#wtAgentBuilderA1 .wt-builder-starters button{flex:0 0 auto;white-space:nowrap}
+@media(max-width:850px){#wtAgentBuilderA1 .wt-builder-starters-area{margin:5px 12px 10px}#wtAgentBuilderA1 .wt-builder-mic-notice{margin:8px 12px 0}}

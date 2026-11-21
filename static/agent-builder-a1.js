@@ -1,4 +1,4 @@
-/* Worktic AI - Agent Builder A3. True streaming + opt-in voice + existing form. No save/publish. */
+/* Worktic AI - Agent Builder A4. Streaming + browser microphone permission + voice + existing form. No save/publish. */
 (() => {
   'use strict';
   const byId = id => document.getElementById(id);
@@ -12,7 +12,7 @@
   ];
   const state = { messages: [], proposal: null, proposalAt: -1, busy: false, initialised: false };
   let dialog = null;
-  const voice = { active:false, recognition:null, listening:false, speaking:false, generation:0 };
+  const voice = { active:false, recognition:null, listening:false, speaking:false, requesting:false, generation:0 };
   const SpeechRecognizer = window.SpeechRecognition || window.webkitSpeechRecognition;
   const canListen = !!SpeechRecognizer;
   const canSpeak = !!(window.speechSynthesis && window.SpeechSynthesisUtterance);
@@ -48,7 +48,7 @@
     const send = byId('wtBuilderSend'); const use = byId('wtBuilderUse'); const prep = byId('wtBuilderPrepare');
     const input = byId('wtBuilderInput'); const bottom = byId('wtBuilderBottomUse');
     if (send) send.disabled = state.busy || !(input && input.value.trim());
-    const mic=byId('wtBuilderMic'); if (mic) mic.disabled = !canListen;
+    const mic=byId('wtBuilderMic'); if (mic) mic.disabled = !canListen || voice.requesting;
     if (use) use.disabled = state.busy || !state.messages.some(m => m.role === 'user');
     if (bottom) bottom.disabled = state.busy || !state.messages.some(m => m.role === 'user');
     if (prep) prep.disabled = state.busy || !state.messages.some(m => m.role === 'user');
@@ -143,18 +143,34 @@
     } finally {try {reader.releaseLock();} catch { /* closed stream */ }}
   }
 
+  function showMicNotice(kind) {
+    const notice=byId('wtBuilderMicNotice');
+    const message=byId('wtBuilderMicNoticeText');
+    if (!notice || !message) return;
+    const help={
+      denied:'Chrome bloqueó el micrófono. Para habilitarlo: pulsa el icono de controles del sitio junto a la dirección web → Configuración del sitio → Micrófono → Permitir. Después actualiza la página e inténtalo de nuevo. Si bloqueaste el permiso antes, Chrome no mostrará otra ventana hasta que cambies ese ajuste.',
+      missing:'No se detectó un micrófono. Comprueba que esté conectado y seleccionado en la configuración de sonido del dispositivo y vuelve a intentarlo.',
+      unsupported:'No está disponible el acceso al micrófono en este navegador. Utiliza Chrome actualizado con HTTPS o continúa escribiendo.',
+      service:'El acceso al dispositivo está habilitado, pero el servicio de reconocimiento de voz no respondió. Comprueba la conexión y las restricciones de Chrome; puedes continuar por texto.'
+    };
+    message.textContent=help[kind] || help.service;
+    notice.hidden=false;
+  }
+  function hideMicNotice(){const notice=byId('wtBuilderMicNotice');if(notice)notice.hidden=true;}
   function updateVoiceUI() {
     const mic=byId('wtBuilderMic'); if (!mic) return;
     mic.classList.toggle('wt-builder-mic-active',voice.active);
     mic.classList.toggle('wt-builder-mic-listening',voice.listening);
+    mic.classList.toggle('wt-builder-mic-requesting',voice.requesting);
     mic.setAttribute('aria-pressed',String(voice.active));
-    mic.setAttribute('aria-label',voice.active?'Detener conversación por voz':'Conversar por voz');
-    mic.title=canListen?(voice.active?'Detener conversación por voz':'Conversar por voz con micrófono'):'Tu navegador no admite reconocimiento de voz';
-    mic.disabled=!canListen;
+    mic.setAttribute('aria-label',voice.active?'Detener conversación por voz':voice.requesting?'Solicitando acceso al micrófono':'Activar micrófono y conversación por voz');
+    mic.title=canListen?(voice.active?'Detener conversación por voz':voice.requesting?'Solicitando permiso de Chrome':'Activar voz y solicitar permiso de micrófono'):'Tu navegador no admite reconocimiento de voz';
+    mic.disabled=!canListen || voice.requesting;
   }
   function stopVoice(message) {
     voice.generation++;
     voice.active=false;
+    voice.requesting=false;
     voice.listening=false;
     voice.speaking=false;
     const recognizer=voice.recognition;
@@ -213,7 +229,7 @@
     const input=byId('wtBuilderInput');
     const base=(input?.value||'').trim();
     let final='', errorReceived=false;
-    recognizer.onstart=()=>{if(generation!==voice.generation)return;voice.listening=true;updateVoiceUI();status('Escuchando… Habla naturalmente.');};
+    recognizer.onstart=()=>{if(generation!==voice.generation)return;voice.listening=true;hideMicNotice();updateVoiceUI();status('Escuchando… Habla naturalmente.');};
     recognizer.onresult=event=>{
       if(generation!==voice.generation)return;
       let interim='';
@@ -226,8 +242,13 @@
     };
     recognizer.onerror=event=>{
       errorReceived=true;
-      const messages={'not-allowed':'Permiso de micrófono denegado. Actívalo en Chrome para usar la voz.','audio-capture':'No se encontró un micrófono disponible.','network':'El reconocimiento de voz no está disponible en este momento.','no-speech':'No se detectó voz. Pulsa el micrófono para intentarlo de nuevo.'};
-      if(event.error!=='aborted'&&generation===voice.generation)stopVoice(messages[event.error]||'No se pudo reconocer la voz. Puedes escribir tu mensaje.');
+      const messages={'not-allowed':'Reconocimiento bloqueado. Revisa el permiso del micrófono en Chrome.','service-not-allowed':'El servicio de reconocimiento está bloqueado.','audio-capture':'No se encontró un micrófono disponible.','network':'El reconocimiento de voz no está disponible en este momento.','no-speech':'No se detectó voz. Pulsa el micrófono para intentarlo de nuevo.'};
+      if(event.error!=='aborted'&&generation===voice.generation){
+        stopVoice(messages[event.error]||'No se pudo reconocer la voz. Puedes escribir tu mensaje.');
+        if(event.error==='not-allowed')showMicNotice('denied');
+        else if(event.error==='service-not-allowed'||event.error==='network')showMicNotice('service');
+        else if(event.error==='audio-capture')showMicNotice('missing');
+      }
     };
     recognizer.onend=()=>{
       if(generation!==voice.generation)return;
@@ -239,12 +260,58 @@
     };
     try{recognizer.start();}catch{stopVoice('No fue posible activar el micrófono.');}
   }
-  function toggleVoice() {
+  async function toggleVoice() {
     if(voice.active){stopVoice('Voz desactivada. Puedes seguir por texto.');return;}
-    if(!canListen){status('Este navegador no permite reconocimiento de voz; utiliza Chrome compatible o escribe tu mensaje.');return;}
+    if(voice.requesting)return;
+    if(!canListen){showMicNotice('unsupported');status('El reconocimiento de voz no está disponible en este navegador.');return;}
     if(!canSpeak){status('Tu navegador no permite reproducir la respuesta por voz.');return;}
     if(state.busy){status('Espera a que termine la respuesta actual para activar el micrófono.');return;}
-    voice.active=true;voice.generation++;updateVoiceUI();beginListening();
+    // A genuine browser permission request, invoked directly from the mic click.
+    // SpeechRecognition.start() alone does not reliably prompt on every Chrome setup.
+    if(!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia!=='function'){
+      showMicNotice('unsupported');
+      status('No se puede solicitar el micrófono. Comprueba HTTPS y la compatibilidad del navegador.');
+      return;
+    }
+    hideMicNotice();
+    const generation=++voice.generation;
+    voice.requesting=true;
+    updateVoiceUI();
+    status('Chrome está solicitando acceso al micrófono…');
+    let stream;
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+      // SpeechRecognition will acquire its own input. Do not leave a second capture open.
+      if(stream && typeof stream.getTracks==='function'){
+        for(const track of stream.getTracks()){try{track.stop();}catch{/* already closed */}}
+      }
+      stream=null;
+      if(generation!==voice.generation || !dialog?.open)return;
+      voice.requesting=false;
+      voice.active=true;
+      updateVoiceUI();
+      status('Micrófono autorizado. Escuchando…');
+      beginListening();
+    }catch(error){
+      if(stream && typeof stream.getTracks==='function'){
+        for(const track of stream.getTracks()){try{track.stop();}catch{/* cleanup */}}
+      }
+      if(generation!==voice.generation)return;
+      voice.requesting=false;
+      voice.active=false;
+      updateVoiceUI();
+      const name=String(error?.name||'');
+      if(['NotAllowedError','PermissionDeniedError','SecurityError'].includes(name)){
+        showMicNotice('denied');
+        status('Micrófono bloqueado. Consulta los pasos para permitirlo en Chrome.');
+      }else if(['NotFoundError','DevicesNotFoundError','NotReadableError','TrackStartError'].includes(name)){
+        showMicNotice('missing');
+        status('No se pudo acceder al dispositivo de audio.');
+      }else{
+        showMicNotice('service');
+        status('No se pudo activar el micrófono. Puedes continuar escribiendo.');
+      }
+    }
   }
 
   async function sendMessage(value) {
@@ -343,7 +410,7 @@
   }
   function startNewChat() {
     if (state.busy) return;
-    stopVoice();
+    stopVoice();hideMicNotice();
     state.messages=[];state.proposal=null;state.proposalAt=-1;
     byId('wtBuilderMessages')?.replaceChildren();
     messageBubble('assistant','¡Hola! 👋 Soy tu asistente para diseñar agentes IA. Puedes preguntarme lo que quieras y contarme tus ideas. Cuando te guste el resultado, lo pasamos al formulario sin crear nada automáticamente.');
@@ -382,9 +449,19 @@
           <section class="wt-builder-chat" aria-label="Chat de asistente">
             <div class="wt-builder-conversation-top"><span class="wt-builder-online"></span> Asistente de Worktic AI <span class="wt-builder-mode">· Conversación libre</span></div>
             <div id="wtBuilderMessages" class="wt-builder-messages" aria-live="polite" aria-label="Conversación"></div>
-            <div class="wt-builder-starters" id="wtBuilderStarters"><button type="button" data-starter="Quiero crear un agente de ventas para mi negocio. ¿Cómo empezamos?">Agente de ventas</button><button type="button" data-starter="¿Qué puede hacer un agente de atención al cliente en Worktic AI?">Atención al cliente</button><button type="button" data-starter="Ayúdame a diseñar un agente para agendar citas.">Agenda de citas</button></div>
+            <div class="wt-builder-starters-area"><span>IDEAS PARA EMPEZAR · Puedes crear otros agentes libremente</span><div class="wt-builder-starters" id="wtBuilderStarters">
+              <button type="button" data-starter="Quiero diseñar un agente de ventas para mi negocio. Ayúdame a definirlo.">Ventas</button>
+              <button type="button" data-starter="Quiero diseñar un agente de atención y soporte al cliente.">Atención al cliente</button>
+              <button type="button" data-starter="Quiero un agente que ayude a gestionar y confirmar citas.">Agenda de citas</button>
+              <button type="button" data-starter="Ayúdame a diseñar un agente de campañas de marketing.">Marketing</button>
+              <button type="button" data-starter="Quiero un agente para moderar comunidades y responder preguntas frecuentes.">Comunidades</button>
+              <button type="button" data-starter="Quiero un asistente para ayudar a calificar leads y registrar información en CRM, dentro de las funciones que tenga disponibles.">CRM y leads</button>
+              <button type="button" data-starter="Necesito un agente de soporte técnico que atienda consultas y sepa cuándo escalar a un humano.">Soporte técnico</button>
+              <button type="button" data-starter="Quiero un agente personalizado con tareas particulares. Ayúdame a analizar lo que puede hacer.">Personalizado</button>
+            </div></div>
             <div class="wt-builder-compose"><label class="wt-builder-sr-only" for="wtBuilderInput">Escribe un mensaje</label><textarea id="wtBuilderInput" rows="2" maxlength="1200" placeholder="Pregúntame lo que quieras sobre tu agente…"></textarea><div class="wt-builder-compose-bottom"><span id="wtBuilderStatus" role="status">Conversa libremente.</span><div class="wt-builder-composer-actions"><button type="button" id="wtBuilderMic" aria-label="Conversar por voz" aria-pressed="false" title="Conversar por voz">${icons.mic}</button><button type="button" id="wtBuilderSend" aria-label="Enviar mensaje" title="Enviar mensaje">${icons.send}</button></div></div></div>
-            <div class="wt-builder-chat-note">La voz puede utilizar servicios de reconocimiento del navegador. Nada se crea ni publica desde este chat.</div>
+            <div class="wt-builder-mic-notice" id="wtBuilderMicNotice" role="alert" hidden><span aria-hidden="true">🎙️</span><p id="wtBuilderMicNoticeText"></p><button type="button" id="wtBuilderMicNoticeClose" aria-label="Cerrar indicaciones del micrófono">×</button></div>
+            <div class="wt-builder-chat-note">El micrófono requiere tu permiso. El reconocimiento puede utilizar servicios del navegador. Nada se crea ni publica desde el chat.</div>
           </section>
           <aside class="wt-builder-preview" aria-label="Configuración del agente">
             <div class="wt-builder-preview-head"><div><small>TU AGENTE</small><h3>Configuración sugerida</h3></div><button id="wtBuilderHidePreview" type="button" aria-label="Volver al chat">×</button></div>
@@ -397,6 +474,7 @@
     document.body.append(dialog);
     byId('wtBuilderClose').addEventListener('click',()=>dialog.close());
     byId('wtBuilderMic').addEventListener('click',toggleVoice);
+    byId('wtBuilderMicNoticeClose').addEventListener('click',hideMicNotice);
     byId('wtBuilderNew').addEventListener('click',()=>{if(state.messages.length>0 && !window.confirm('¿Comenzar una conversación nueva? Se perderá la conversación actual.'))return;startNewChat();});
     byId('wtBuilderPreviewToggle').addEventListener('click',async()=>{
       if (dialog.classList.contains('wt-builder-show-preview')) {togglePreview(false);return;}
