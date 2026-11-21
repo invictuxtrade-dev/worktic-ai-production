@@ -392,6 +392,22 @@
     if (feedback) {feedback.textContent='Configuración cargada. Revisa cada campo y decide cuándo pulsar «Crear agente». No se ha guardado nada.';feedback.hidden=false;}
     byId('maName').focus();
   }
+  // A6: only adds spoken transcript turns to the draft conversation.
+  // It neither saves nor activates an agent and cannot edit state/budget.
+  window.WorkticAgentBuilderVoiceBridge = Object.freeze({
+    history() { return historyForRequest().map(m => ({role:m.role, content:m.content})); },
+    addTurn(role, rawText) {
+      if (!dialog?.open || (role!=='user' && role!=='assistant')) return;
+      const content=String(rawText||'').trim().slice(0,1200);
+      if (!content) return;
+      state.messages.push({role,content});
+      if (state.messages.length>16) state.messages.splice(0,state.messages.length-16);
+      state.proposalAt=-1;
+      messageBubble(role,content);
+      renderProposal();updateComposer();
+    }
+  });
+
   function startNewChat() {
     if (state.busy) return;
     stopVoice();hideMicNotice();

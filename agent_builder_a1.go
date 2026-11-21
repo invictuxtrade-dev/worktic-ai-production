@@ -127,6 +127,12 @@ func (a *App) agentBuilderA1Handler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("Asistente IA temporalmente no disponible"), http.StatusServiceUnavailable)
 		return
 	}
+	// A6: WebRTC signaling, after the existing session/tenant/role checks.
+	// Audio streams directly via WebRTC and never pass through the Worktic application server.
+	if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "application/sdp") {
+		a.agentBuilderA6Realtime(w, r, tenant, user.Role)
+		return
+	}
 	// A5: audio transcription uses the same authenticated, role-checked endpoint.
 	// Only a multipart upload enters this branch; all JSON modes remain unchanged.
 	if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/form-data") {
