@@ -11,7 +11,9 @@ import (
 	"io"
 	"log"
 	"mime/multipart"
+	"mime"
 	"net/http"
+	"net/textproto"
 	"os"
 	"strconv"
 	"strings"
@@ -129,10 +131,21 @@ func agentBuilderA6Exchange(ctx context.Context, client *http.Client, endpoint, 
 	}
 	var payload bytes.Buffer
 	mw := multipart.NewWriter(&payload)
-	if err := mw.WriteField("sdp", string(sdp)); err != nil {
+	// Realtime's multipart API requires a media type on each field.
+	// WriteField omits it, which can cause upstream compatibility failures.
+	writeTypedPart := func(field, mediaType string, value []byte) error {
+		header := make(textproto.MIMEHeader)
+		header.Set("Content-Disposition", `form-data; name="`+field+`"`)
+		header.Set("Content-Type", mediaType)
+		part, err := mw.CreatePart(header)
+		if err != nil { return err }
+		_, err = part.Write(value)
+		return err
+	}
+	if err := writeTypedPart("sdp", "application/sdp", sdp); err != nil {
 		return nil, err
 	}
-	if err := mw.WriteField("session", string(session)); err != nil {
+	if err := writeTypedPart("session", "application/json", session); err != nil {
 		return nil, err
 	}
 	if err := mw.Close(); err != nil {
@@ -161,12 +174,24 @@ func agentBuilderA6Exchange(ctx context.Context, client *http.Client, endpoint, 
 			Kind: agentBuilderA6SafeCode(payload.Error.Type),
 		}
 	}
-	if !strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "application/sdp") {
-		return nil, errors.New("unexpected realtime response")
+	// The call endpoint returns a raw SDP answer. Some upstream transports
+	// label that text/plain rather than application/sdp. Validate the actual
+	// answer instead of rejecting a successful call based on MIME alone.
+	// Never log or return the raw SDP: it includes ICE/network metadata.
+	answer, err := io.ReadAll(io.LimitReader(resp.Body, (64<<10)+1))
+	if err != nil { return nil, errors.New("could not read realtime answer") }
+	mediaType, _, parseErr := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if parseErr != nil { mediaType = "unrecognized" }
+	switch mediaType {
+	case "", "application/sdp", "text/plain", "application/json", "text/html", "application/octet-stream":
+	default:
+		mediaType = "other"
 	}
-	answer, err := io.ReadAll(io.LimitReader(resp.Body, 65<<10))
-	if err != nil || len(answer) < 24 || len(answer) > 64<<10 {
-		return nil, errors.New("invalid realtime answer")
+	trimmed := bytes.TrimSpace(answer)
+	if len(answer) < 24 || len(answer) > 64<<10 || !bytes.HasPrefix(trimmed, []byte("v=0")) {
+		// Diagnostics contain only HTTP status and allowlisted media type.
+		// Neither audio, SDP nor provider response text enters the log.
+		return nil, fmt.Errorf("invalid realtime answer: upstream_http=%d upstream_media=%s sdp_valid=false", resp.StatusCode, mediaType)
 	}
 	return answer, nil
 }

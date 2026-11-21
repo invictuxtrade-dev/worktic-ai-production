@@ -149,3 +149,40 @@ func TestAgentBuilderA6RetryDoesNotExhaustPilot(t *testing.T) {
 		agentBuilderA6Release(tenant,start)
 	}
 }
+
+func TestAgentBuilderA6TypedMultipartHeaders(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mr, err := r.MultipartReader()
+		if err != nil { t.Error(err); return }
+		want := []struct{ name, media string }{{"sdp", "application/sdp"}, {"session", "application/json"}}
+		for _, item := range want {
+			p, err := mr.NextPart()
+			if err != nil { t.Error(err); return }
+			if p.FormName() != item.name || p.Header.Get("Content-Type") != item.media {
+				t.Errorf("multipart metadata %s %s", p.FormName(), p.Header.Get("Content-Type"))
+			}
+			data, _ := io.ReadAll(io.LimitReader(p, 64<<10))
+			if len(data) == 0 { t.Error("empty multipart field") }
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = io.WriteString(w, "v=0\r\no=- 111 1 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n")
+	}))
+	defer provider.Close()
+	answer, err := agentBuilderA6Exchange(context.Background(), provider.Client(), provider.URL, "fake-key", "worktic-test", []byte("v=0\r\no=- 123 1 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n"), []byte(`{"type":"realtime"}`))
+	if err != nil { t.Fatal(err) }
+	if !strings.HasPrefix(string(answer), "v=0") { t.Fatal("did not return SDP answer") }
+}
+
+func TestAgentBuilderA6InvalidSuccessfulResponseIsSanitized(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = io.WriteString(w, `{"error":{"message":"DO NOT LOG THIS PRIVATE PROVIDER DATA"}}`)
+	}))
+	defer provider.Close()
+	_, err := agentBuilderA6Exchange(context.Background(), provider.Client(), provider.URL, "fake-key", "worktic-test", []byte("v=0\r\no=- 123 1 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n"), []byte(`{"type":"realtime"}`))
+	if err == nil || !strings.Contains(err.Error(), "upstream_http=201") || !strings.Contains(err.Error(), "upstream_media=application/json") || strings.Contains(err.Error(), "DO NOT LOG") {
+		t.Fatalf("bad diagnostic: %v", err)
+	}
+}
