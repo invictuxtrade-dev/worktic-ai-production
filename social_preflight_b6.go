@@ -32,6 +32,9 @@ func (a *App) socialB6PublishPrerequisites(tenantID int64, platforms []string) e
 		if platform == "instagram" && !socialB6HasScope(scopes, "instagram_content_publish") {
 			return fmt.Errorf("Instagram: falta el permiso instagram_content_publish. Puedes guardar el borrador")
 		}
+		if platform == "youtube" && !socialB6HasScope(scopes, "youtube.upload") {
+			return fmt.Errorf("YouTube: canal conectado en modo lectura. Para publicar videos necesitarás autorizar youtube.upload. Puedes guardar el borrador")
+		}
 	}
 	return nil
 }

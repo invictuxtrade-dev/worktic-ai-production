@@ -169,11 +169,16 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 			q := url.Values{"client_key": {a.cfg.TikTokClientKey}, "response_type": {"code"}, "scope": {tiktokT1InitialScope}, "redirect_uri": {redirect}, "state": {state}}
 			auth = "https://www.tiktok.com/v2/auth/authorize/?" + q.Encode()
 		case "youtube":
-			if a.cfg.GoogleClientID == "" {
-				http.Error(w, "GOOGLE_CLIENT_ID no configurado", 409)
+			clientID, _, credErr := youtubeY1Credentials()
+			if credErr != nil {
+				http.Error(w, credErr.Error(), http.StatusConflict)
 				return
 			}
-			q := url.Values{"client_id": {a.cfg.GoogleClientID}, "redirect_uri": {redirect}, "response_type": {"code"}, "scope": {"https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl"}, "access_type": {"offline"}, "prompt": {"consent"}, "state": {state}}
+			if len(strings.TrimSpace(os.Getenv("CHANNEL_ENCRYPTION_KEY"))) < 32 {
+				http.Error(w, "YouTube requiere CHANNEL_ENCRYPTION_KEY segura de al menos 32 caracteres", http.StatusConflict)
+				return
+			}
+			q := url.Values{"client_id": {clientID}, "redirect_uri": {redirect}, "response_type": {"code"}, "scope": {youtubeY1ReadScope}, "access_type": {"offline"}, "prompt": {"consent"}, "state": {state}}
 			auth = "https://accounts.google.com/o/oauth2/v2/auth?" + q.Encode()
 		}
 	}
@@ -187,6 +192,9 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "No fue posible iniciar la autorizacion", http.StatusInternalServerError)
 		return
+	}
+	if p == "youtube" {
+		youtubeY1IssueStateCookie(w, state, a.cfg.BaseURL)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, map[string]any{"authorization_url": auth})
@@ -228,6 +236,13 @@ func (a *App) socialOAuthCallbackHandler(w http.ResponseWriter, r *http.Request)
 	if len(state) < 32 || len(state) > 128 || code == "" {
 		http.Error(w, "OAuth invalido", http.StatusBadRequest)
 		return
+	}
+	if p == "youtube" {
+		if !youtubeY1ValidStateCookie(r, state) {
+			http.Error(w, "Autorización de YouTube no coincide con la sesión que la inició", http.StatusForbidden)
+			return
+		}
+		youtubeY1ClearStateCookie(w, a.cfg.BaseURL)
 	}
 	// One atomic statement prevents concurrent callbacks from reusing a state.
 	// Both SQLite (modernc) and PostgreSQL support DELETE ... RETURNING.
@@ -292,8 +307,12 @@ func (a *App) exchangeSocialCode(ctx context.Context, p, code, redirect string) 
 		endpoint = "https://open.tiktokapis.com/v2/oauth/token/"
 		vals = url.Values{"client_key": {a.cfg.TikTokClientKey}, "client_secret": {a.cfg.TikTokClientSecret}, "code": {code}, "grant_type": {"authorization_code"}, "redirect_uri": {redirect}}
 	case "youtube":
+		clientID, clientSecret, credErr := youtubeY1Credentials()
+		if credErr != nil {
+			return socialToken{}, credErr
+		}
 		endpoint = "https://oauth2.googleapis.com/token"
-		vals = url.Values{"client_id": {a.cfg.GoogleClientID}, "client_secret": {a.cfg.GoogleClientSecret}, "code": {code}, "grant_type": {"authorization_code"}, "redirect_uri": {redirect}}
+		vals = url.Values{"client_id": {clientID}, "client_secret": {clientSecret}, "code": {code}, "grant_type": {"authorization_code"}, "redirect_uri": {redirect}}
 	default:
 		return socialToken{}, errors.New("proveedor no soportado")
 	}
@@ -406,21 +425,12 @@ func (a *App) discoverAndSaveSocialConnection(ctx context.Context, tid int64, p 
 		}
 		return a.saveOfficialConnection(tid, p, name, id, t, socialProviderConfig{OpenID: id}, t.Scope)
 	case "youtube":
-		var ch struct {
-			Items []struct {
-				ID      string `json:"id"`
-				Snippet struct {
-					Title string `json:"title"`
-				} `json:"snippet"`
-			} `json:"items"`
+		channelID, channelName, channelErr := youtubeY1DiscoverChannel(ctx, t.AccessToken)
+		if channelErr != nil {
+			return channelErr
 		}
-		if err := apiJSON(ctx, "GET", "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", t.AccessToken, nil, &ch); err != nil {
-			return err
-		}
-		if len(ch.Items) == 0 {
-			return errors.New("no se encontrÃ³ canal de YouTube")
-		}
-		return a.saveOfficialConnection(tid, p, ch.Items[0].Snippet.Title, ch.Items[0].ID, t, socialProviderConfig{ChannelID: ch.Items[0].ID}, "youtube.upload,youtube.readonly")
+		// Y1 never claims the ability to publish: only the read-only scope is requested.
+		return a.saveOfficialConnection(tid, p, channelName, channelID, t, socialProviderConfig{ChannelID: channelID}, youtubeY1StoredScopes)
 	}
 	return errors.New("proveedor no soportado")
 }
@@ -809,9 +819,11 @@ func (a *App) socialConnectionTestHandler(w http.ResponseWriter, r *http.Request
 			err = errors.New("Cuenta TikTok no coincide con la autorizada")
 		}
 	case "youtube":
-		var out map[string]any
-		err = apiJSON(r.Context(), "GET", "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", tok.AccessToken, nil, &out)
-		detail = cfg.ChannelID
+		var liveID string
+		liveID, detail, err = youtubeY1DiscoverChannel(r.Context(), tok.AccessToken)
+		if err == nil && liveID != cfg.ChannelID {
+			err = errors.New("El canal de YouTube autorizado no coincide con el canal registrado")
+		}
 	default:
 		err = errors.New("plataforma no soportada")
 	}
@@ -845,14 +857,26 @@ func (a *App) refreshSocialTokenIfNeeded(ctx context.Context, connectionID, tid 
 		if !tiktokT1TokenNeedsRefresh(expiry, time.Now().UTC()) {
 			return tok, nil
 		}
+	} else if p == "youtube" {
+		var expiry string
+		if err := a.db.QueryRow(`SELECT token_expires_at FROM social_connections WHERE id=? AND tenant_id=? AND platform='youtube'`, connectionID, tid).Scan(&expiry); err != nil {
+			return tok, errors.New("No se pudo consultar vencimiento YouTube")
+		}
+		if !youtubeY1NeedsRefresh(expiry, time.Now().UTC()) {
+			return tok, nil
+		}
 	}
 	var endpoint string
 	vals := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tok.RefreshToken}}
 	switch p {
 	case "youtube":
+		clientID, clientSecret, credErr := youtubeY1Credentials()
+		if credErr != nil {
+			return tok, credErr
+		}
 		endpoint = "https://oauth2.googleapis.com/token"
-		vals.Set("client_id", a.cfg.GoogleClientID)
-		vals.Set("client_secret", a.cfg.GoogleClientSecret)
+		vals.Set("client_id", clientID)
+		vals.Set("client_secret", clientSecret)
 	case "tiktok":
 		endpoint = "https://open.tiktokapis.com/v2/oauth/token/"
 		vals.Set("client_key", a.cfg.TikTokClientKey)
@@ -1077,8 +1101,10 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 		}
 		result, err = a.publishTikTok(ctx, tok.AccessToken, p.Caption, mediaURLs, p.Format)
 	case "youtube":
-		if len(mediaURLs) > 1 {
-			err = errors.New("YouTube admite un video por publicaciÃ³n")
+		if !youtubeY1ScopeIncludes(connScopes, "youtube.upload") {
+			err = errors.New("YouTube conectado en modo lectura. Para publicar videos hace falta autorizar youtube.upload en una fase posterior")
+		} else if len(mediaURLs) > 1 {
+			err = errors.New("YouTube admite un video por publicación")
 		} else {
 			result, err = a.publishYouTube(ctx, tok.AccessToken, p.Title, p.Caption, media)
 		}
@@ -1091,7 +1117,7 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	if err != nil {
 		_, _ = a.db.Exec(`INSERT INTO social_publish_attempts(tenant_id,post_id,attempt_no,status,error_message,created_at) VALUES(?,?,?,?,?,?)`, tid, id, attempt, "failed", err.Error(), now)
 		nextStatus := "failed"
-		if attempt < 4 && !socialB7IsPermanentMediaURLFailure(err) {
+		if attempt < 4 && !socialB7IsPermanentMediaURLFailure(err) && !(p.Platform == "youtube" && !youtubeY1ScopeIncludes(connScopes, "youtube.upload")) {
 			nextStatus = "retrying"
 		}
 		_, _ = a.db.Exec(`UPDATE social_posts SET status=?,error_message=?,updated_at=?,scheduled_at=? WHERE id=? AND tenant_id=?`, nextStatus, err.Error(), now, time.Now().UTC().Add(time.Duration(attempt*5)*time.Minute).Format(time.RFC3339), id, tid)

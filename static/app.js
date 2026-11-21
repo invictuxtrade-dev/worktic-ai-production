@@ -785,6 +785,7 @@ function socialB6PublishIssues(platforms){
    const scopes=new Set(String(c.scopes||'').toLowerCase().split(/[\s,]+/).filter(Boolean));
    if(p==='facebook'&&!scopes.has('pages_manage_posts'))issues.push('Facebook: falta pages_manage_posts');
    if(p==='instagram'&&!scopes.has('instagram_content_publish'))issues.push('Instagram: falta instagram_content_publish');
+   if(p==='youtube'&&!scopes.has('youtube.upload'))issues.push('YouTube: canal conectado en modo lectura; falta youtube.upload para publicar');
  }
  return issues;
 }

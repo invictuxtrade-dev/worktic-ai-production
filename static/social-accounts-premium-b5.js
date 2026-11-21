@@ -127,6 +127,11 @@
     }
     if (oldManagedMessage) body.append(oldManagedMessage);
 
+    if (platform === 'youtube') {
+      body.append(element('p', 'wt-social-t2-capability', permissions.includes('youtube.upload')
+        ? 'Canal autorizado. Los videos se publican únicamente con confirmación y permisos oficiales.'
+        : 'Canal conectado para identificar el perfil y consultar información. Los videos y Shorts requieren autorización youtube.upload adicional.'));
+    }
     if (platform === 'tiktok') {
       const hint = element('p', 'wt-social-t2-capability', 'Perfil conectado mediante Login Kit. La publicación y los mensajes requieren permisos adicionales de TikTok.');
       body.append(hint);
