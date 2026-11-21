@@ -96,7 +96,7 @@ func agentBuilderA6Config() ([]byte, error) {
 		"output_modalities": []string{"audio"},
 		"audio": map[string]any{
 			"input": map[string]any{
-				"transcription":  map[string]any{"model": "gpt-transcribe"},
+				"transcription":  map[string]any{"model": "gpt-transcribe", "language": "es"},
 				"turn_detection": map[string]any{"type": "semantic_vad", "eagerness": "medium", "create_response": true, "interrupt_response": true},
 			},
 			"output": map[string]any{"voice": voice},

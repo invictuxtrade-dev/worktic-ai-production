@@ -18,5 +18,3 @@
 @media(max-width:600px){.wt-agent-builder .wt-builder-live-panel #wtBuilderLiveAudio{grid-column:2;justify-self:end}.wt-agent-builder .wt-builder-live-panel #wtBuilderLiveMute{grid-column:2}.wt-agent-builder .wt-builder-live-panel #wtBuilderLiveEnd{grid-column:3}}
 
 .wt-agent-builder #wtBuilderMic.wt-builder-live-mic-active{background:linear-gradient(105deg,#4e57ea,#ac31d4)!important;color:white!important;border-color:transparent!important;box-shadow:0 0 0 3px rgba(93,77,232,.16)}
-.wt-agent-builder .wt-builder-dictate{padding:7px 9px;min-height:38px;border:1px solid #d9d4ed;background:#fff;color:#51457e;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer}
-.wt-agent-builder .wt-builder-dictate:disabled{opacity:.55;cursor:not-allowed}

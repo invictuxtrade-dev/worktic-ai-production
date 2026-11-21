@@ -139,7 +139,15 @@ func (a *App) agentBuilderA1Handler(w http.ResponseWriter, r *http.Request) {
 		a.agentBuilderA5Transcribe(w, r, tenant)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 128<<10)
+	maxBodyBytes := int64(128 << 10)
+	maxMessageRunes := 20000
+	maxTotalRunes := 40000
+	if user.Role == "superadmin" {
+		maxBodyBytes = 512 << 10
+		maxMessageRunes = 120000
+		maxTotalRunes = 120000
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	var request struct {
 		Mode     string                  `json:"mode"`
 		Messages []agentBuilderA1Message `json:"messages"`
@@ -170,14 +178,14 @@ func (a *App) agentBuilderA1Handler(w http.ResponseWriter, r *http.Request) {
 	}
 	total := 0
 	for _, message := range request.Messages {
-		if !agentBuilderA1Allowed(message.Role, []string{"user", "assistant"}) || strings.TrimSpace(message.Content) == "" || len([]rune(message.Content)) > 20000 {
+		if !agentBuilderA1Allowed(message.Role, []string{"user", "assistant"}) || strings.TrimSpace(message.Content) == "" || len([]rune(message.Content)) > maxMessageRunes {
 			writeError(w, errors.New("mensaje inválido o demasiado largo"), http.StatusBadRequest)
 			return
 		}
 		total += len([]rune(message.Content))
 	}
-	if total > 40000 {
-		writeError(w, errors.New("conversación demasiado extensa; inicia otra"), http.StatusBadRequest)
+	if total > maxTotalRunes {
+		writeError(w, errors.New("conversación demasiado extensa para esta solicitud"), http.StatusBadRequest)
 		return
 	}
 	history, _ := json.Marshal(request.Messages)

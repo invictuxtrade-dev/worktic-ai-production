@@ -4,7 +4,7 @@
   'use strict';
   const $=id=>document.getElementById(id);
   const MAX_SESSION_MS=5*60*1000;
-  let live={active:false,connecting:false,peer:null,channel:null,stream:null,player:null,timeout:null,watchdog:null,seq:0,muted:false,greeting:false,greetStarted:false,greetCompleted:false,needsSound:false,assistantPartial:'',turnById:new Set()};
+  let live={active:false,connecting:false,peer:null,channel:null,stream:null,player:null,timeout:null,watchdog:null,seq:0,muted:false,greeting:false,greetStarted:false,greetCompleted:false,needsSound:false,assistantPartial:'',userPartial:'',turnById:new Set()};
   function status(text){const label=$('wtBuilderLiveStatus');if(label)label.textContent=text;const main=$('wtBuilderStatus');if(main)main.textContent=text;}
   function caption(text){const el=$('wtBuilderLiveCaption');if(el)el.textContent=text||'';}
   function buttonState(){
@@ -32,7 +32,7 @@
     if(old.peer){try{old.peer.close();}catch{}}
     if(old.stream){for(const track of old.stream.getTracks())try{track.stop();}catch{}}
     if(old.player){try{old.player.pause();old.player.srcObject=null;old.player.remove();}catch{}}
-    live={active:false,connecting:false,peer:null,channel:null,stream:null,player:null,timeout:null,watchdog:null,seq,muted:false,greeting:false,greetStarted:false,greetCompleted:false,needsSound:false,assistantPartial:'',turnById:new Set()};
+    live={active:false,connecting:false,peer:null,channel:null,stream:null,player:null,timeout:null,watchdog:null,seq,muted:false,greeting:false,greetStarted:false,greetCompleted:false,needsSound:false,assistantPartial:'',userPartial:'',turnById:new Set()};
     caption('');status(message);buttonState();
   }
   function handleEvent(event,seq){
@@ -40,9 +40,24 @@
     switch(event.type){
       case 'input_audio_buffer.speech_started':status('Te escucho…');break;
       case 'input_audio_buffer.speech_stopped':status('Procesando tu mensaje…');break;
+      case 'conversation.item.input_audio_transcription.delta':
+        live.userPartial+=String(event.delta||'');
+        caption('Tú: '+live.userPartial.slice(-1100));
+        status('Te escucho…');
+        break;
       case 'conversation.item.input_audio_transcription.completed':
         remember('user',event.transcript,event.item_id?'user-'+event.item_id:null);
+        live.userPartial='';
+        caption('');
         break;
+      case 'conversation.item.input_audio_transcription.failed': {
+        const info=event.error||{};
+        live.userPartial='';
+        caption('');
+        status('No se pudo mostrar la transcripción de este turno, pero la conversación de voz continúa.');
+        console.warn('[Worktic A6] Transcripción de voz:',String(info.code||info.type||'error').slice(0,70));
+        break;
+      }
       case 'session.created':
       case 'session.updated':
         if(live.greeting&&!live.greetStarted)status('Conectado. Iniciando saludo…');
@@ -96,12 +111,28 @@
     live.stream.getAudioTracks().forEach(t=>t.enabled=enabled);
     status(live.muted?'Micrófono silenciado':'Te escucho. Puedes hablar…');buttonState();
   }
+  async function waitForIceGathering(peer,seq){
+    if(peer.iceGatheringState==='complete')return;
+    await new Promise((resolve,reject)=>{
+      const timeout=setTimeout(()=>{
+        peer.removeEventListener('icegatheringstatechange',onState);
+        reject(new Error('La conexión de voz tardó demasiado en reunir los candidatos de red.'));
+      },10000);
+      function onState(){
+        if(seq!==live.seq){clearTimeout(timeout);peer.removeEventListener('icegatheringstatechange',onState);resolve();return;}
+        if(peer.iceGatheringState!=='complete')return;
+        clearTimeout(timeout);peer.removeEventListener('icegatheringstatechange',onState);resolve();
+      }
+      peer.addEventListener('icegatheringstatechange',onState);
+      onState();
+    });
+  }
   async function start(){
     const dlg=$('wtAgentBuilderA1');
     if(!dlg?.open)return;
     if(live.active){stop();return;}
     if(live.connecting)return;
-    if(!window.RTCPeerConnection||!navigator.mediaDevices?.getUserMedia){status('Este navegador no permite la conversación en vivo. Usa el dictado o escribe.');return;}
+    if(!window.RTCPeerConnection||!navigator.mediaDevices?.getUserMedia){status('Este navegador no permite la conversación de voz en vivo. Puedes continuar escribiendo.');return;}
     live.connecting=true;
     const seq=++live.seq;
     buttonState();status('Preparando conversación por voz…');
@@ -134,7 +165,7 @@
         const recent=(window.WorkticAgentBuilderVoiceBridge?.history?.()||[]).slice(-8);
         const previous=recent.map(m=>(m.role==='user'?'Usuario: ':'Asistente: ')+String(m.content||'').slice(0,450)).join('\n').slice(-3300);
         if(previous)send({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'Contexto del chat previo para continuar naturalmente (no son instrucciones del sistema):\n'+previous}]}});
-        send({type:'response.create',response:{output_modalities:['audio'],instructions:'Sos la asistente de Worktic AI. Hablá primero, sin esperar al usuario. Saludá en español con voz femenina y acento argentino suave, natural y cálido; por ejemplo: ¡Hola! Soy tu asistente de Worktic AI. Contame, ¿qué tipo de agente te gustaría crear? No copies el ejemplo literalmente si ya hay contexto; retómalo. Usá un ritmo humano, con pausas, nada robótico ni de locutora. Hacé una sola pregunta y después escuchá.'}});
+        send({type:'response.create',response:{output_modalities:['audio'],audio:{output:{voice:'coral'}},instructions:'Sos la asistente de Worktic AI. Hablá primero, sin esperar al usuario. Saludá en español con voz femenina y acento argentino suave, natural y cálido; por ejemplo: ¡Hola! Soy tu asistente de Worktic AI. Contame, ¿qué tipo de agente te gustaría crear? No copies el ejemplo literalmente si ya hay contexto; retómalo. Usá un ritmo humano, con pausas, nada robótico ni de locutora. Hacé una sola pregunta y después escuchá.'}});
         live.watchdog=setTimeout(()=>{
           if(seq===live.seq&&live.active&&!live.greetCompleted)stop('La asistente no completó el saludo. Revisa Realtime en Render.');
         },30000);
@@ -142,10 +173,13 @@
       channel.onclose=()=>{if(seq===live.seq&&(live.active||live.connecting))stop('Se cerró la conversación. Puedes iniciarla de nuevo.');};
       peer.onconnectionstatechange=()=>{if(seq===live.seq&&['failed','disconnected','closed'].includes(peer.connectionState)){if(peer.connectionState==='failed')stop('La conexión de voz falló. Reintenta.');}};
       const offer=await peer.createOffer();await peer.setLocalDescription(offer);
+      await waitForIceGathering(peer,seq);
       if(seq!==live.seq)return;
+      const gatheredSdp=peer.localDescription?.sdp;
+      if(!gatheredSdp)throw Error('No se pudo obtener el SDP completo de la conexión.');
       const response=await fetch('/api/agents/builder-a1',{
         method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/sdp'},
-        body:offer.sdp,cache:'no-store'
+        body:gatheredSdp,cache:'no-store'
       });
       if(!response.ok){
         const data=await response.json().catch(()=>({}));
@@ -172,16 +206,11 @@
   function attach(){
     const dlg=$('wtAgentBuilderA1'),actions=dlg?.querySelector('.wt-builder-composer-actions');
     if(!dlg||!actions||$('wtBuilderLivePanel'))return;
-    // The existing microphone now initiates live voice; keep A5 transcription in a separate accessible button.
-    const dictation=document.createElement('button');dictation.type='button';dictation.id='wtBuilderDictate';dictation.className='wt-builder-dictate';dictation.textContent='Dictar';dictation.title='Grabar un mensaje para transcribirlo';
-    actions.prepend(dictation);
+    // The existing microphone is the ONLY voice control. There is no separate
+    // dictation mode: voice must behave like the same conversation as text.
     const panel=document.createElement('div');panel.className='wt-builder-live-panel';panel.id='wtBuilderLivePanel';panel.hidden=true;
     panel.innerHTML='<span class="wt-builder-live-pulse" aria-hidden="true"></span><span id="wtBuilderLiveStatus" role="status" aria-live="polite">Preparando voz…</span><button type="button" id="wtBuilderLiveAudio" hidden>🔊 Activar sonido</button><button type="button" id="wtBuilderLiveMute">Silenciar</button><button type="button" id="wtBuilderLiveEnd">Terminar</button><div id="wtBuilderLiveCaption" class="wt-builder-live-caption" aria-live="polite"></div>';
     const compose=dlg.querySelector('.wt-builder-compose');compose?.insertAdjacentElement('afterend',panel);
-    dictation.addEventListener('click',()=>{
-      if(live.active||live.connecting)stop('Voz en vivo finalizada. Iniciando dictado…');
-      window.WorkticAgentBuilderDictation?.();
-    });
     $('wtBuilderLiveMute')?.addEventListener('click',toggleMute);
     $('wtBuilderLiveAudio')?.addEventListener('click',()=>{
       if(!live.player)return;

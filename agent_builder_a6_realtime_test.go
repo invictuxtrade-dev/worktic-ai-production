@@ -44,6 +44,10 @@ func TestAgentBuilderA6Config(t *testing.T) {
 	if vad["type"] != "semantic_vad" || vad["interrupt_response"] != true || vad["create_response"] != true {
 		t.Fatal(vad)
 	}
+	transcription := input["transcription"].(map[string]any)
+	if transcription["model"] != "gpt-transcribe" || transcription["language"] != "es" {
+		t.Fatalf("unexpected transcription config: %v", transcription)
+	}
 	t.Setenv("WORKTIC_AGENT_REALTIME_VOICE", "shimmer")
 	if data, err = agentBuilderA6Config(); err != nil { t.Fatal(err) }
 	if err = json.Unmarshal(data, &doc); err != nil { t.Fatal(err) }
