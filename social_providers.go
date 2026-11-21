@@ -112,6 +112,28 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	state := randomState()
+	var linkedinUpgradeID int64
+	var linkedinUpgradeExpectedID string
+	if p == "linkedin" {
+		mode := strings.TrimSpace(r.URL.Query().Get("mode"))
+		if mode != "" && mode != "publish" {
+			http.Error(w, "Modalidad de LinkedIn no permitida", http.StatusBadRequest)
+			return
+		}
+		if mode == "publish" {
+			linkedinUpgradeID, err = strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+			if err != nil || linkedinUpgradeID <= 0 {
+				http.Error(w, "Selecciona una conexion de LinkedIn valida", http.StatusBadRequest)
+				return
+			}
+			linkedinUpgradeExpectedID, err = a.linkedinL2ValidateTarget(tid, linkedinUpgradeID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusConflict)
+				return
+			}
+			state = "l2_" + state
+		}
+	}
 	redirect := a.cfg.BaseURL + "/api/social/oauth/callback/" + p
 	var auth string
 	if p == "instagram" && instagramB103DEnabled() {
@@ -156,8 +178,12 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusConflict)
 				return
 			}
-			// L1 connects the professional profile only; publishing needs a separate Share on LinkedIn grant.
-			q := url.Values{"response_type": {"code"}, "client_id": {a.cfg.LinkedInClientID}, "redirect_uri": {redirect}, "state": {state}, "scope": {linkedinL1Scope}}
+			// L1 requests basic identity. L2 requests publishing only after an explicit action.
+			scope := linkedinL1Scope
+			if linkedinUpgradeID > 0 {
+				scope = linkedinL2Scope
+			}
+			q := url.Values{"response_type": {"code"}, "client_id": {a.cfg.LinkedInClientID}, "redirect_uri": {redirect}, "state": {state}, "scope": {scope}}
 			auth = "https://www.linkedin.com/oauth/v2/authorization?" + q.Encode()
 		case "tiktok":
 			ready, reason := a.tiktokT1Ready()
@@ -193,6 +219,13 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "No fue posible iniciar la autorizacion", http.StatusInternalServerError)
 		return
+	}
+	if linkedinUpgradeID > 0 {
+		if err := a.linkedinL2StoreIntent(state, tid, linkedinUpgradeID, linkedinUpgradeExpectedID); err != nil {
+			_, _ = a.db.Exec(`DELETE FROM social_oauth_states WHERE state=?`, state)
+			http.Error(w, "No fue posible registrar la autorizacion adicional de LinkedIn", http.StatusInternalServerError)
+			return
+		}
 	}
 	if p == "youtube" {
 		youtubeY1IssueStateCookie(w, state, a.cfg.BaseURL)
@@ -293,6 +326,14 @@ func (a *App) socialOAuthCallbackHandler(w http.ResponseWriter, r *http.Request)
 		if err = a.beginMetaSocialSelection(w, r, tid, p, token); err != nil {
 			http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape(err.Error()), http.StatusFound)
 		}
+		return
+	}
+	if p == "linkedin" && strings.HasPrefix(state, "l2_") {
+		if err = a.linkedinL2FinishGrant(r.Context(), state, tid, token); err != nil {
+			http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=error&reason="+url.QueryEscape(err.Error()), http.StatusFound)
+			return
+		}
+		http.Redirect(w, r, a.cfg.BaseURL+"/app.html?social_oauth=success&platform=linkedin", http.StatusFound)
 		return
 	}
 	if err = a.discoverAndSaveSocialConnection(r.Context(), tid, p, token); err != nil {
@@ -963,7 +1004,7 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	_ = a.ensureSocialTrackingURLV24(tid, id)
 	var p SocialPost
 	var mode, cstatus, enc, cfgj, connScopes, master, groupUpdated string
-	err := a.db.QueryRow(`SELECT p.id,p.tenant_id,p.group_id,p.campaign_id,p.connection_id,p.platform,p.format,p.title,p.caption,CASE WHEN TRIM(COALESCE(p.tracking_url,''))<>'' THEN p.tracking_url ELSE p.link_url END,p.media_json,p.status,COALESCE(g.master_content,p.caption),COALESCE(g.updated_at,''),COALESCE(c.provider_mode,''),COALESCE(c.status,''),COALESCE(c.encrypted_credentials,''),COALESCE(c.config_json,'{}'),COALESCE(c.scopes,'') FROM social_posts p LEFT JOIN social_post_groups g ON g.id=p.group_id AND g.tenant_id=p.tenant_id LEFT JOIN social_connections c ON c.id=p.connection_id AND c.tenant_id=p.tenant_id WHERE p.id=? AND p.tenant_id=?`, id, tid).Scan(&p.ID, &p.TenantID, &p.GroupID, &p.CampaignID, &p.ConnectionID, &p.Platform, &p.Format, &p.Title, &p.Caption, &p.LinkURL, &p.MediaJSON, &p.Status, &master, &groupUpdated, &mode, &cstatus, &enc, &cfgj, &connScopes)
+	err := a.db.QueryRow(`SELECT p.id,p.tenant_id,p.group_id,p.campaign_id,p.connection_id,p.platform,p.format,p.title,p.caption,CASE WHEN TRIM(COALESCE(p.tracking_url,''))<>'' THEN p.tracking_url ELSE p.link_url END,p.media_json,p.status,COALESCE(g.master_content,p.caption),COALESCE(g.updated_at,''),COALESCE(c.provider_mode,''),COALESCE(c.status,''),COALESCE(c.encrypted_credentials,''),COALESCE(c.config_json,'{}'),COALESCE(c.scopes,'') FROM social_posts p LEFT JOIN social_post_groups g ON g.id=p.group_id AND g.tenant_id=p.tenant_id LEFT JOIN social_connections c ON c.id=p.connection_id AND c.tenant_id=p.tenant_id AND c.platform=p.platform WHERE p.id=? AND p.tenant_id=?`, id, tid).Scan(&p.ID, &p.TenantID, &p.GroupID, &p.CampaignID, &p.ConnectionID, &p.Platform, &p.Format, &p.Title, &p.Caption, &p.LinkURL, &p.MediaJSON, &p.Status, &master, &groupUpdated, &mode, &cstatus, &enc, &cfgj, &connScopes)
 	if err != nil {
 		return nil, err
 	}
@@ -1010,9 +1051,9 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	if p.ConnectionID == 0 || cstatus != "connected" {
 		return nil, errors.New("conecta una cuenta activa para esta red")
 	}
-	// LinkedIn L1: no claim or attempt publication from an OpenID-only connection.
+	// LinkedIn L2: never publish from a profile-only connection.
 	if mode != "sandbox" && p.Platform == "linkedin" && !linkedinL1HasScope(connScopes, "w_member_social") {
-		return nil, errors.New("LinkedIn: perfil conectado en modo lectura; autoriza Share on LinkedIn (w_member_social) antes de publicar. Puedes guardar un borrador")
+		return nil, errors.New("LinkedIn: autoriza Share on LinkedIn (w_member_social) antes de publicar. Puedes guardar un borrador")
 	}
 	// No ejecutar ni reintentar tareas Meta sin los permisos de publicacion.
 	if mode != "sandbox" && (p.Platform == "facebook" || p.Platform == "instagram") {
@@ -1050,6 +1091,11 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	}
 	var cfg socialProviderConfig
 	_ = json.Unmarshal([]byte(cfgj), &cfg)
+	if p.Platform == "linkedin" && mode != "sandbox" {
+		if err := linkedinL2ValidatePublishRequest(tok.Scope, connScopes, cfg.AuthorURN, p.Format, p.MediaJSON); err != nil {
+			return nil, err
+		}
+	}
 	if p.Platform == "youtube" || p.Platform == "tiktok" {
 		tok, err = a.refreshSocialTokenIfNeeded(ctx, p.ConnectionID, tid, p.Platform, tok)
 		if err != nil {

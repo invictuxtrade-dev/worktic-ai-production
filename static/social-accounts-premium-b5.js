@@ -138,10 +138,16 @@
     }
     if (platform === 'linkedin') {
       body.append(element('p', 'wt-social-t2-capability', permissions.includes('w_member_social')
-        ? 'Perfil LinkedIn autorizado para publicar según los permisos registrados.'
+        ? 'Perfil LinkedIn autorizado para publicar textos y enlaces. Los adjuntos requieren una fase adicional.'
         : 'Perfil profesional conectado con OpenID Connect. Para publicar necesitas autorizar Share on LinkedIn (w_member_social).'));
     }
     const footer = element('div', 'wt-social-b5-footer');
+    if (platform === 'linkedin' && connectionId && statusKey === 'connected' && !permissions.includes('w_member_social') && meta.provider.toLowerCase() !== 'sandbox') {
+      const authorize = element('button', 'wt-social-t2-manage', 'Autorizar publicaciones');
+      authorize.type = 'button';
+      authorize.addEventListener('click', () => window.workticAuthorizeLinkedInPublish?.(connectionId));
+      footer.append(authorize);
+    }
     if (connectionId) {
       const manage = element('button', 'wt-social-t2-manage', 'Administrar');
       manage.type = 'button';
@@ -162,7 +168,9 @@
       if (connectionId) {
         const reconnect = element('button', 'wt-social-t2-reconnect', 'Reconectar');
         reconnect.type = 'button';
-        reconnect.addEventListener('click', () => window.workticReauthorizeSocial?.(platform));
+        reconnect.addEventListener('click', () => platform === 'linkedin' && permissions.includes('w_member_social')
+          ? window.workticAuthorizeLinkedInPublish?.(connectionId)
+          : window.workticReauthorizeSocial?.(platform));
         menu.append(reconnect);
       }
       deleteButton.className = 'wt-social-b5-delete';
