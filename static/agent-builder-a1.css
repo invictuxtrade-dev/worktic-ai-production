@@ -108,3 +108,8 @@ dialog#modal .wua58-agent #wtBuilderOpen.wt-builder-launch{margin:0;display:inli
 #wtAgentBuilderA1 .wt-builder-starters{justify-content:flex-start;flex-wrap:nowrap;gap:7px;margin:0;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#d0d0ef transparent;padding:4px 2px 8px;max-width:100%}
 #wtAgentBuilderA1 .wt-builder-starters button{flex:0 0 auto;white-space:nowrap}
 @media(max-width:850px){#wtAgentBuilderA1 .wt-builder-starters-area{margin:5px 12px 10px}#wtAgentBuilderA1 .wt-builder-mic-notice{margin:8px 12px 0}}
+
+/* A5: mic state differentiates recording, transcription and voice playback */
+#wtAgentBuilderA1 #wtBuilderMic.wt-builder-mic-listening{background:#ffedf0!important;color:#c32f57!important;box-shadow:0 0 0 3px #ffc1cf77!important;animation:wtBuilderA5Record 1s ease-in-out infinite alternate}
+#wtAgentBuilderA1 #wtBuilderMic.wt-builder-mic-requesting{background:#eceaff!important;color:#5545aa!important;animation:none!important}
+@keyframes wtBuilderA5Record{to{box-shadow:0 0 0 7px #ffc1cf44}}

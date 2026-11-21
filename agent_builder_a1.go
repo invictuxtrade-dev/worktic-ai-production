@@ -127,6 +127,12 @@ func (a *App) agentBuilderA1Handler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, errors.New("Asistente IA temporalmente no disponible"), http.StatusServiceUnavailable)
 		return
 	}
+	// A5: audio transcription uses the same authenticated, role-checked endpoint.
+	// Only a multipart upload enters this branch; all JSON modes remain unchanged.
+	if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/form-data") {
+		a.agentBuilderA5Transcribe(w, r, tenant)
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
 	var request struct {
 		Mode     string                  `json:"mode"`

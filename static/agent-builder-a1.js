@@ -1,4 +1,4 @@
-/* Worktic AI - Agent Builder A4. Streaming + browser microphone permission + voice + existing form. No save/publish. */
+/* Worktic AI - Agent Builder A5. Authenticated audio transcription, progressive text and existing form. No save/publish. */
 (() => {
   'use strict';
   const byId = id => document.getElementById(id);
@@ -12,10 +12,11 @@
   ];
   const state = { messages: [], proposal: null, proposalAt: -1, busy: false, initialised: false };
   let dialog = null;
-  const voice = { active:false, recognition:null, listening:false, speaking:false, requesting:false, generation:0 };
-  const SpeechRecognizer = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const canListen = !!SpeechRecognizer;
+  const voice = { active:false, recorder:null, stream:null, recording:false, speaking:false, requesting:false, timeout:null, generation:0 };
+  const canListen = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
   const canSpeak = !!(window.speechSynthesis && window.SpeechSynthesisUtterance);
+  const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
+  const MAX_RECORDING_MS = 30000;
   const icons = {
     mic: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>',
     send: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 14-8-4 16-3-7-7-1Z"/><path d="m12 13 7-9"/></svg>'
@@ -143,42 +144,43 @@
     } finally {try {reader.releaseLock();} catch { /* closed stream */ }}
   }
 
-  function showMicNotice(kind) {
-    const notice=byId('wtBuilderMicNotice');
-    const message=byId('wtBuilderMicNoticeText');
-    if (!notice || !message) return;
+  function showMicNotice(kind, detail='') {
+    const notice=byId('wtBuilderMicNotice'), message=byId('wtBuilderMicNoticeText');
+    if(!notice||!message)return;
     const help={
-      denied:'Chrome bloqueó el micrófono. Para habilitarlo: pulsa el icono de controles del sitio junto a la dirección web → Configuración del sitio → Micrófono → Permitir. Después actualiza la página e inténtalo de nuevo. Si bloqueaste el permiso antes, Chrome no mostrará otra ventana hasta que cambies ese ajuste.',
-      missing:'No se detectó un micrófono. Comprueba que esté conectado y seleccionado en la configuración de sonido del dispositivo y vuelve a intentarlo.',
-      unsupported:'No está disponible el acceso al micrófono en este navegador. Utiliza Chrome actualizado con HTTPS o continúa escribiendo.',
-      service:'El acceso al dispositivo está habilitado, pero el servicio de reconocimiento de voz no respondió. Comprueba la conexión y las restricciones de Chrome; puedes continuar por texto.'
+      denied:'Chrome o Windows denegó el acceso al dispositivo de audio. Si Chrome ya está en Permitir, comprueba en Windows → Privacidad y seguridad → Micrófono que el acceso esté habilitado para las aplicaciones de escritorio.',
+      missing:'No se detectó un micrófono conectado o Windows no pudo abrirlo. Revisa el dispositivo de entrada en Configuración de sonido.',
+      unsupported:'Este navegador no permite grabar audio. Utiliza Chrome actualizado en una conexión HTTPS o continúa escribiendo.',
+      service:'El micrófono pudo grabar, pero no se completó la transcripción. Comprueba la conexión y la disponibilidad del servicio de IA; puedes continuar por texto.',
+      short:'La grabación fue demasiado breve o no contiene audio suficiente. Habla unos segundos y vuelve a intentarlo.'
     };
-    message.textContent=help[kind] || help.service;
+    message.textContent=(help[kind]||help.service)+(detail?' '+String(detail).slice(0,120):'');
     notice.hidden=false;
   }
-  function hideMicNotice(){const notice=byId('wtBuilderMicNotice');if(notice)notice.hidden=true;}
+  function hideMicNotice(){const n=byId('wtBuilderMicNotice');if(n)n.hidden=true;}
+  function releaseMicStream() {
+    if(voice.stream){for(const t of voice.stream.getTracks()){try{t.stop();}catch{/* already closed */}}voice.stream=null;}
+    if(voice.timeout){clearTimeout(voice.timeout);voice.timeout=null;}
+  }
   function updateVoiceUI() {
-    const mic=byId('wtBuilderMic'); if (!mic) return;
+    const mic=byId('wtBuilderMic'); if(!mic)return;
     mic.classList.toggle('wt-builder-mic-active',voice.active);
-    mic.classList.toggle('wt-builder-mic-listening',voice.listening);
+    mic.classList.toggle('wt-builder-mic-listening',voice.recording);
     mic.classList.toggle('wt-builder-mic-requesting',voice.requesting);
-    mic.setAttribute('aria-pressed',String(voice.active));
-    mic.setAttribute('aria-label',voice.active?'Detener conversación por voz':voice.requesting?'Solicitando acceso al micrófono':'Activar micrófono y conversación por voz');
-    mic.title=canListen?(voice.active?'Detener conversación por voz':voice.requesting?'Solicitando permiso de Chrome':'Activar voz y solicitar permiso de micrófono'):'Tu navegador no admite reconocimiento de voz';
+    mic.setAttribute('aria-pressed',String(voice.recording));
+    mic.setAttribute('aria-label',voice.recording?'Detener y enviar grabación':voice.speaking?'Detener voz del asistente':voice.requesting?'Procesando audio':'Iniciar grabación de voz');
+    mic.title=voice.recording?'Pulsa para terminar y enviar':'Grabar un mensaje por voz';
     mic.disabled=!canListen || voice.requesting;
   }
   function stopVoice(message) {
     voice.generation++;
-    voice.active=false;
-    voice.requesting=false;
-    voice.listening=false;
-    voice.speaking=false;
-    const recognizer=voice.recognition;
-    voice.recognition=null;
-    if(recognizer){try{recognizer.abort();}catch{/* already stopped */}}
+    voice.active=false;voice.recording=false;voice.requesting=false;voice.speaking=false;
+    const recorder=voice.recorder;voice.recorder=null;
+    if(recorder){recorder.onstop=null;recorder.ondataavailable=null;recorder.onerror=null;try{if(recorder.state!=='inactive')recorder.stop();}catch{/* already stopped */}}
+    releaseMicStream();
     if(canSpeak){try{window.speechSynthesis.cancel();}catch{/* unavailable */}}
     updateVoiceUI();
-    if(message) status(message);
+    if(message)status(message);
   }
   function voiceParts(text){
     const sentences=String(text).replace(/\s+/g,' ').match(/[^.!?]+[.!?]*|[^.!?]+$/g)||[];
@@ -195,121 +197,104 @@
   }
   function speakReply(text) {
     if(!voice.active)return;
-    if(!canSpeak){stopVoice('Tu navegador no permite respuesta hablada; puedes seguir escribiendo.');return;}
+    if(!canSpeak){stopVoice('Respuesta lista en texto. La voz no está disponible en este navegador.');return;}
     const parts=voiceParts(text), generation=voice.generation;
-    if(!parts.length){beginListening();return;}
-    voice.speaking=true;
-    status('El asistente está hablando…');
+    if(!parts.length){stopVoice('Pulsa el micrófono para hablar de nuevo.');return;}
+    voice.speaking=true;updateVoiceUI();status('El asistente está hablando…');
     const synth=window.speechSynthesis;
     const available=synth.getVoices?synth.getVoices():[];
     const selected=available.find(v=>v.lang.toLowerCase()==='es-co')||available.find(v=>v.lang.toLowerCase().startsWith('es-'));
     let i=0;
     const sayNext=()=>{
       if(!voice.active||generation!==voice.generation||!dialog?.open)return;
-      if(i>=parts.length){voice.speaking=false;beginListening();return;}
-      const utterance=new SpeechSynthesisUtterance(parts[i++]);
-      utterance.lang=selected?.lang||'es-CO';
-      if(selected)utterance.voice=selected;
-      utterance.rate=1.03;
-      utterance.onend=sayNext;
-      utterance.onerror=()=>{voice.speaking=false;stopVoice('No se pudo reproducir el audio. Puedes continuar por texto.');};
-      synth.speak(utterance);
+      if(i>=parts.length){voice.speaking=false;voice.active=false;updateVoiceUI();status('Pulsa el micrófono para hablar de nuevo.');return;}
+      const u=new SpeechSynthesisUtterance(parts[i++]);
+      u.lang=selected?.lang||'es-CO';if(selected)u.voice=selected;u.rate=1.03;
+      u.onend=sayNext;
+      u.onerror=()=>stopVoice('No se pudo reproducir la voz. La respuesta está disponible en texto.');
+      synth.speak(u);
     };
-    try{synth.cancel();sayNext();}catch{stopVoice('El audio no está disponible. Puedes continuar por texto.');}
+    try{synth.cancel();sayNext();}catch{stopVoice('El audio de respuesta no está disponible. Puedes leer el mensaje.');}
   }
-  function beginListening() {
-    if(!voice.active||!canListen||state.busy||!dialog?.open||document.hidden)return;
-    const generation=voice.generation;
-    const recognizer=new SpeechRecognizer();
-    voice.recognition=recognizer;
-    recognizer.lang='es-CO';
-    recognizer.interimResults=true;
-    recognizer.continuous=false;
-    recognizer.maxAlternatives=1;
-    const input=byId('wtBuilderInput');
-    const base=(input?.value||'').trim();
-    let final='', errorReceived=false;
-    recognizer.onstart=()=>{if(generation!==voice.generation)return;voice.listening=true;hideMicNotice();updateVoiceUI();status('Escuchando… Habla naturalmente.');};
-    recognizer.onresult=event=>{
-      if(generation!==voice.generation)return;
-      let interim='';
-      for(let i=event.resultIndex;i<event.results.length;i++){
-        const result=event.results[i];const words=String(result[0]?.transcript||'').trim();
-        if(result.isFinal) final+=(final?' ':'')+words;
-        else interim+=(interim?' ':'')+words;
-      }
-      if(input){input.value=[base,final,interim].filter(Boolean).join(' ').slice(0,1200);updateComposer();}
-    };
-    recognizer.onerror=event=>{
-      errorReceived=true;
-      const messages={'not-allowed':'Reconocimiento bloqueado. Revisa el permiso del micrófono en Chrome.','service-not-allowed':'El servicio de reconocimiento está bloqueado.','audio-capture':'No se encontró un micrófono disponible.','network':'El reconocimiento de voz no está disponible en este momento.','no-speech':'No se detectó voz. Pulsa el micrófono para intentarlo de nuevo.'};
-      if(event.error!=='aborted'&&generation===voice.generation){
-        stopVoice(messages[event.error]||'No se pudo reconocer la voz. Puedes escribir tu mensaje.');
-        if(event.error==='not-allowed')showMicNotice('denied');
-        else if(event.error==='service-not-allowed'||event.error==='network')showMicNotice('service');
-        else if(event.error==='audio-capture')showMicNotice('missing');
-      }
-    };
-    recognizer.onend=()=>{
-      if(generation!==voice.generation)return;
-      voice.listening=false;voice.recognition=null;updateVoiceUI();
-      if(!voice.active||errorReceived)return;
-      const content=(input?.value||'').trim();
-      if(final.trim()&&content){sendMessage(content,{voiceTurn:true});return;}
-      stopVoice('No detecté una frase completa. Pulsa el micrófono cuando quieras hablar.');
-    };
-    try{recognizer.start();}catch{stopVoice('No fue posible activar el micrófono.');}
+  function preferredRecordingMime() {
+    for(const mime of ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus']){
+      if(!MediaRecorder.isTypeSupported||MediaRecorder.isTypeSupported(mime))return mime;
+    }
+    return '';
+  }
+  async function uploadVoiceAudio(blob,filename) {
+    const data=new FormData();data.append('mode','transcribe');data.append('audio',blob,filename);
+    const response=await fetch('/api/agents/builder-a1',{method:'POST',credentials:'same-origin',body:data});
+    const result=await response.json().catch(()=>({}));
+    if(response.status===401)throw new Error('Tu sesión expiró. Inicia sesión nuevamente.');
+    if(response.status===403)throw new Error('La sesión no tiene permiso para transcribir audio.');
+    if(!response.ok)throw new Error(String(result.error||result.message||'La transcripción no está disponible.').slice(0,140));
+    const text=String(result.text||'').trim().slice(0,1200);
+    if(!text)throw new Error('No se detectaron palabras en la grabación.');
+    return text;
+  }
+  function finishRecording() {
+    if(!voice.recording||!voice.recorder)return;
+    voice.recording=false;
+    voice.requesting=true;updateVoiceUI();status('Procesando tu grabación…');
+    try{if(voice.recorder.state==='recording')voice.recorder.stop();}catch{stopVoice('No se pudo detener la grabación.');}
   }
   async function toggleVoice() {
-    if(voice.active){stopVoice('Voz desactivada. Puedes seguir por texto.');return;}
+    if(voice.recording){finishRecording();return;}
     if(voice.requesting)return;
-    if(!canListen){showMicNotice('unsupported');status('El reconocimiento de voz no está disponible en este navegador.');return;}
-    if(!canSpeak){status('Tu navegador no permite reproducir la respuesta por voz.');return;}
-    if(state.busy){status('Espera a que termine la respuesta actual para activar el micrófono.');return;}
-    // A genuine browser permission request, invoked directly from the mic click.
-    // SpeechRecognition.start() alone does not reliably prompt on every Chrome setup.
-    if(!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia!=='function'){
-      showMicNotice('unsupported');
-      status('No se puede solicitar el micrófono. Comprueba HTTPS y la compatibilidad del navegador.');
-      return;
-    }
+    if(voice.speaking){stopVoice('Voz detenida. Puedes seguir por texto.');return;}
+    if(!canListen){showMicNotice('unsupported');status('Este navegador no puede grabar audio.');return;}
+    if(state.busy){status('Espera a que termine la respuesta actual.');return;}
     hideMicNotice();
     const generation=++voice.generation;
-    voice.requesting=true;
-    updateVoiceUI();
-    status('Chrome está solicitando acceso al micrófono…');
+    voice.requesting=true;updateVoiceUI();status('Solicitando acceso al micrófono…');
     let stream;
     try{
       stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
-      // SpeechRecognition will acquire its own input. Do not leave a second capture open.
-      if(stream && typeof stream.getTracks==='function'){
-        for(const track of stream.getTracks()){try{track.stop();}catch{/* already closed */}}
-      }
-      stream=null;
-      if(generation!==voice.generation || !dialog?.open)return;
-      voice.requesting=false;
-      voice.active=true;
-      updateVoiceUI();
-      status('Micrófono autorizado. Escuchando…');
-      beginListening();
+      if(generation!==voice.generation||!dialog?.open){stream.getTracks().forEach(t=>t.stop());return;}
+      voice.stream=stream;
+      const mime=preferredRecordingMime();
+      const recorder=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);
+      const chunks=[];
+      voice.recorder=recorder;voice.active=true;
+      recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+      recorder.onerror=()=>{if(generation!==voice.generation)return;stopVoice('No se pudo grabar el audio.');showMicNotice('service');};
+      recorder.onstop=async()=>{
+        releaseMicStream();voice.recorder=null;
+        if(generation!==voice.generation||!dialog?.open)return;
+        voice.requesting=true;updateVoiceUI();status('Transcribiendo tu mensaje…');
+        const recordingType=recorder.mimeType||mime||'audio/webm';
+        const blob=new Blob(chunks,{type:recordingType});
+        if(blob.size<800){stopVoice('La grabación fue demasiado corta.');showMicNotice('short');return;}
+        if(blob.size>MAX_AUDIO_BYTES){stopVoice('La grabación superó el límite de tamaño.');return;}
+        const filename=recordingType.includes('mp4')?'mensaje.mp4':recordingType.includes('ogg')?'mensaje.ogg':'mensaje.webm';
+        try{
+          const text=await uploadVoiceAudio(blob,filename);
+          if(generation!==voice.generation||!dialog?.open)return;
+          voice.requesting=false;updateVoiceUI();
+          status('Texto reconocido. Enviando tu mensaje…');
+          await sendMessage(text);
+        }catch(error){
+          if(generation!==voice.generation)return;
+          stopVoice('No se pudo transcribir el audio. Puedes escribir tu mensaje.');
+          showMicNotice('service',error.message);
+        }
+      };
+      voice.requesting=false;voice.recording=true;updateVoiceUI();
+      status('Grabando… Habla y pulsa otra vez el micrófono para enviar (máximo 30 s).');
+      recorder.start(1000);
+      voice.timeout=setTimeout(()=>{if(generation===voice.generation&&voice.recording)finishRecording();},MAX_RECORDING_MS);
     }catch(error){
-      if(stream && typeof stream.getTracks==='function'){
-        for(const track of stream.getTracks()){try{track.stop();}catch{/* cleanup */}}
-      }
+      if(stream){for(const t of stream.getTracks()){try{t.stop();}catch{/* closed */}}}
       if(generation!==voice.generation)return;
-      voice.requesting=false;
-      voice.active=false;
-      updateVoiceUI();
+      stopVoice();
       const name=String(error?.name||'');
       if(['NotAllowedError','PermissionDeniedError','SecurityError'].includes(name)){
-        showMicNotice('denied');
-        status('Micrófono bloqueado. Consulta los pasos para permitirlo en Chrome.');
-      }else if(['NotFoundError','DevicesNotFoundError','NotReadableError','TrackStartError'].includes(name)){
-        showMicNotice('missing');
-        status('No se pudo acceder al dispositivo de audio.');
+        showMicNotice('denied');status('Chrome o Windows no concedió acceso al dispositivo de audio.');
+      }else if(['NotFoundError','DevicesNotFoundError','NotReadableError','TrackStartError','OverconstrainedError'].includes(name)){
+        showMicNotice('missing');status('No fue posible abrir el micrófono.');
       }else{
-        showMicNotice('service');
-        status('No se pudo activar el micrófono. Puedes continuar escribiendo.');
+        showMicNotice('unsupported');status('No se pudo iniciar la grabación.');
       }
     }
   }
@@ -319,7 +304,6 @@
     value=String(value||'').trim();
     if(!value||value.length>1200){status('Escribe un mensaje de hasta 1.200 caracteres.');return;}
     const input=byId('wtBuilderInput');
-    if(voice.recognition){try{voice.recognition.abort();}catch{/* stopped */}voice.recognition=null;voice.listening=false;}
     state.messages.push({role:'user',content:value});
     messageBubble('user',value);
     if(input){input.value='';input.style.height='auto';}
@@ -461,7 +445,7 @@
             </div></div>
             <div class="wt-builder-compose"><label class="wt-builder-sr-only" for="wtBuilderInput">Escribe un mensaje</label><textarea id="wtBuilderInput" rows="2" maxlength="1200" placeholder="Pregúntame lo que quieras sobre tu agente…"></textarea><div class="wt-builder-compose-bottom"><span id="wtBuilderStatus" role="status">Conversa libremente.</span><div class="wt-builder-composer-actions"><button type="button" id="wtBuilderMic" aria-label="Conversar por voz" aria-pressed="false" title="Conversar por voz">${icons.mic}</button><button type="button" id="wtBuilderSend" aria-label="Enviar mensaje" title="Enviar mensaje">${icons.send}</button></div></div></div>
             <div class="wt-builder-mic-notice" id="wtBuilderMicNotice" role="alert" hidden><span aria-hidden="true">🎙️</span><p id="wtBuilderMicNoticeText"></p><button type="button" id="wtBuilderMicNoticeClose" aria-label="Cerrar indicaciones del micrófono">×</button></div>
-            <div class="wt-builder-chat-note">El micrófono requiere tu permiso. El reconocimiento puede utilizar servicios del navegador. Nada se crea ni publica desde el chat.</div>
+            <div class="wt-builder-chat-note">Para convertir voz en texto, Worktic AI envía tu grabación a OpenAI cuando terminas de hablar. Es un servicio con consumo. Nada se crea ni publica desde el chat.</div>
           </section>
           <aside class="wt-builder-preview" aria-label="Configuración del agente">
             <div class="wt-builder-preview-head"><div><small>TU AGENTE</small><h3>Configuración sugerida</h3></div><button id="wtBuilderHidePreview" type="button" aria-label="Volver al chat">×</button></div>
@@ -493,7 +477,7 @@
     byId('wtBuilderSend').addEventListener('click',()=>sendMessage(input.value));
     byId('wtBuilderStarters').addEventListener('click',event=>{const starter=event.target.closest('[data-starter]');if(starter)sendMessage(starter.dataset.starter);});
     dialog.addEventListener('close',()=>{stopVoice();togglePreview(false);});
-    document.addEventListener('visibilitychange',()=>{if(document.hidden&&voice.active)stopVoice('Voz detenida porque la ventana no está visible.');});
+    document.addEventListener('visibilitychange',()=>{if(document.hidden&&(voice.active||voice.requesting))stopVoice('Voz detenida porque la ventana no está visible.');});
     renderProposal();updateComposer();updateVoiceUI();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setup,{once:true}); else setup();
