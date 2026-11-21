@@ -220,13 +220,19 @@
     voice.speaking=true;updateVoiceUI();status('El asistente está hablando…');
     const synth=window.speechSynthesis;
     const available=synth.getVoices?synth.getVoices():[];
-    const selected=available.find(v=>v.lang.toLowerCase()==='es-co')||available.find(v=>v.lang.toLowerCase().startsWith('es-'));
+    // A5 dictation fallback uses the OS voices, not OpenAI Realtime.
+    // Never silently choose a male default when a feminine voice is requested.
+    const femaleName=/\b(female|woman|mujer|elena|lucia|lucía|helena|sofia|sofía|monica|mónica|laura|paulina|sabina|paloma|isabela|isabella|maria|maría|carmen)\b/i;
+    const spanish=available.filter(v=>/^es([_-]|$)/i.test(v.lang||''));
+    const selected=spanish.find(v=>/^es[-_]AR$/i.test(v.lang)&&femaleName.test(v.name||''))
+      ||spanish.find(v=>femaleName.test(v.name||''));
+    if(!selected){stopVoice('La voz femenina de dictado no está instalada en Chrome. Usa «Hablar» (voz de OpenAI) cuando la conexión Realtime funcione; puedes continuar por texto.');return;}
     let i=0;
     const sayNext=()=>{
       if(!voice.active||generation!==voice.generation||!dialog?.open)return;
       if(i>=parts.length){voice.speaking=false;voice.active=false;updateVoiceUI();status('Pulsa el micrófono para hablar de nuevo.');return;}
       const u=new SpeechSynthesisUtterance(parts[i++]);
-      u.lang=selected?.lang||'es-CO';if(selected)u.voice=selected;u.rate=1.03;
+      u.lang=selected.lang;u.voice=selected;u.rate=0.98;
       u.onend=sayNext;
       u.onerror=()=>stopVoice('No se pudo reproducir la voz. La respuesta está disponible en texto.');
       synth.speak(u);

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"mime"
 	"net/http"
@@ -35,7 +36,7 @@ func TestAgentBuilderA6Config(t *testing.T) {
 	}
 	audio := doc["audio"].(map[string]any)
 	output := audio["output"].(map[string]any)
-	if output["voice"] != "marin" {
+	if output["voice"] != "coral" {
 		t.Fatalf("unexpected voice: %v", output["voice"])
 	}
 	input := audio["input"].(map[string]any)
@@ -43,6 +44,13 @@ func TestAgentBuilderA6Config(t *testing.T) {
 	if vad["type"] != "semantic_vad" || vad["interrupt_response"] != true || vad["create_response"] != true {
 		t.Fatal(vad)
 	}
+	t.Setenv("WORKTIC_AGENT_REALTIME_VOICE", "shimmer")
+	if data, err = agentBuilderA6Config(); err != nil { t.Fatal(err) }
+	if err = json.Unmarshal(data, &doc); err != nil { t.Fatal(err) }
+	if doc["audio"].(map[string]any)["output"].(map[string]any)["voice"] != "shimmer" { t.Fatal("approved voice not selected") }
+	t.Setenv("WORKTIC_AGENT_REALTIME_VOICE", "unsafe-voice")
+	if _, err = agentBuilderA6Config(); err == nil {t.Fatal("voice should be allowlisted")}
+	t.Setenv("WORKTIC_AGENT_REALTIME_VOICE", "coral")
 	t.Setenv("WORKTIC_AGENT_REALTIME_MODEL", "unsafe-custom")
 	if _, err = agentBuilderA6Config(); err == nil {
 		t.Fatal("model should be allowlisted")
@@ -115,4 +123,25 @@ func TestAgentBuilderA6Exchange(t *testing.T) {
 		t.Fatal("bad SDP")
 	}
 	_ = os.ErrNotExist
+}
+
+func TestAgentBuilderA6ProviderErrorSanitization(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(429)
+		_,_ = io.WriteString(w, `{"error":{"code":"insufficient_quota","type":"rate_limit_error","message":"SECRET NEVER LOG"}}`)
+	}))
+	defer provider.Close()
+	_,err:=agentBuilderA6Exchange(context.Background(),provider.Client(),provider.URL,"fake-key","worktic-test",[]byte("v=0\r\no=- 123 1 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n"),[]byte(`{"type":"realtime"}`))
+	var pe *agentBuilderA6ProviderError
+	if !errors.As(err,&pe) || pe.Status!=429 || pe.Code!="insufficient_quota" || strings.Contains(pe.Error(),"SECRET") {t.Fatalf("bad provider error: %v",err)}
+	if agentBuilderA6SafeCode("bad <thing>")!="unknown" {t.Fatal("unsafe code accepted")}
+}
+func TestAgentBuilderA6RetryDoesNotExhaustPilot(t *testing.T) {
+	tenant:=int64(998877665)
+	for i:=0;i<6;i++ {
+		start:=time.Now().Add(time.Duration(i)*time.Microsecond)
+		if !agentBuilderA6Admit(tenant,start){t.Fatalf("failed retry %d blocked",i)}
+		agentBuilderA6Release(tenant,start)
+	}
 }

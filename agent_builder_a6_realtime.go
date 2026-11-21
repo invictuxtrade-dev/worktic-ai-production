@@ -62,6 +62,18 @@ func agentBuilderA6Admit(tenant int64, now time.Time) bool {
 	return true
 }
 
+func agentBuilderA6Release(tenant int64, started time.Time) {
+	agentBuilderA6RateMu.Lock()
+	defer agentBuilderA6RateMu.Unlock()
+	values := agentBuilderA6Starts[tenant]
+	for i := len(values)-1; i>=0; i-- {
+		if values[i].Equal(started) {
+			agentBuilderA6Starts[tenant] = append(values[:i], values[i+1:]...)
+			return
+		}
+	}
+}
+
 func agentBuilderA6Config() ([]byte, error) {
 	model := strings.TrimSpace(os.Getenv("WORKTIC_AGENT_REALTIME_MODEL"))
 	if model == "" {
@@ -71,6 +83,13 @@ func agentBuilderA6Config() ([]byte, error) {
 		return nil, errors.New("modelo de voz no permitido")
 	}
 	instruction := `Eres el asistente de voz de Worktic AI para ayudar a diseñar agentes IA. Hablas en español rioplatense natural con voz femenina cálida, joven-adulta y expresiva, acento argentino suave y comprensible para toda Latinoamérica. Usa voseo con moderación cuando sea natural, como «contame» o «querés», sin exagerar muletillas, imitar a ninguna persona ni parecer una locución robótica. Habla con ritmo conversacional, pequeñas pausas naturales y entonación amable; evita recitar listas y repetir frases prefabricadas. Escucha al usuario, conserva sus preferencias y construye las ideas gradualmente. Haz como máximo una pregunta breve por respuesta cuando sea útil. Responde con frases cortas por voz y evita enumerar listas largas. En el primer turno de voz saluda TÚ primero de manera espontánea, preséntate brevemente como la asistente de Worktic AI y pregunta solamente qué agente desea crear. No esperes a que el usuario hable para iniciar el saludo; después de saludar, escucha su respuesta. Si ya conversaron, retoma el contexto que te aporte la persona. Puedes explicar capacidades existentes sin inventar integraciones, precios, permisos ni datos del negocio. No puedes crear, guardar, activar ni publicar agentes ni realizar acciones sobre cuentas. Al acabar, dile que use «Usar en el formulario» para revisar lo conversado y que solo el usuario puede pulsar Crear agente. Atiende interrupciones con naturalidad. Nunca solicites contraseñas o secretos.`
+	// Keep voice selection on the trusted server; a prompt cannot change
+	// the underlying voice timbre. Only approved built-in voices are allowed.
+	voice := strings.ToLower(strings.TrimSpace(os.Getenv("WORKTIC_AGENT_REALTIME_VOICE")))
+	if voice == "" { voice = "coral" }
+	if voice != "coral" && voice != "shimmer" && voice != "marin" {
+		return nil, errors.New("voz de Realtime no permitida")
+	}
 	return json.Marshal(map[string]any{
 		"type": "realtime", "model": model,
 		"instructions":      instruction,
@@ -80,11 +99,29 @@ func agentBuilderA6Config() ([]byte, error) {
 				"transcription":  map[string]any{"model": "gpt-transcribe"},
 				"turn_detection": map[string]any{"type": "semantic_vad", "eagerness": "medium", "create_response": true, "interrupt_response": true},
 			},
-			"output": map[string]any{"voice": "marin"},
+			"output": map[string]any{"voice": voice},
 		},
 	})
 }
 
+// Expose only a sanitized upstream status and error identifier; never expose
+// credentials, session SDP, request content, or raw provider error messages.
+type agentBuilderA6ProviderError struct {
+	Status int
+	Code string
+	Kind string
+}
+func (e *agentBuilderA6ProviderError) Error() string {
+	return fmt.Sprintf("proveedor de voz HTTP %d code=%s type=%s", e.Status, e.Code, e.Kind)
+}
+func agentBuilderA6SafeCode(raw string) string {
+	if len(raw) > 60 { return "unknown" }
+	if raw == "" { return "unspecified" }
+	for _, r := range raw {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' || r == '.') { return "unknown" }
+	}
+	return raw
+}
 // Exchange seam permits a complete integration test without external API calls.
 func agentBuilderA6Exchange(ctx context.Context, client *http.Client, endpoint, key, safety string, sdp []byte, session []byte) ([]byte, error) {
 	if key == "" || len(sdp) < 24 || len(sdp) > 64<<10 {
@@ -114,8 +151,15 @@ func agentBuilderA6Exchange(ctx context.Context, client *http.Client, endpoint, 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Do not log request body, credentials or raw provider payload.
-		return nil, fmt.Errorf("proveedor de voz HTTP %d", resp.StatusCode)
+		// Parse only structured error codes. Do not propagate error.message,
+		// which can contain sensitive or provider-controlled text.
+		var payload struct { Error struct { Code string `json:"code"`; Type string `json:"type"` } `json:"error"` }
+		_ = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&payload)
+		return nil, &agentBuilderA6ProviderError{
+			Status: resp.StatusCode,
+			Code: agentBuilderA6SafeCode(payload.Error.Code),
+			Kind: agentBuilderA6SafeCode(payload.Error.Type),
+		}
 	}
 	if !strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "application/sdp") {
 		return nil, errors.New("unexpected realtime response")
@@ -153,7 +197,8 @@ func (a *App) agentBuilderA6Realtime(w http.ResponseWriter, r *http.Request, ten
 		writeError(w, errors.New("configuración no disponible"), http.StatusServiceUnavailable)
 		return
 	}
-	if !agentBuilderA6Admit(tenant, time.Now()) {
+	started := time.Now()
+	if !agentBuilderA6Admit(tenant, started) {
 		writeError(w, errors.New("Límite piloto de sesiones por empresa alcanzado"), http.StatusTooManyRequests)
 		return
 	}
@@ -165,8 +210,17 @@ func (a *App) agentBuilderA6Realtime(w http.ResponseWriter, r *http.Request, ten
 	defer cancel()
 	answer, err := agentBuilderA6Exchange(ctx, &http.Client{Timeout: 20 * time.Second}, "https://api.openai.com/v1/realtime/calls", secret, safety, sdp, config)
 	if err != nil {
+		// A failed upstream request is not a successful voice session; allow
+		// the pilot to retry without consuming all four hourly openings.
+		agentBuilderA6Release(tenant, started)
 		log.Printf("agent-builder A6 realtime provider: %v", err)
-		writeError(w, errors.New("No se pudo abrir la conversación en vivo (verifica los eventos de voz en Render)"), http.StatusBadGateway)
+		var provider *agentBuilderA6ProviderError
+		if errors.As(err, &provider) {
+			msg := fmt.Sprintf("Realtime HTTP %d (%s). Verifica el registro de voz en Render.", provider.Status, provider.Code)
+			writeError(w, errors.New(msg), http.StatusBadGateway)
+		} else {
+			writeError(w, errors.New("No se pudo abrir la conversación de voz. Revisa los registros de Render."), http.StatusBadGateway)
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "application/sdp")
