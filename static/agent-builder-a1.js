@@ -118,43 +118,87 @@
     return json;
   }
   // Decode incremental NDJSON from the existing authenticated POST endpoint.
+  // A6 R2.7: keep the user informed when an upstream stream stops or stalls.
+  // Browser-only timeouts; never touch the live WebRTC microphone session.
   async function requestStream(onDelta) {
-    const response = await fetch('/api/agents/builder-a1', {
-      method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({mode:'stream',messages:historyForRequest()})
-    });
-    if (!response.ok) {
-      const json=await response.json().catch(()=>({}));
-      if (response.status===401) throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
-      if (response.status===403) throw new Error('No tienes permiso para configurar agentes.');
-      throw new Error(json.error||json.message||'No se pudo iniciar la respuesta.');
-    }
-    if (!response.body || !response.body.getReader) throw new Error('Tu navegador no permite recibir respuestas progresivas.');
-    const reader=response.body.getReader(), decoder=new TextDecoder();
-    let buffer='', text='', completed=false;
+    const controller=new AbortController();
+    let watchdog=null, deadline=null, reason='';
+    const armIdle=(ms)=>{
+      if(watchdog)clearTimeout(watchdog);
+      watchdog=setTimeout(()=>{reason='La respuesta dejó de recibir datos. Puedes continuar desde donde quedó.';controller.abort();},ms);
+    };
+    let text='', completed=false, partial=false, buffer='';
     const parseLine=line=>{
-      if (!line.trim()) return;
+      if(!line.trim())return;
       let item;
       try { item=JSON.parse(line); } catch { throw new Error('La respuesta del servidor no tiene un formato válido.'); }
-      if (item.type==='delta') {
-        text += String(item.value||'');
-        if (text.length>12000) throw new Error('La respuesta superó el límite permitido.');
+      if(item.type==='delta'){
+        text+=String(item.value||'');
+        if(text.length>13000)throw new Error('La respuesta excedió su extensión de seguridad.');
         onDelta(text);
-      } else if (item.type==='done') completed=true;
-      else if (item.type==='error') throw new Error(String(item.value||'No se pudo completar la respuesta.'));
+      }else if(item.type==='limit'||item.type==='interrupted'){
+        partial=true;
+      }else if(item.type==='done'){
+        completed=true;
+        if(item.value==='partial')partial=true;
+      }else if(item.type==='error')throw new Error(String(item.value||'No se pudo completar la respuesta.'));
     };
-    try {
-      while(true){
-        const {done,value}=await reader.read();
-        buffer+=done?decoder.decode():decoder.decode(value,{stream:true});
-        let lineEnd;
-        while((lineEnd=buffer.indexOf('\n'))!==-1){parseLine(buffer.slice(0,lineEnd));buffer=buffer.slice(lineEnd+1);}
-        if(done) break;
+    try{
+      armIdle(75000); // Time to first byte on a cold model.
+      deadline=setTimeout(()=>{reason='La respuesta superó el tiempo máximo. Puedes continuar desde donde quedó.';controller.abort();},115000);
+      const response=await fetch('/api/agents/builder-a1',{
+        method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({mode:'stream',messages:historyForRequest()}),signal:controller.signal
+      });
+      if(!response.ok){
+        const json=await response.json().catch(()=>({}));
+        if(response.status===401)throw new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
+        if(response.status===403)throw new Error('No tienes permiso para configurar agentes.');
+        throw new Error(json.error||json.message||'No se pudo iniciar la respuesta.');
       }
-      if (buffer.trim()) parseLine(buffer);
-      if (!completed || !text.trim()) throw new Error('La respuesta se interrumpió. Intenta nuevamente.');
-      return text.trim();
-    } finally {try {reader.releaseLock();} catch { /* closed stream */ }}
+      if(!response.body||!response.body.getReader)throw new Error('Este navegador no permite respuestas progresivas.');
+      const reader=response.body.getReader(),decoder=new TextDecoder();
+      try {
+        armIdle(30000);
+        while(true){
+          const {done,value}=await reader.read();
+          if(value?.length)armIdle(30000);
+          buffer+=done?decoder.decode():decoder.decode(value,{stream:true});
+          let end;
+          while((end=buffer.indexOf('\n'))!==-1){parseLine(buffer.slice(0,end));buffer=buffer.slice(end+1);}
+          if(done)break;
+        }
+        if(buffer.trim())parseLine(buffer);
+      }finally{try{reader.releaseLock();}catch{/* stream ended */}}
+      if(!completed||!text.trim())throw new Error('La respuesta quedó incompleta. Puedes intentar continuar.');
+      return {text:text.trim(),partial};
+    }catch(error){
+      const friendly=new Error(reason||error.message||'No se pudo completar la respuesta.');
+      friendly.partialText=text.trim();
+      throw friendly;
+    }finally{
+      if(watchdog)clearTimeout(watchdog);
+      if(deadline)clearTimeout(deadline);
+    }
+  }
+
+  function offerContinuation(turn) {
+    if(!turn||turn.querySelector('.wt-builder-continue'))return;
+    const btn=el('button','Continuar respuesta →','wt-builder-continue');
+    btn.type='button';
+    btn.style.cssText='align-self:flex-start;margin:9px 0 0 2px;padding:9px 13px;border:1px solid #dcd6ff;border-radius:10px;background:#f5f2ff;color:#5642bb;font-size:12px;font-weight:700;';
+    btn.addEventListener('click',async()=>{
+      if(state.busy)return;
+      btn.disabled=true;
+      await sendMessage('Continúa tu última respuesta justo desde donde se interrumpió, sin repetir lo anterior. Termina la idea pendiente.');
+      btn.disabled=false;
+    });
+    const bubble=turn.querySelector('.wt-builder-bubble');
+    const footer=el('div',null,'wt-builder-continue-row');
+    footer.style.marginTop='7px';
+    footer.append(btn);
+    (bubble||turn).append(footer);
+    scrollDown();
   }
 
   function showMicNotice(kind, detail='') {
@@ -334,21 +378,42 @@
     const typing=typingBubble();const bubble=typing?.querySelector('.wt-builder-bubble');
     let received=false;
     try{
-      const reply=await requestStream(text=>{
+      const result=await requestStream(text=>{
         if(!received){received=true;typing?.classList.remove('wt-builder-typing');}
         if(bubble)bubble.textContent=text;
         scrollDown();
       });
-      state.messages.push({role:'assistant',content:reply});
-      status('Puedes seguir conversando libremente.');
-      if(voice.active)speakReply(reply);
+      state.messages.push({role:'assistant',content:result.text});
+      // Some provider implementations may finish a stream with a short output
+      // limit but without an explicit partial flag. Flag an obviously unfinished
+      // last phrase; keep the existing answer instead of deleting it.
+      const tail=result.text.trim();
+      const suspiciousEnd=tail.length>650 &&
+        (!/[.!?…»”)]$/.test(tail) || /(?:^|\n)\s*[-•]\s*.{0,12}$/.test(tail));
+      if(result.partial||suspiciousEnd){
+        offerContinuation(typing);
+        status(result.partial
+          ? 'La respuesta quedó a medias. Pulsa «Continuar respuesta» para completarla.'
+          : 'Puede faltar parte de la respuesta. Pulsa «Continuar respuesta» si deseas completarla.');
+      }else{
+        status('Respuesta completada. Puedes seguir conversando libremente.');
+      }
+      if(voice.active&&!result.partial)speakReply(result.text);
     }catch(error){
-      typing?.remove();
-      state.messages.pop();
-      messageBubble('assistant',error.message||'No pude responder. Intenta otra vez.','wt-builder-error');
-      if(input&&!input.value.trim())input.value=value;
-      if(voice.active)stopVoice('Ocurrió un error. Puedes reintentar por texto o voz.');
-      else status('No se ha perdido tu mensaje. Puedes reintentar.');
+      const partial=String(error.partialText||bubble?.textContent||'').trim();
+      if(received&&partial){
+        if(bubble)bubble.textContent=partial;
+        typing?.classList.remove('wt-builder-typing');
+        state.messages.push({role:'assistant',content:partial});
+        offerContinuation(typing);
+        status('Se interrumpió la respuesta. Conservamos lo recibido; pulsa «Continuar respuesta».');
+      }else{
+        typing?.remove();
+        state.messages.pop();
+        messageBubble('assistant',error.message||'No pude responder. Intenta otra vez.','wt-builder-error');
+        if(input&&!input.value.trim())input.value=value;
+        status('No se ha perdido tu mensaje. Puedes reintentar.');
+      }
     }finally{
       state.busy=false;updateComposer();renderProposal();
       if(dialog?.open&&!voice.active)input?.focus();

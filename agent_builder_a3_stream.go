@@ -38,7 +38,10 @@ func agentBuilderA3WriteStream(w http.ResponseWriter, ctx context.Context, produ
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
-	maxRunes := 2400
+	// A6 R2.7: never silently stop showing generated text. If the response
+	// exceeds the display budget, mark it explicitly and allow continuation.
+	const maxRunes = 9000
+	limitReached := errors.New("agent builder visible response limit")
 	written := 0
 	emitted := false
 	send := func(eventType, value string) error {
@@ -55,23 +58,40 @@ func agentBuilderA3WriteStream(w http.ResponseWriter, ctx context.Context, produ
 	}
 	err := producer(func(delta string) error {
 		if written >= maxRunes {
-			return nil
+			return limitReached
 		}
 		chars := []rune(delta)
+		clipped := len(chars) >= maxRunes-written
 		if len(chars) > maxRunes-written {
 			chars = chars[:maxRunes-written]
 		}
 		delta = string(chars)
-		if delta == "" {
-			return nil
+		if delta != "" {
+			written += len(chars)
+			emitted = true
+			if err := send("delta", delta); err != nil {
+				return err
+			}
 		}
-		written += len(chars)
-		emitted = true
-		return send("delta", delta)
+		if clipped {
+			return limitReached
+		}
+		return nil
 	})
+	if ctx.Err() == context.Canceled {
+		return
+	}
+	if errors.Is(err, limitReached) {
+		_ = send("limit", "La respuesta alcanzó su extensión máxima. Puedes continuar desde aquí.")
+		_ = send("done", "partial")
+		return
+	}
 	if err != nil {
-		// Do not expose upstream exceptions, tokens or API configuration to clients.
-		if ctx.Err() == context.Canceled {
+		// The provider may fail after sending some tokens. Preserve partial
+		// content and never expose upstream details or API credentials.
+		if emitted {
+			_ = send("interrupted", "La respuesta se interrumpió. Puedes continuar desde aquí.")
+			_ = send("done", "partial")
 			return
 		}
 		_ = send("error", "No se pudo completar la respuesta. Intenta de nuevo.")

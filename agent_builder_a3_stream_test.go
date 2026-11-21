@@ -82,7 +82,7 @@ func TestAgentBuilderA3StreamHidesProviderErrors(t *testing.T) {
 func TestAgentBuilderA3StreamCapsUnicodeOutput(t *testing.T) {
 	w := httptest.NewRecorder()
 	agentBuilderA3WriteStream(w, context.Background(), func(emit func(string) error) error {
-		return emit(strings.Repeat("á", 2500))
+		return emit(strings.Repeat("á", 9500))
 	})
 	line := strings.Split(strings.TrimSpace(w.Body.String()), "\n")[0]
 	var event struct {
@@ -92,7 +92,22 @@ func TestAgentBuilderA3StreamCapsUnicodeOutput(t *testing.T) {
 	if err := json.Unmarshal([]byte(line), &event); err != nil {
 		t.Fatal(err)
 	}
-	if len([]rune(event.Value)) != 2400 {
-		t.Fatalf("expected 2400 runes; got %d", len([]rune(event.Value)))
+	if len([]rune(event.Value)) != 9000 {
+		t.Fatalf("expected 9000 runes; got %d", len([]rune(event.Value)))
 	}
+	if !strings.Contains(w.Body.String(), `"type":"limit"`) || !strings.Contains(w.Body.String(), `"type":"done"`) {
+		t.Fatalf("truncation was not surfaced: %s", w.Body.String()[len(w.Body.String())-200:])
+	}
+}
+
+func TestAgentBuilderA3StreamPreservesPartialOnProviderFailure(t *testing.T) {
+ w:=httptest.NewRecorder()
+ agentBuilderA3WriteStream(w, context.Background(),func(emit func(string)error)error{
+  if err:=emit("Primer tramo. ");err!=nil{return err}
+  return errors.New("secret provider error")
+ })
+ body:=w.Body.String()
+ if !strings.Contains(body,`"type":"interrupted"`){t.Fatal("partial response not marked")}
+ if !strings.Contains(body,`"type":"done"`){t.Fatal("partial response not terminated")}
+ if strings.Contains(body,"secret provider error"){t.Fatal("secret leaked")}
 }
