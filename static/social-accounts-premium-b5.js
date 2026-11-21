@@ -136,6 +136,11 @@
       const hint = element('p', 'wt-social-t2-capability', 'Perfil conectado mediante Login Kit. La publicación y los mensajes requieren permisos adicionales de TikTok.');
       body.append(hint);
     }
+    if (platform === 'linkedin') {
+      body.append(element('p', 'wt-social-t2-capability', permissions.includes('w_member_social')
+        ? 'Perfil LinkedIn autorizado para publicar según los permisos registrados.'
+        : 'Perfil profesional conectado con OpenID Connect. Para publicar necesitas autorizar Share on LinkedIn (w_member_social).'));
+    }
     const footer = element('div', 'wt-social-b5-footer');
     if (connectionId) {
       const manage = element('button', 'wt-social-t2-manage', 'Administrar');

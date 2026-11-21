@@ -152,11 +152,12 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			auth = "https://www.facebook.com/" + a.cfg.MetaGraphVersion + "/dialog/oauth?" + q.Encode()
 		case "linkedin":
-			if a.cfg.LinkedInClientID == "" {
-				http.Error(w, "LINKEDIN_CLIENT_ID no configurado", 409)
+			if err := linkedinL1CredentialsReady(a.cfg.LinkedInClientID, a.cfg.LinkedInClientSecret, a.cfg.ChannelEncryptionKey); err != nil {
+				http.Error(w, err.Error(), http.StatusConflict)
 				return
 			}
-			q := url.Values{"response_type": {"code"}, "client_id": {a.cfg.LinkedInClientID}, "redirect_uri": {redirect}, "state": {state}, "scope": {"openid profile w_member_social"}}
+			// L1 connects the professional profile only; publishing needs a separate Share on LinkedIn grant.
+			q := url.Values{"response_type": {"code"}, "client_id": {a.cfg.LinkedInClientID}, "redirect_uri": {redirect}, "state": {state}, "scope": {linkedinL1Scope}}
 			auth = "https://www.linkedin.com/oauth/v2/authorization?" + q.Encode()
 		case "tiktok":
 			ready, reason := a.tiktokT1Ready()
@@ -195,6 +196,8 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if p == "youtube" {
 		youtubeY1IssueStateCookie(w, state, a.cfg.BaseURL)
+	} else if p == "linkedin" {
+		linkedinL1IssueStateCookie(w, state, a.cfg.BaseURL)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, map[string]any{"authorization_url": auth})
@@ -243,6 +246,12 @@ func (a *App) socialOAuthCallbackHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		youtubeY1ClearStateCookie(w, a.cfg.BaseURL)
+	} else if p == "linkedin" {
+		if !linkedinL1ValidStateCookie(r, state) {
+			http.Error(w, "Autorización de LinkedIn no coincide con la sesión que la inició", http.StatusForbidden)
+			return
+		}
+		linkedinL1ClearStateCookie(w, a.cfg.BaseURL)
 	}
 	// One atomic statement prevents concurrent callbacks from reusing a state.
 	// Both SQLite (modernc) and PostgreSQL support DELETE ... RETURNING.
@@ -407,14 +416,15 @@ func (a *App) discoverAndSaveSocialConnection(ctx context.Context, tid int64, p 
 		// Estas plataformas solo se activan con seleccion explicita en el callback.
 		return errors.New("Facebook e Instagram requieren elegir la pagina antes de conectar")
 	case "linkedin":
-		var me struct {
-			Sub  string `json:"sub"`
-			Name string `json:"name"`
-		}
-		if err := apiJSON(ctx, "GET", "https://api.linkedin.com/v2/userinfo", t.AccessToken, nil, &me); err != nil {
+		if err := linkedinL1ValidateTokenScopes(t.Scope); err != nil {
 			return err
 		}
-		return a.saveOfficialConnection(tid, p, me.Name, me.Sub, t, socialProviderConfig{AuthorURN: "urn:li:person:" + me.Sub}, "openid,profile,w_member_social")
+		id, name, err := linkedinL1DiscoverProfile(ctx, t.AccessToken)
+		if err != nil {
+			return err
+		}
+		// L1 never persists an ungranted publish permission or author URN.
+		return a.saveOfficialConnection(tid, p, name, id, t, socialProviderConfig{}, linkedinL1StoredScopes)
 	case "tiktok":
 		if !tiktokT1HasScope(t.Scope, tiktokT1InitialScope) {
 			return errors.New("TikTok no autorizo el permiso user.info.basic")
@@ -764,8 +774,8 @@ func (a *App) socialConnectionTestHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	ensureSocialProviderSchema(a.db)
-	var p, mode, enc, cfgj string
-	err = a.db.QueryRow(`SELECT platform,provider_mode,encrypted_credentials,config_json FROM social_connections WHERE id=? AND tenant_id=?`, q.ID, tid).Scan(&p, &mode, &enc, &cfgj)
+	var p, mode, enc, cfgj, linkedExternalID string
+	err = a.db.QueryRow(`SELECT platform,provider_mode,encrypted_credentials,config_json,external_account_id FROM social_connections WHERE id=? AND tenant_id=?`, q.ID, tid).Scan(&p, &mode, &enc, &cfgj, &linkedExternalID)
 	if err != nil {
 		http.Error(w, "conexiÃ³n no encontrada", 404)
 		return
@@ -805,9 +815,11 @@ func (a *App) socialConnectionTestHandler(w http.ResponseWriter, r *http.Request
 			detail = fmt.Sprint(out["username"])
 		}
 	case "linkedin":
-		var out map[string]any
-		err = apiJSON(r.Context(), "GET", "https://api.linkedin.com/v2/userinfo", tok.AccessToken, nil, &out)
-		detail = fmt.Sprint(out["name"])
+		var actualID string
+		actualID, detail, err = linkedinL1DiscoverProfile(r.Context(), tok.AccessToken)
+		if err == nil && actualID != linkedExternalID {
+			err = errors.New("El perfil de LinkedIn autorizado no coincide con el perfil registrado")
+		}
 	case "telegram":
 		var out map[string]any
 		err = apiJSON(r.Context(), "GET", "https://api.telegram.org/bot"+tok.AccessToken+"/getChat?chat_id="+url.QueryEscape(cfg.ChatID), "", nil, &out)
@@ -997,6 +1009,10 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 	}
 	if p.ConnectionID == 0 || cstatus != "connected" {
 		return nil, errors.New("conecta una cuenta activa para esta red")
+	}
+	// LinkedIn L1: no claim or attempt publication from an OpenID-only connection.
+	if mode != "sandbox" && p.Platform == "linkedin" && !linkedinL1HasScope(connScopes, "w_member_social") {
+		return nil, errors.New("LinkedIn: perfil conectado en modo lectura; autoriza Share on LinkedIn (w_member_social) antes de publicar. Puedes guardar un borrador")
 	}
 	// No ejecutar ni reintentar tareas Meta sin los permisos de publicacion.
 	if mode != "sandbox" && (p.Platform == "facebook" || p.Platform == "instagram") {

@@ -786,6 +786,7 @@ function socialB6PublishIssues(platforms){
    if(p==='facebook'&&!scopes.has('pages_manage_posts'))issues.push('Facebook: falta pages_manage_posts');
    if(p==='instagram'&&!scopes.has('instagram_content_publish'))issues.push('Instagram: falta instagram_content_publish');
    if(p==='youtube'&&!scopes.has('youtube.upload'))issues.push('YouTube: canal conectado en modo lectura; falta youtube.upload para publicar');
+   if(p==='linkedin'&&!scopes.has('w_member_social'))issues.push('LinkedIn: perfil conectado en modo lectura; falta Share on LinkedIn (w_member_social) para publicar');
  }
  return issues;
 }

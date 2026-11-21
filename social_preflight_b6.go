@@ -35,6 +35,9 @@ func (a *App) socialB6PublishPrerequisites(tenantID int64, platforms []string) e
 		if platform == "youtube" && !socialB6HasScope(scopes, "youtube.upload") {
 			return fmt.Errorf("YouTube: canal conectado en modo lectura. Para publicar videos necesitarás autorizar youtube.upload. Puedes guardar el borrador")
 		}
+		if platform == "linkedin" && !socialB6HasScope(scopes, "w_member_social") {
+			return fmt.Errorf("LinkedIn: perfil conectado en modo lectura. Para publicar necesitas Share on LinkedIn (w_member_social). Puedes guardar el borrador")
+		}
 	}
 	return nil
 }
