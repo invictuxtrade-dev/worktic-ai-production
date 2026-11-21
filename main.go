@@ -680,6 +680,7 @@ func main() {
 	mux.HandleFunc("/api/agent", app.agentHandler)
 	mux.HandleFunc("/api/agent/test", app.agentTestHandler)
 	mux.HandleFunc("/api/agents", app.agentsHandler)
+	mux.HandleFunc("/api/agents/builder-a1", app.agentBuilderA1Handler)
 	mux.HandleFunc("/api/agents/test", app.agentInstanceTestHandler)
 	mux.HandleFunc("/api/agents/routes", app.agentRoutesHandler)
 	mux.HandleFunc("/api/agents/metrics", app.agentMetricsHandler)
