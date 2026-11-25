@@ -196,6 +196,22 @@ func (a *App) tiktokPostingP2Handler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"enabled": tiktokP2Enabled(), "message": "Requiere Content Posting API aprobada, permisos concedidos, URL verificada y confirmacion por publicacion"})
 		return
 	}
+	// Read-only media ownership QA is available while posting remains OFF.
+	// This endpoint never calls TikTok and never submits a publication.
+	if r.Method == http.MethodGet && r.URL.Query().Get("action") == "media_check" {
+		if !perms.Publish {
+			tiktokP2Reject(w, "Solo usuarios con permiso de publicacion pueden comprobar el recurso", http.StatusForbidden)
+			return
+		}
+		videoURL := strings.TrimSpace(r.URL.Query().Get("video_url"))
+		size, checkErr := a.tiktokP2OwnedVideoCheck(tid, videoURL)
+		if checkErr != nil {
+			tiktokP2Reject(w, checkErr.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true, "tenant_owned": true, "media_type": "video/mp4", "bytes": size, "posting_enabled": tiktokP2Enabled(), "message": "El archivo existe y pertenece a esta empresa; no se ha enviado a TikTok"})
+		return
+	}
 	if !tiktokP2Enabled() {
 		tiktokP2Reject(w, "TikTok Content Posting P2 aun no esta autorizado para produccion", http.StatusConflict)
 		return
@@ -251,6 +267,11 @@ func (a *App) tiktokPostingP2Handler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := tiktokP2VerifiedVideoURL(req.VideoURL, os.Getenv("WORKTIC_TIKTOK_VERIFIED_MEDIA_PREFIX")); err != nil {
+			tiktokP2Reject(w, err.Error(), 400)
+			return
+		}
+		// A verified domain alone is not proof that the video belongs to this tenant.
+		if _, err := a.tiktokP2OwnedVideoCheck(tid, req.VideoURL); err != nil {
 			tiktokP2Reject(w, err.Error(), 400)
 			return
 		}
