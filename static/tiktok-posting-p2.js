@@ -4,6 +4,17 @@
 (()=>{
 'use strict';
 const path='/api/social/tiktok/p2';
+function canonicalTikTokVideoURL(raw){
+ const value=String(raw??'').trim();
+ if(!value)return '';
+ let media;
+ try{media=new URL(value,location.origin)}catch{return value}
+ // www is the directly accessible verified host: apex redirects (TikTok PULL_FROM_URL rejects 3xx).
+ if(media.protocol==='https:'&&['workticai.com','www.workticai.com'].includes(media.hostname.toLowerCase())&&media.pathname.startsWith('/uploads/social/')){
+  media.hostname='www.workticai.com';media.port='';
+ }
+ return media.href;
+}
 const $=id=>document.getElementById(id);
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const tiktokList=()=>{
@@ -74,7 +85,7 @@ async function submit(){
   validateConsent();button.disabled=true;button.textContent='Enviando a TikTok...';
   const payload={
    connection_id:Number($('tikP2Account').value),mode:mode,
-   video_url:$('tikP2VideoURL').value.trim(),title:$('tikP2Title').value.trim(),
+   video_url:canonicalTikTokVideoURL($('tikP2VideoURL').value),title:$('tikP2Title').value.trim(),
    privacy_level:mode==='direct'?$('tikP2Privacy').value:'',
    allow_comment:mode==='direct'&&$('tikP2Comments').checked,
    allow_duet:mode==='direct'&&$('tikP2Duet').checked,
@@ -108,7 +119,7 @@ async function open(){
  if(networks.length!==1||networks[0]!=='tiktok')return alert('Para confirmar la exportación a TikTok debes seleccionar solo TikTok. Puedes guardar publicaciones de otras redes por separado.');
  const accounts=tiktokList();
  if(!accounts.length)return alert('Conecta una cuenta oficial de TikTok antes de continuar.');
- const title=$('spMaster')?.value?.trim()||'';const mediaInput=($('spMedia')?.value||'').trim();let video='';try{video=new URL(mediaInput,location.origin).href}catch{video=mediaInput}
+ const title=$('spMaster')?.value?.trim()||'';const mediaInput=($('spMedia')?.value||'').trim();const video=canonicalTikTokVideoURL(mediaInput)
  if(!video)return alert('Selecciona primero un video en el Composer.');
  let readiness;try{readiness=await getJSON(`${path}?action=readiness`)}catch(e){return alert(e.message||'No pudimos comprobar la disponibilidad de TikTok')}
  if(!readiness.enabled)return alert('Content Posting API sigue pendiente de aprobación para Worktic AI. Puedes guardar borradores, pero todavía no enviar a TikTok.');
@@ -141,7 +152,7 @@ async function open(){
  refreshVideo();updateUI();
 }
 function refreshVideo(){
- videoDuration=0;const el=$('tikP2Preview');el.src=$('tikP2VideoURL').value.trim();el.onloadedmetadata=()=>{videoDuration=el.duration||0;$('tikP2Duration').textContent=`Duración del video: ${Math.ceil(videoDuration)} segundos`};el.onerror=()=>{$('tikP2Duration').textContent='No se pudo cargar la vista previa de este video; comprueba su URL pública.'};
+ videoDuration=0;const input=$('tikP2VideoURL');input.value=canonicalTikTokVideoURL(input.value);const el=$('tikP2Preview');el.src=input.value;el.onloadedmetadata=()=>{videoDuration=el.duration||0;$('tikP2Duration').textContent=`Duración del video: ${Math.ceil(videoDuration)} segundos`};el.onerror=()=>{$('tikP2Duration').textContent='No se pudo cargar la vista previa de este video; comprueba su URL pública.'};
 }
 
 // Capture before the legacy Composer's onclick handler, without altering other providers.
