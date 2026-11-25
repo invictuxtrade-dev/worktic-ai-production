@@ -133,7 +133,9 @@
         : 'Canal conectado para identificar el perfil y consultar información. Los videos y Shorts requieren autorización youtube.upload adicional.'));
     }
     if (platform === 'tiktok') {
-      const hint = element('p', 'wt-social-t2-capability', 'Perfil conectado mediante Login Kit. La publicación y los mensajes requieren permisos adicionales de TikTok.');
+      const hint = element('p', 'wt-social-t2-capability', permissions.includes('video.publish')
+        ? 'Permiso video.publish concedido. La exportación exige consentimiento y privacidad por video desde Composer; no se ejecuta por Autopilot.'
+        : 'Perfil conectado mediante Login Kit. La publicación y los mensajes requieren permisos adicionales de TikTok.');
       body.append(hint);
     }
     if (platform === 'linkedin') {

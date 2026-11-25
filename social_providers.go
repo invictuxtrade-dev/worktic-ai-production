@@ -191,9 +191,20 @@ func (a *App) socialOAuthStartHandler(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, reason, http.StatusConflict)
 				return
 			}
-			// T1: Login Kit / perfil basico; nunca solicitar permisos de publicacion
-			// sin aprobacion del proveedor ni consentimiento granular adicional.
-			q := url.Values{"client_key": {a.cfg.TikTokClientKey}, "response_type": {"code"}, "scope": {tiktokT1InitialScope}, "redirect_uri": {redirect}, "state": {state}}
+			// T1 remains profile-only by default. P2 requires an explicit user
+			// upgrade AND a flag enabled only after TikTok approval.
+			scope := tiktokT1InitialScope
+			if r.URL.Query().Get("mode") == "posting" {
+				if !tiktokP2Enabled() {
+					http.Error(w, "TikTok Content Posting aun no esta aprobado para Worktic AI", http.StatusConflict)
+					return
+				}
+				scope = tiktokP2Scopes
+			} else if r.URL.Query().Get("mode") != "" {
+				http.Error(w, "Modalidad de TikTok no permitida", http.StatusBadRequest)
+				return
+			}
+			q := url.Values{"client_key": {a.cfg.TikTokClientKey}, "response_type": {"code"}, "scope": {scope}, "redirect_uri": {redirect}, "state": {state}}
 			auth = "https://www.tiktok.com/v2/auth/authorize/?" + q.Encode()
 		case "youtube":
 			clientID, _, credErr := youtubeY1Credentials()
@@ -1009,6 +1020,13 @@ func (a *App) publishSocialPost(ctx context.Context, tid, id int64) (map[string]
 		return nil, err
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
+	// P2: old queued/scheduled TikTok jobs must NOT bypass user-selected
+	// privacy and per-post consent, even if video.publish is later granted.
+	// Mark only official TikTok tasks on hold; other networks remain intact.
+	if p.Platform == "tiktok" && mode != "sandbox" {
+		_, _ = a.db.Exec(`UPDATE social_posts SET status='governance_hold',error_message='TIKTOK_P2_REQUIRES_MANUAL_CONSENT',updated_at=? WHERE tenant_id=? AND id=? AND status IN ('queued','scheduled','retrying','publishing')`, now, tid, id)
+		return nil, errors.New("TikTok requiere exportar manualmente cada video con privacidad y consentimiento desde el Composer")
+	}
 	gov := a.loadSocialGovernanceV231(tid)
 	platforms := []string{p.Platform}
 	if p.GroupID > 0 {

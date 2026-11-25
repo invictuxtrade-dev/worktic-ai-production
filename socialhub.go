@@ -267,6 +267,12 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if req.Action == "publish" || req.Action == "schedule" {
+			for _, platform := range req.Platforms {
+				if strings.EqualFold(strings.TrimSpace(platform), "tiktok") {
+					http.Error(w, "TikTok requiere exportacion manual y consentimiento por video; guarda el borrador", http.StatusConflict)
+					return
+				}
+			}
 			if err := a.socialB6PublishPrerequisites(t, req.Platforms); err != nil {
 				http.Error(w, err.Error(), http.StatusConflict)
 				return
@@ -380,6 +386,12 @@ func (a *App) socialPostsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if req.Action == "publish" || req.Action == "schedule" {
+			for _, platform := range req.Platforms {
+				if strings.EqualFold(strings.TrimSpace(platform), "tiktok") {
+					http.Error(w, "TikTok requiere exportacion manual y consentimiento por video; guarda el borrador", http.StatusConflict)
+					return
+				}
+			}
 			if err := a.socialB6PublishPrerequisites(t, req.Platforms); err != nil {
 				http.Error(w, err.Error(), http.StatusConflict)
 				return

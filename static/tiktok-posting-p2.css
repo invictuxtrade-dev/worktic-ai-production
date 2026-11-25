@@ -1,0 +1,9 @@
+/* TikTok P2 modal: scoped styles only; no changes to other channels. */
+.tik-p2-modal{max-height:74vh;overflow-y:auto;padding-right:8px;display:grid;gap:10px;max-width:620px}
+.tik-p2-modal label{display:grid;gap:5px;font-size:13px}
+.tik-p2-modal label:has(input[type=checkbox]){display:flex;gap:9px;align-items:flex-start}
+.tik-p2-modal .tik-p2-checks{display:flex;gap:12px;flex-wrap:wrap;margin:8px 0}
+.tik-p2-modal #tikP2Direct{display:grid;gap:8px}
+.tik-p2-modal #tikP2BrandChoices{display:grid;gap:8px}
+.tik-p2-modal [hidden]{display:none!important}
+.tik-p2-modal #tikP2Result{padding:10px;border-radius:8px;border:1px solid var(--line,#ccd2e7);overflow-wrap:anywhere}
