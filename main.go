@@ -728,6 +728,8 @@ func main() {
 	mux.HandleFunc("/api/social/b9/internal-bootstrap", app.socialB9InternalBootstrapHandler)
 	mux.HandleFunc("/api/social/tiktok/t1/readiness", app.tiktokT1ReadinessHandler)
 	mux.HandleFunc("/api/social/tiktok/p2", app.tiktokPostingP2Handler)
+    mux.HandleFunc("/api/social/tiktok/sandbox", app.tiktokSBAPIHandler)
+    mux.HandleFunc("/api/social/oauth/callback/tiktok", app.tiktokSBOAuthRouter)
 	mux.HandleFunc("/api/social/oauth/start", app.socialOAuthStartHandler)
 	mux.HandleFunc("/api/social/oauth/callback/", app.socialOAuthCallbackHandler)
 	mux.HandleFunc("/api/social/test", app.socialConnectionTestHandler)
